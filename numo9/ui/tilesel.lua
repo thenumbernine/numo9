@@ -4,6 +4,7 @@ and use it in mesh3d and voxelmap for tile preview/selection.
 --]]
 local assert = require 'ext.assert'
 local class = require 'ext.class'
+local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 
@@ -236,7 +237,7 @@ function TileSelect:drawSelected()
 	local app = edit.app
 
 	local colorIndex = 0x1f
-	local thickness = math.max(1, app.width / 256)
+	local thickness = math.clamp(app.width / 256, 1, 2)
 	local function tc(vtx)
 		return
 			tonumber(bit.band(0xff, vtx.u + bit.lshift(edit.tileSel.pos.x, 3))) + .5,
@@ -264,9 +265,10 @@ function TileSelect:drawSelected()
 			local u1, v1 = tc(vtxs + i)
 			local u2, v2 = tc(vtxs + j)
 			local u3, v3 = tc(vtxs + k)
-			app:drawSolidLine(u1, v1, u2, v2, colorIndex, thickness, app.paletteMenuTex)
-			app:drawSolidLine(u2, v2, u3, v3, colorIndex, thickness, app.paletteMenuTex)
-			app:drawSolidLine(u3, v3, u1, v1, colorIndex, thickness, app.paletteMenuTex)
+			local triColor = self.selectedTriIndexSet and self.selectedTriIndexSet[ti] and 0x1a or colorIndex
+			app:drawSolidLine(u1, v1, u2, v2, triColor, thickness, app.paletteMenuTex)
+			app:drawSolidLine(u2, v2, u3, v3, triColor, thickness, app.paletteMenuTex)
+			app:drawSolidLine(u3, v3, u1, v1, triColor, thickness, app.paletteMenuTex)
 		end
 	end
 end

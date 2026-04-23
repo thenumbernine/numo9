@@ -83,10 +83,11 @@ function EditMesh3D:resetSelection()
 	self.selectedVertexIndexSet = {}	-- keys are 0-based vertex indexes
 
 	self.selectedEdges = table()	-- table of vec2i's of 0-based index-of-indexes between two edges
-	self.selectedTris = table()		-- table of the index into the indexes list of the first of 3 for a triangle.  elements will always be divisible by 3.
+	self.selectedTriIndexSet = {}		-- keys are 0-based triangle indexes (so 0,1,2 , not index-array values which are 0,3,6)
+	self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
 
 	self.mouseoverEdges = table()
-	self.mouseoverTris = table()
+	self.mouseoverTri = {}
 
 	self.axisFlags = {}
 	self.meshEditMode = nil			-- translate rotate scale
@@ -200,14 +201,15 @@ function EditMesh3D:update()
 			self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
 		end
 		if not skipTris then
-			self.selectedTris = table()
+			self.selectedTriIndexSet = {}
+			self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
 		end
 
-		for i=0,self:getNumIndexes()-1,3 do
+		for ti=0,self:getNumIndexes()/3-1 do
 			if not skipEdges then
 				for j=0,2 do
-					local i1 = i+j
-					local i2 = i+((j+1)%3)
+					local i1 = 3*ti+j
+					local i2 = 3*ti+((j+1)%3)
 					if self.selectedVertexIndexSet[self:getIndex(i1)]
 					and self.selectedVertexIndexSet[self:getIndex(i2)]
 					then
@@ -216,11 +218,11 @@ function EditMesh3D:update()
 				end
 			end
 			if not skipTris then
-				if self.selectedVertexIndexSet[self:getIndex(i)]
-				and self.selectedVertexIndexSet[self:getIndex(i+1)]
-				and self.selectedVertexIndexSet[self:getIndex(i+2)]
+				if self.selectedVertexIndexSet[self:getIndex(3*ti)]
+				and self.selectedVertexIndexSet[self:getIndex(3*ti+1)]
+				and self.selectedVertexIndexSet[self:getIndex(3*ti+2)]
 				then
-					self.selectedTris:insert(i)
+					self.selectedTriIndexSet[ti] = true
 				end
 			end
 		end
@@ -518,7 +520,7 @@ function EditMesh3D:update()
 				elseif self.meshEditForm == 'tris' then
 					-- find the best tri, toggle its selection if not selected
 					local bestDist = math.huge
-					local bestTris
+					local bestTri
 					local mousePos = orbit.pos * 32768
 					local mouseDir = fwd
 						+ orbit.angle:xAxis() * (mouseX - 128) / 128
@@ -571,14 +573,14 @@ function EditMesh3D:update()
 
 							if allInside or allOutside then
 								if ptMouseDist < bestDist then
-									bestTris = table{i}
+									bestTri = i/3
 									bestDist = ptMouseDist
 								end
 							end
 						end
 					end
-					if bestTris then
-						self.mouseoverTris = bestTris
+					if bestTri then
+						self.mouseoverTris = {[bestTri] = true}
 					end
 				else
 					error'here'
@@ -725,7 +727,8 @@ function EditMesh3D:update()
 					elseif self.meshEditForm == 'tris' then
 						if not shift then
 							self.selectedVertexIndexSet = {}
-							self.selectedTris = table()
+							self.selectedTriIndexSet = {}
+							self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
 						end
 
 						if self.mouseLeftButtonDown
@@ -746,30 +749,25 @@ function EditMesh3D:update()
 								and selxL <= s2.x and s2.x <= selxR
 								and selyL <= s2.y and s2.y <= selyR
 								then
-									self.selectedTris:insertUnique(ti)
+									self.selectedTriIndexSet[ti/3] = true
 								end
 							end
 
 						else
-							for _,t in ipairs(self.mouseoverTris) do
-								local j = self.selectedTris:find(t)
-								if j then	-- if we have then remove
-									self.selectedTris:remove(j)
-								else		-- if we don't have then add
-									self.selectedTris:insert(t)
-								end
+							for ti in pairs(self.mouseoverTris) do
+								self.selectedTriIndexSet[ti] = not self.selectedTriIndexSet[ti] or nil
 							end
 						end
 
 						-- now rebuild vertexes from selected edges
 						self.selectedVertexIndexSet = {}
-						for _,t in ipairs(self.selectedTris) do
+						for ti in pairs(self.selectedTriIndexSet) do
 							for ii=0,2 do
-								local i = self:getIndex(t+ii)
+								local i = self:getIndex(3*ti+ii)
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
-						refreshSelection(nil, true)	-- second true = don't also rebuild selectedTris
+						refreshSelection(nil, true)	-- second true = don't also rebuild selectedTriIndexSet
 					else
 						error'here'
 					end
@@ -935,10 +933,10 @@ function EditMesh3D:update()
 					v2.x, v2.y, v2.z,
 					0x1a, 4, app.paletteMenuTex)
 			end
-			for _,i in ipairs(self.selectedTris) do
-				local v0 = self:getVtxIndPtr(i)
-				local v1 = self:getVtxIndPtr(i+1)
-				local v2 = self:getVtxIndPtr(i+2)
+			for ti in pairs(self.selectedTriIndexSet) do
+				local v0 = self:getVtxIndPtr(3*ti)
+				local v1 = self:getVtxIndPtr(3*ti+1)
+				local v2 = self:getVtxIndPtr(3*ti+2)
 				app:drawSolidTri3D(
 					v0.x, v0.y, v0.z,
 					v1.x, v1.y, v1.z,
@@ -1244,8 +1242,8 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 				-- remove the tris on either side
 				-- insert a vertex between these two
 				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
-				local v0 = vs[1+self:getIndex(ei0)]
-				local v1 = vs[1+self:getIndex(ei1)]
+				local v0 = assert.index(vs, 1+self:getIndex(ei0))
+				local v1 = assert.index(vs, 1+self:getIndex(ei1))
 				local vp0 = ffi.cast(Vertex_p, v0)
 				local vp1 = ffi.cast(Vertex_p, v1)
 				local pos1 = vec3d(v0.x, v0.y, v0.z)
@@ -1269,17 +1267,18 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 						local tj0 = t[1+j]
 						local tj1 = t[1+(j+1)%3]
 						local tj2 = t[1+(j+2)%3]
+assert(tj0)
+assert(tj1)
+assert(tj2)
 
 						local tjp0 = ffi.cast(Vertex_p, tj0)
 						local tjp1 = ffi.cast(Vertex_p, tj1)
-						local tjp2 = ffi.cast(Vertex_p, tj2)
-
 						if (tjp0 == vp0 and tjp1 == vp1)
 						or (tjp0 == vp1 and tjp1 == vp0)
 						then
 							-- if we are to remove this tri, then add its replacements as well
 							ts:insert{tj0, newvtx, tj2}
-							ts:insert{tj1, tj2}
+							ts:insert{newvtx, tj1, tj2}
 
 							ts:remove(ti)
 							-- you can only split one edge of one tri
@@ -1305,8 +1304,9 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 			-- 1) get tris selected
 			-- 2) flip ...
 			-- how to generalize that for any more than two tris that share 1 edge?
-			if #self.selectedTris ~= 2 then
-				print('need 2 tris, got '..#self.selectedTris..' tris')
+			local selTriInds = table.keys(self.selectedTriIndexSet)
+			if #selTriInds ~= 2 then
+				print('need 2 tris, got '..#selTriInds..' tris')
 			else
 				-- and if # selected vtxs == 4 exactly ...
 				local vs, ts = self:getMeshVtxAndTriList()
@@ -1314,11 +1314,7 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 				-- find the common edge between the two tris
 				-- and exchange tris
 				local found
-				local t1_3, t2_3 = table.unpack(self.selectedTris)
-				assert.eq(t1_3 % 3, 0)
-				assert.eq(t2_3 % 3, 0)
-				local ti1 = t1_3 / 3	-- 0-based
-				local ti2 = t2_3 / 3
+				local ti1, ti2 = table.unpack(selTriInds:sort())	-- 0-based-sequential tri indxes
 				local t1 = ts[ti1+1]
 				local t2 = ts[ti2+1]
 --DEBUG:print('flipping', ti1, ti2)
@@ -1457,15 +1453,14 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 						end
 					elseif self.meshEditForm == 'tris' then
 						-- delete the face, and then remove/remap any unused vtxs
-						-- self.selectedTris is 0-based mod-3 index of the start of a triangle in our index buffer
+						-- self.selectedTriIndexSet is 0-based mod-3 index of the start of a triangle in our index buffer
 						-- so traverse in reverse order and remove-3 per tri we want to remove
-						for _,i in ipairs(
-							table(self.selectedTris)
+						for _,ti in ipairs(
+							table(self.selectedTriIndexSet)
 							:sort()
 							:reverse()
 						) do
-							assert.eq(i % 3, 0)
-							ts:remove(i/3+1)	-- selectedTris is 0-based and x3 to match index array indexes
+							ts:remove(ti+1)	-- selectedTriIndexSet keys are 0-based-sequential
 						end
 					else
 						error'here'
@@ -1610,7 +1605,7 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 
 	-- collect translate/scale/rotate text input ...
 	-- TODO perfect time to use EditMesh3D:event() ........
-	if self.meshEditMode 
+	if self.meshEditMode
 	and not handledKey
 	then
 		-- TODO make sure this is selected so all keys go here ...
@@ -1702,9 +1697,12 @@ function EditMesh3D:popUndo(redo)
 	self.mouseoverVertexIndexSet = {}
 	self.selectedVertexIndexSet = {}
 	self.selectedEdges = table()
-	self.selectedTris = table()
+
+	self.selectedTriIndexSet = table()
+	self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
+
 	self.mouseoverEdges = table()
-	self.mouseoverTris = table()
+	self.mouseoverTris = {}	-- keys are 0-based tri-index 0,1,2 (not index-index 0,3,6...)
 
 	self:updateBlobChanges()
 end
@@ -1752,6 +1750,9 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts, args)
 	for i=#ts,1,-1 do
 		-- remove degenerate tris by reference
 		local t = ts[i]
+assert.index(t, 1)
+assert.index(t, 2)
+assert.index(t, 3)
 		-- I guess you gotta cast to ptr or else it will compare value?
 		local tp1 = ffi.cast(Vertex_p, t[1])
 		local tp2 = ffi.cast(Vertex_p, t[2])
