@@ -1705,6 +1705,7 @@ function EditMesh3D:popUndo(redo)
 	self.mouseoverTris = {}	-- keys are 0-based tri-index 0,1,2 (not index-index 0,3,6...)
 
 	self:updateBlobChanges()
+	self:invalidateVoxelmaps()
 end
 
 -- remove degen tris <-> just get the vtxs-and-refs, and rebuild the blob with it
@@ -1809,8 +1810,18 @@ assert.index(vertexToIndex, tv)
 
 	self.app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromVertexAndIndexLists(vs, is)
 	self:updateBlobChanges()
+	self:invalidateVoxelmaps()
 
 	return didRemoveVtxs, didRemoveTris
+end
+
+function EditMesh3D:invalidateVoxelmaps()
+	for _,voxelmap in ipairs(self.app.blobs.voxelmap) do
+		voxelmap.dirtyCPU = true
+		for _,chunk in pairs(voxelmap.chunks) do
+			chunk.dirtyCPU = true
+		end
+	end
 end
 
 return EditMesh3D
