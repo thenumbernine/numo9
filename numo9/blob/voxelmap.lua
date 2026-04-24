@@ -885,34 +885,34 @@ end
 		self.chunks[chunkIndex].dirtyCPU = true
 
 		-- set each side's voxel's chunk to dirty as well
-		if bit.band(vi, bitmaskx) == 0 
-		and ci - 1 >= 0 
+		if bit.band(vi, bitmaskx) == 0
+		and ci - 1 >= 0
 		then
 			self.chunks[chunkIndex - chunksStepx].dirtyCPU = true
 		end
-		if bit.band(vi, bitmaskx) == bitmaskx 
-		and ci + 1 < chunksSizex 
+		if bit.band(vi, bitmaskx) == bitmaskx
+		and ci + 1 < chunksSizex
 		then
 			self.chunks[chunkIndex + chunksStepx].dirtyCPU = true
 		end
-		if bit.band(vj, bitmasky) == 0 
+		if bit.band(vj, bitmasky) == 0
 		and cj - 1 >= 0
 		then
 			local chunkNbhdIndex = chunkIndex - chunksStepy
 			self.chunks[chunkNbhdIndex ].dirtyCPU = true
 		end
-		if bit.band(vj, bitmasky) == bitmasky 
-		and cj + 1 < chunksSizey 
+		if bit.band(vj, bitmasky) == bitmasky
+		and cj + 1 < chunksSizey
 		then
 			self.chunks[chunkIndex + chunksStepy].dirtyCPU = true
 		end
-		if bit.band(vk, bitmaskz) == 0 
-		and ck - 1 >= 0 
+		if bit.band(vk, bitmaskz) == 0
+		and ck - 1 >= 0
 		then
 			self.chunks[chunkIndex + chunksStepz].dirtyCPU = true
 		end
-		if bit.band(vk, bitmaskz) == bitmaskz 
-		and ck + 1 < chunksSizez 
+		if bit.band(vk, bitmaskz) == bitmaskz
+		and ck + 1 < chunksSizez
 		then
 			self.chunks[chunkIndex - chunksStepz].dirtyCPU = true
 		end

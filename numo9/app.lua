@@ -2574,6 +2574,24 @@ local postPokeCode = template([=[
 					blob.ramgpu.dirtyCPU = true
 				end
 			end
+			do	-- if you touch any meshes, then invalidate all voxelmaps to rebuild all their meshes
+				local mesh3DTouched
+				for _,mesh3d in ipairs(self.blobs.mesh3d) do
+					if addrend >= voxelmap.addr
+					and addr < voxelmap.addrEnd
+					then
+						mesh3DTouched = true
+					end
+				end
+				if mesh3DTouched then
+					for _,voxelmap in ipairs(self.blobs.voxelmap) do
+						voxelmap.dirtyCPU = true
+						for _,chunk in pairs(voxelmap.chunks) do
+							chunk.dirtyCPU = true
+						end
+					end
+				end
+			end
 			-- TODO merge the above with their respective blobs
 			-- and then just cycle all blobs and flag here
 			for _,voxelmap in ipairs(self.blobs.voxelmap) do
