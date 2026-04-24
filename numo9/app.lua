@@ -2577,8 +2577,8 @@ local postPokeCode = template([=[
 			do	-- if you touch any meshes, then invalidate all voxelmaps to rebuild all their meshes
 				local mesh3DTouched
 				for _,mesh3d in ipairs(self.blobs.mesh3d) do
-					if addrend >= voxelmap.addr
-					and addr < voxelmap.addrEnd
+					if addrend >= mesh3d.addr
+					and addr < mesh3d.addrEnd
 					then
 						mesh3DTouched = true
 					end
