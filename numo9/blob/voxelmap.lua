@@ -660,6 +660,7 @@ function BlobVoxelMap:init(data)
 
 	-- need to update this if the size ever changes...
 	self.sizeInChunks = self:getVoxelSizeInChunks()
+	self.stepInChunks = vec3i(1, self.sizeInChunks.x, self.sizeInChunks.x * self.sizeInChunks.y)
 	self.chunkVolume = self.sizeInChunks:volume()
 
 	-- create the chunks
@@ -856,7 +857,11 @@ end
 		return
 	end
 
+	local bitsizex, bitsizey, bitsizez = Chunk.bitsize.x, Chunk.bitsize.y, Chunk.bitsize.z
+	local bitmaskx, bitmasky, bitmaskz = Chunk.bitmask.x, Chunk.bitmask.y, Chunk.bitmask.z
 	local width, height, depth = self:getWidth(), self:getHeight(), self:getDepth()
+	local chunksSizex, chunksSizey, chunksSizez = self.sizeInChunks.x, self.sizeInChunks.y, self.sizeInChunks.z
+	local chunksStepx, chunksStepy, chunksStepz = self.stepInChunks.x, self.stepInChunks.y, self.stepInChunks.z
 
 	-- TODO since data is stored [z][y][x] across the whole voxelmap, i could look for rows that touch
 	-- this is me being lazy though
@@ -872,14 +877,46 @@ end
 		tmp = ffi.cast(int32_t, tmp / height)
 		local vk = tmp
 
-		local ci = bit.rshift(vi, Chunk.bitsize.x)
-		local cj = bit.rshift(vj, Chunk.bitsize.y)
-		local ck = bit.rshift(vk, Chunk.bitsize.z)
+		local ci = bit.rshift(vi, bitsizex)
+		local cj = bit.rshift(vj, bitsizey)
+		local ck = bit.rshift(vk, bitsizez)
 
-		local chunkIndex = tonumber(ci + self.sizeInChunks.x * (cj + self.sizeInChunks.y * ck))
-		local chunk = self.chunks[chunkIndex]
+		local chunkIndex = tonumber(chunksStepx * ci + chunksStepy * cj + chunksStepz * ck)
+		self.chunks[chunkIndex].dirtyCPU = true
 
-		chunk.dirtyCPU = true
+		-- set each side's voxel's chunk to dirty as well
+		if bit.band(vi, bitmaskx) == 0 
+		and ci - 1 >= 0 
+		then
+			self.chunks[chunkIndex - chunksStepx].dirtyCPU = true
+		end
+		if bit.band(vi, bitmaskx) == bitmaskx 
+		and ci + 1 < chunksSizex 
+		then
+			self.chunks[chunkIndex + chunksStepx].dirtyCPU = true
+		end
+		if bit.band(vj, bitmasky) == 0 
+		and cj - 1 >= 0
+		then
+			local chunkNbhdIndex = chunkIndex - chunksStepy
+			self.chunks[chunkNbhdIndex ].dirtyCPU = true
+		end
+		if bit.band(vj, bitmasky) == bitmasky 
+		and cj + 1 < chunksSizey 
+		then
+			self.chunks[chunkIndex + chunksStepy].dirtyCPU = true
+		end
+		if bit.band(vk, bitmaskz) == 0 
+		and ck - 1 >= 0 
+		then
+			self.chunks[chunkIndex + chunksStepz].dirtyCPU = true
+		end
+		if bit.band(vk, bitmaskz) == bitmaskz 
+		and ck + 1 < chunksSizez 
+		then
+			self.chunks[chunkIndex - chunksStepz].dirtyCPU = true
+		end
+
 		self.dirtyCPU = true
 	end
 end
