@@ -32,7 +32,7 @@ mesh3D will hold...
 
 struct {
 	int16_t x, y, z;
-	uint8_t u, v;
+	int8_t u, v;
 } Vertex;
 
 uint16_t numVertexes
@@ -225,7 +225,7 @@ function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	for i=0,numVtxs-1 do
 		local v = vtxs + i
 		o:insert('vt '..table{v.u, v.v}:mapi(function(x)
-			return ('%.9f'):format((x + .5) / 256)
+			return ('%.9f'):format((tonumber(x)  + .5) / 256)
 		end):concat' ')
 	end
 	for ti=0,#self.triList-1 do
@@ -250,8 +250,8 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 			math.clamp(math.floor(vtx.pos.z * 256), -32768, 32767)
 		}
 		vts:insert{
-			math.clamp(math.floor(vtx.texcoord.x * 256), 0, 255),
-			math.clamp(math.floor(vtx.texcoord.y * 256), 0, 255)
+			math.clamp(math.floor(vtx.texcoord.x * 256), -128, 127),
+			math.clamp(math.floor(vtx.texcoord.y * 256), -128, 127)
 		}
 	end
 	local is = table()
