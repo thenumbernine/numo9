@@ -1456,7 +1456,7 @@ assert(tj2)
 						-- self.selectedTriIndexSet is 0-based mod-3 index of the start of a triangle in our index buffer
 						-- so traverse in reverse order and remove-3 per tri we want to remove
 						for _,ti in ipairs(
-							table(self.selectedTriIndexSet)
+							table.keys(self.selectedTriIndexSet)
 							:sort()
 							:reverse()
 						) do

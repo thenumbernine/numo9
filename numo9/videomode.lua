@@ -1417,7 +1417,7 @@ function VideoMode:buildUberShader()
 	-- TODO this also expects the following to be already defined:
 	-- app.blobs.palette[1], app.blobs.sheet[1], app.blobs.tilemap[1]
 
-	assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
+	assert.eq(math.log(paletteSize, 2) % 1, 0)	-- make sure our palette is a power-of-two
 
 	-- my one and only shader for drawing to FBO (at the moment)
 	-- I picked an uber-shader over separate shaders/states, idk how perf will change, so far good by a small but noticeable % (10%-20% or so)
@@ -1430,7 +1430,7 @@ function VideoMode:buildUberShader()
 			vertexCode = template([[
 precision highp sampler2D;
 precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
+precision highp usampler2D;
 
 layout(location=0) in vec3 vertex;
 
@@ -1538,7 +1538,7 @@ void main() {
 			fragmentCode = template([[
 precision highp sampler2D;
 precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
+precision highp usampler2D;
 
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 
@@ -1557,6 +1557,10 @@ uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
+// TODO:
+// uniform sampler2D sheetAndPalTex	// cached sheet indexed + palette rgba baked together, only needed for RGB565 mode
+// uniform sampler2D normalTex;		// cached sheetAndPalTex bumpmap
+
 
 uniform vec4 clipRect;
 uniform int HD2DFlags;

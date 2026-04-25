@@ -2296,6 +2296,14 @@ function AppVideo:drawQuad(
 		paletteTex = paletteRAM.tex
 	end
 
+	-- TODO
+	-- if we're in RGB565 mode (since that one supports lighting)
+	-- ... and sheet+palette+rgb is flagged as dirty ...
+	-- ... then build the sheet+palette+rgb cached image
+	-- ... TODO use a new fbo & draw obj for blitting
+	-- (flag it as dirty any time the sheet or the palette gets flagged as dirty ...)
+	-- then TODO add extra texture binds in the uber shader ...
+
 	-- TODO only this before we actually do the :draw()
 	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
