@@ -1557,9 +1557,13 @@ uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
-// TODO:
-// uniform sampler2D sheetAndPalTex	// cached sheet indexed + palette rgba baked together, only needed for RGB565 mode
-// uniform sampler2D normalTex;		// cached sheetAndPalTex bumpmap
+
+// TODO hmm
+// caching would be nice
+// but the baked texture would be unique to: sheetTex, palTex, palOffset, spriteBit, spriteMask
+// hmm if I introduced image blobs with fixed bpp, and didn't allow variable masks/planes, then the last two would go ... but palette shifting too? hmm... not sure I want to get rid of that feature ...
+//uniform sampler2D sheetAndPalTex;	// cached sheet indexed + palette rgba baked together, only needed for RGB565 mode for lighting
+//uniform sampler2D normalTex;		// cached sheetAndPalTex normalmap from heightmap from greyscale conversion of sheetAndPalTex
 
 
 uniform vec4 clipRect;
