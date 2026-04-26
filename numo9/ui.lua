@@ -10,9 +10,11 @@ local table = require 'ext.table'
 local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local class = require 'ext.class'
+local vec2d = require 'vec-ffi.vec2d'
 local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
+local clipMax = numo9_rom.clipMax
 local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
@@ -821,6 +823,86 @@ function UI:setFocusWidget(widget, e)
 
 	if self.activeElement then
 		self.activeElement:onFocus(e)
+	end
+end
+
+
+function UI:setupNewUISceneGraph()
+	self.children = table()
+	self.childrenInOrder = table()
+	self.allWidgetsInOrder = table()
+end
+
+function UI:updateAndDrawNewUISceneGraph()
+	local app = self.app
+
+	app:matMenuReset()
+
+	for i,ch in ipairs(self.children) do
+		self.childrenInOrder[i] = ch
+	end
+	for i=#self.children+1,#self.childrenInOrder do
+		self.childrenInOrder[i] = nil
+	end
+	self.childrenInOrder:sort(function(a,b)
+		return a.zIndex < b.zIndex
+	end)
+	for i=#self.allWidgetsInOrder,1,-1 do
+		self.allWidgetsInOrder[i] = nil
+	end
+	-- ui draw:
+	app:setClipRect(0, 0, clipMax, clipMax)
+	for _,ch in ipairs(self.childrenInOrder) do
+		ch:drawRecurse()
+	end
+	app:setClipRect(0, 0, clipMax, clipMax)
+
+	for _,ch in ipairs(self.childrenInOrder) do
+		ch:update()
+	end
+
+	self:drawTooltip()
+end
+
+function UI:handleEventNewUISceneGraph(e, skipSuper)
+	-- mouseenter and mouseleave do not bubble
+	local newWidgetUnderMouse 
+	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
+		
+		local mx, my = e.motion.x, e.motion.y
+		local mousepos = vec2d(mx, my)
+		for i=#self.allWidgetsInOrder,1,-1 do
+			local ch = self.allWidgetsInOrder[i]
+			if ch.ssbbox:contains(mousepos) then
+				newWidgetUnderMouse = ch
+				goto done	
+			end
+		end
+	end
+::done::	
+	if newWidgetUnderMouse ~= self.widgetUnderMouse then
+		if self.widgetUnderMouse then
+			-- TODO propagate this to parents?
+			self.widgetUnderMouse.isHovered = nil
+			self.widgetUnderMouse:onMouseLeave(e)
+		end
+		self.widgetUnderMouse = newWidgetUnderMouse
+		if self.widgetUnderMouse then
+			-- TODO propagate this to parents?
+			self.widgetUnderMouse.isHovered = true
+			self.widgetUnderMouse:onMouseEnter(e)
+		end
+	end
+
+	if not skipSuper
+	and UI.event(self, e)
+	then
+		return true
+	end
+
+	-- ui events:
+	for _,ch in ipairs(self.childrenInOrder) do
+		if ch:event(e) then return true end
 	end
 end
 

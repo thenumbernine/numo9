@@ -2,7 +2,6 @@
 This will be the code editor
 --]]
 local ffi = require 'ffi'
-local sdl = require 'sdl'
 local gl = require 'gl'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
@@ -72,9 +71,7 @@ function EditSheet:init(args)
 		end,
 	}
 
-	self.children = table()
-	self.childrenInOrder = table()
-	self.allWidgetsInOrder = table()
+	self:setupNewUISceneGraph()
 
 	-- hflip, vflip, hrot, vrot
 	self.children:insert(UIButton{
@@ -1541,34 +1538,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 		end
 	end
 
-	-- [[ here and numo9/edit/code
-	app:matMenuReset()
-
-	for i,ch in ipairs(self.children) do
-		self.childrenInOrder[i] = ch
-	end
-	for i=#self.children+1,#self.childrenInOrder do
-		self.childrenInOrder[i] = nil
-	end
-	self.childrenInOrder:sort(function(a,b)
-		return a.zIndex < b.zIndex
-	end)
-	for i=#self.allWidgetsInOrder,1,-1 do
-		self.allWidgetsInOrder[i] = nil
-	end
-	-- ui draw:
-	app:setClipRect(0, 0, clipMax, clipMax)
-	for _,ch in ipairs(self.childrenInOrder) do
-		ch:drawRecurse()
-	end
-	app:setClipRect(0, 0, clipMax, clipMax)
-
-	for _,ch in ipairs(self.childrenInOrder) do
-		ch:update()
-	end
-
-	self:drawTooltip()
-	--]]
+	self:updateAndDrawNewUISceneGraph()
 end
 
 function EditSheet:popUndo(redo)
@@ -1591,44 +1561,7 @@ function EditSheet:popUndo(redo)
 end
 
 function EditSheet:event(e)
-
-	-- mouseenter and mouseleave do not bubble
-	local newWidgetUnderMouse 
-	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
-		
-		local mx, my = e.motion.x, e.motion.y
-		local mousepos = vec2d(mx, my)
-		for i=#self.allWidgetsInOrder,1,-1 do
-			local ch = self.allWidgetsInOrder[i]
-			if ch.ssbbox:contains(mousepos) then
-				newWidgetUnderMouse = ch
-				goto done	
-			end
-		end
-	end
-::done::	
-	if newWidgetUnderMouse ~= self.widgetUnderMouse then
-		if self.widgetUnderMouse then
-			-- TODO propagate this to parents?
-			self.widgetUnderMouse.isHovered = nil
-			self.widgetUnderMouse:onMouseLeave(e)
-		end
-		self.widgetUnderMouse = newWidgetUnderMouse
-		if self.widgetUnderMouse then
-			-- TODO propagate this to parents?
-			self.widgetUnderMouse.isHovered = true
-			self.widgetUnderMouse:onMouseEnter(e)
-		end
-	end
-
-	if EditSheet.super.event(self, e) then
-		return true
-	end
-
-	-- ui events:
-	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:event(e) then return true end
-	end
+	return self:handleEventNewUISceneGraph(e)
 end
 
 return EditSheet

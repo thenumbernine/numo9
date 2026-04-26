@@ -149,13 +149,11 @@ function UIBlobSelect:update(...)
 end
 
 function UIBlobSelect:onMouseOver(...)
-print('	UIBlobSelect:onMouseOver(...)')
 	UIBlobSelect.super.onMouseOver(self, ...)
 	self.popupOpen = true
 	self:updatePopup()
 end
 function UIBlobSelect:onMouseOut(...)
-print('	UIBlobSelect:onMouseOut(...)')
 	UIBlobSelect.super.onMouseOut(self, ...)
 	self.popupOpen = false
 	self:updatePopup()
