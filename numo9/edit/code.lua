@@ -3,8 +3,13 @@ code editor
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+
 local UITextArea = require 'numo9.ui.textarea'
 local UIButton = require 'numo9.ui.button'
+local UIBlobSelect = require 'numo9.ui.blobselect'
+
+local numo9_rom = require 'numo9.rom'
+local clipMax = numo9_rom.clipMax
 
 local EditCode = require 'numo9.ui':subclass()	-- the UI/editor page
 EditCode.blobType = 'code'
@@ -23,6 +28,8 @@ function EditCode:init(args)
 
 	-- TODO make EditCode a widget
 	self.children = table()
+	self.childrenInOrder = table()
+
 	self.children:insert(UIButton{
 		owner = self,
 		text = 'N',
@@ -37,6 +44,14 @@ function EditCode:init(args)
 				self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
 			end,
 		},
+	})
+
+	self.children:insert(UIBlobSelect{
+		owner = self,
+		pos = {80, 0},
+		blobName = self.blobType,
+		valueTable = self,
+		valueKey = self.blobIndexField,
 	})
 
 	self:onCartLoad()
@@ -65,14 +80,6 @@ function EditCode:update()
 
 	self:setBlobIndex(self[self.blobIndexField])
 
-	-- ui draw:
-	for _,ch in ipairs(self.children) do
-		ch:draw()
-	end
-	-- ui update:
-	for _,ch in ipairs(self.children) do
-		ch:update()
-	end
 
 	-- for the text editor, align to the left
 	-- TODO this isnt needed if I just make the text editor rect customizable
@@ -88,12 +95,31 @@ function EditCode:update()
 
 	self.uiTextArea:update()
 
+	-- [[ here and numo9/edit/sheet
 	app:matMenuReset()
 
-	self:drawTooltip()
+	for i,ch in ipairs(self.children) do
+		self.childrenInOrder[i] = ch
+	end
+	for i=#self.children+1,#self.childrenInOrder do
+		self.childrenInOrder[i] = nil
+	end
+	self.childrenInOrder:sort(function(a,b)
+		return a.zIndex > b.zIndex
+	end)
+	-- ui draw:
+	app:setClipRect(0, 0, clipMax, clipMax)
+	for _,ch in ipairs(self.childrenInOrder) do
+		ch:drawRecurse()
+	end
+	app:setClipRect(0, 0, clipMax, clipMax)
 
-	-- draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(80, 0, self.blobType, self, self.blobIndexField)
+	for _,ch in ipairs(self.childrenInOrder) do
+		ch:update()
+	end
+
+	self:drawTooltip()
+	--]]
 end
 
 function EditCode:event(e)

@@ -31,7 +31,7 @@ function UIBlobSelect:init(args)
 	local valueKey = assert.index(args, 'valueKey')
 	self.popupOpen = false
 
-	local setValue = assert.index(args, 'setValue')	-- setter on blob index change
+	local setValue = args.setValue	-- setter on blob index change
 	local generator = args.generator or function()
 		return blobClassForName[blobName]()
 	end

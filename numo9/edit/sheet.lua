@@ -32,7 +32,6 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local clipMax = numo9_rom.clipMax
-local unpackptr = numo9_rom.unpackptr
 local palettePtrType = numo9_rom.palettePtrType
 
 
@@ -1540,7 +1539,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 		end
 	end
 
-
+	-- [[ here and numo9/edit/code
 	app:matMenuReset()
 
 	for i,ch in ipairs(self.children) do
@@ -1550,7 +1549,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 		self.childrenInOrder[i] = nil
 	end
 	self.childrenInOrder:sort(function(a,b)
-		return a.zIndex > b.zIndex
+		return a.zIndex < b.zIndex
 	end)
 	-- ui draw:
 	app:setClipRect(0, 0, clipMax, clipMax)
@@ -1564,6 +1563,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 	end
 
 	self:drawTooltip()
+	--]]
 end
 
 function EditSheet:popUndo(redo)

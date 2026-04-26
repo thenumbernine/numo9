@@ -69,7 +69,8 @@ function UIWidget:draw()
 	app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, 0xc, nil, app.paletteMenuTex)
 end
 
-function UIWidget:drawRecurse()
+function UIWidget:drawRecurse(dz)
+	dz = dz or 0
 	local owner = self.owner
 	local app = owner.app
 
@@ -78,7 +79,7 @@ function UIWidget:drawRecurse()
 	owner.menuTabCounter = owner.menuTabCounter + 1
 
 	self.modelMatPush:copy(app.ram.modelMat)
-	app:mattrans(self.pos.x, self.pos.y, 0, 0)
+	app:mattrans(self.pos.x, self.pos.y, dz, 0)
 
 	-- store screen-space pixel positions based on current matrix transforms
 	self.ssbbox.min.x, self.ssbbox.min.y = app:transform(0, 0, 0, 1)
@@ -119,11 +120,15 @@ function UIWidget:drawRecurse()
 		self.childrenInOrder[i] = nil
 	end
 	self.childrenInOrder:sort(function(a,b)
-		return a.zIndex > b.zIndex
+		return a.zIndex < b.zIndex
 	end)
 
+	-- TODO how to get widgets with higher zIndex to draw over other widgets 
+	local dz = 0
+	local lastZ = 0
 	for i,ch in ipairs(self.childrenInOrder) do
-		ch:drawRecurse()
+		dz = ch.zIndex - lastZ
+		ch:drawRecurse(dz)
 	end
 
 	app.ram.modelMat:copy(self.modelMatPush)
