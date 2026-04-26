@@ -27,6 +27,7 @@ function EditCode:init(args)
 		owner = self,
 		text = 'N',
 		pos = {120, 0},
+		tooltip = 'line numbers',
 		-- ok `isset` makes it more like a checkbox I admit...
 		isset = function()
 			return self.uiTextArea.useLineNumbers
@@ -67,6 +68,10 @@ function EditCode:update()
 	-- ui draw:
 	for _,ch in ipairs(self.children) do
 		ch:draw()
+	end
+	-- ui update:
+	for _,ch in ipairs(self.children) do
+		ch:update()
 	end
 
 	-- for the text editor, align to the left

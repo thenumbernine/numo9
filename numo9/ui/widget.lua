@@ -7,6 +7,10 @@ local box2d = require 'vec-ffi.box2d'
 local sdl = require 'sdl'
 
 
+local numo9_rom = require 'numo9.rom'
+local matArrType = numo9_rom.matArrType
+
+
 local UIWidget = class()
 
 function UIWidget:init(args)
@@ -14,6 +18,8 @@ function UIWidget:init(args)
 	-- which currently holds things like tabindex
 	-- TODO turn it into the root UI component
 	self.owner = assert.index(args, 'owner')
+
+	self.tooltip = args.tooltip
 
 	-- menu-space pos and size
 	self.pos = vec2d((assert.index(args, 'pos')))
@@ -32,6 +38,8 @@ function UIWidget:init(args)
 		blur
 	--]]
 	self.events = table(args.events):setmetatable(nil)
+
+	self.modelMatPush = matArrType()
 end
 
 function UIWidget:event(e) end
@@ -40,16 +48,50 @@ function UIWidget:draw()
 	local owner = self.owner
 	local app = owner.app
 
+	self.modelMatPush:copy(app.ram.modelMat)
+	app:mattrans(self.pos.x, self.pos.y, 0)
+
 	-- keep track of which tab index this component is
 	self.menuTabIndex = owner.menuTabCounter
 	owner.menuTabCounter = owner.menuTabCounter + 1
 
-	-- keep track of tab-focus
-	self.onThisMenuItem = owner.menuTabIndex == owner.menuTabCounter
-
 	-- store screen-space pixel positions based on current matrix transforms
-	self.ssbbox.min.x, self.ssbbox.min.y = app:transform(self.pos.x, self.pos.y, 0, 1)
-	self.ssbbox.max.x, self.ssbbox.max.y = app:transform(self.pos.x + self.size.x, self.pos.y + self.size.y, 0, 1)
+	self.ssbbox.min.x, self.ssbbox.min.y = app:transform(0, 0, 0, 1)
+	self.ssbbox.max.x, self.ssbbox.max.y = app:transform(self.size.x, self.size.y, 0, 1)
+
+	for _,ch in ipairs(self.children) do
+		ch:draw()
+	end
+
+	app.ram.modelMat:copy(self.modelMatPush)
+end
+
+-- a lot like draw except without the successive matrix transformations
+function UIWidget:update()
+	for _,ch in ipairs(self.children) do
+		ch:update()
+	end
+
+	if self.hasFocus and self.tooltip then
+		local owner = self.owner
+		local app = owner.app
+		-- ram mousePos is relative to matMenuReset()'s matrices
+		-- this will be the root-level modelMatPush
+		-- so handle this outside of draw
+		local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
+		local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
+
+		local tooltip
+		if type(self.tooltip) == 'string' then
+			tooltip = self.tooltip
+		elseif type(self.tooltip) == 'function' then
+			tooltip = self:tooltip()
+		elseif tooltip ~= nil then
+			error("idk how to handle tooltip")
+		end
+
+		owner:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+	end
 end
 
 function UIWidget:onFocus(e)
@@ -64,9 +106,25 @@ function UIWidget:onBlur(e)
 	if self.events.blur then self.events.blur(self) end
 end
 
+function UIWidget:onClick(e)
+	if self.events.click then
+		self.events.click(self)
+		
+		-- hmm return true always? 
+		-- only if events.click returns true?
+		-- always unless events.click returns false?
+		return true
+	end
+end
+
 -- returns true if captured an event
 function UIWidget:event(e)
 	local didCapture
+
+	-- ui events:
+	for _,ch in ipairs(self.children) do
+		if ch:event(e) then return true end
+	end
 
 	-- TODO this in widget
 	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
@@ -83,19 +141,13 @@ function UIWidget:event(e)
 
 	if e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 		if self.hasFocus then
---DEBUG:print('press on widget', self)			
 			self.mouseDownOnThis = true
 		end
 	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
 		if self.hasFocus
 		and self.mouseDownOnThis 
 		then
---DEBUG:print('press and release on widget', self)			
-			if self.events.click then
---DEBUG:print'...clicking'				
-				self.events.click(self)
-				didCapture = true
-			end
+			didCapture = self:onClick()
 		end
 		self.mouseDownOnThis = nil
 	end

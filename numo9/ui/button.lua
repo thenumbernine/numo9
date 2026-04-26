@@ -1,5 +1,4 @@
 local assert = require 'ext.assert'
-local vec2d = require 'vec-ffi.vec2d'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -13,9 +12,9 @@ function UIButton:init(args)
 	UIButton.super.init(self, args)
 
 	self.text = assert.index(args, 'text')
-	self.tooltip = args.tooltip
 
 	-- function for determining whether to highlight or not
+	-- makes this into a checkbox ...
 	self.isset = args.isset
 end
 
@@ -31,11 +30,11 @@ function UIButton:draw()
 	if self.isset then isset = self:isset() end
 
 	local fg, bg
-	if isset and self.onThisMenuItem then
+	if isset and self.hasFocus then
 		fg, bg = 0xc, 9
 	elseif isset then
 		fg, bg = 0xc, 8
-	elseif self.onThisMenuItem then
+	elseif self.hasFocus then
 		fg, bg = 0xd, 9
 	else
 		fg, bg = 0xd, 8
@@ -43,12 +42,6 @@ function UIButton:draw()
 
 	self.size.x = app:drawMenuText(self.text, self.pos.x, self.pos.y, fg, bg)
 	self.size.y = spriteSize.y
-
-	if self.hasFocus and self.tooltip then
-		local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
-		local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
-		owner:setTooltip(self.tooltip, mouseX - 12, mouseY - 12, 12, 6)
-	end
 end
 
 return UIButton

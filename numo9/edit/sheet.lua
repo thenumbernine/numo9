@@ -16,6 +16,7 @@ local Quantize = require 'image.quantize_mediancut'
 local clip = require 'numo9.clipboard'
 
 local UIButton = require 'numo9.ui.button'
+local UISpinner = require 'numo9.ui.spinner'
 local Undo = require 'numo9.ui.undo'
 
 local numo9_video = require 'numo9.video'
@@ -188,7 +189,54 @@ function EditSheet:init(args)
 			end,
 		},
 	})
-	
+	self.children:insert(UIButton{
+		owner = self,
+		text = 'X',
+		pos = vec2d(16, 128),
+		tooltip = 'pal swap',
+		events = {
+			isset = function()
+				return self.isPaletteSwapping
+			end,
+			click = function()
+				self.isPaletteSwapping = not self.isPaletteSwapping
+			end,
+		},
+	})
+	-- adjust palette size
+	self.children:insert(UISpinner{
+		owner = self,
+		pos = vec2d(16, 200),
+		tooltip = function()
+			return 'pal bpp='..bit.lshift(1, self.log2PalBits)
+		end,
+		setValue = function(dx)
+			self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
+		end,
+	})
+	-- adjust palette offset
+	self.children:insert(UISpinner{
+		owner = self,
+		pos = vec2d(16+24, 200),
+		tooltip = function()
+			return 'pal ofs='..self.paletteOffset
+		end,
+		setValue = function(dx)
+			self.paletteOffset = bit.band(0xff, self.paletteOffset + dx)
+		end,
+	})
+	-- adjust pen size
+	self.children:insert(UISpinner{
+		owner = self,
+		pos = vec2d(16+48, 200),
+		tooltip = function()
+			return 'pen size='..self.penSize
+		end,
+		setValue = function(dx)
+			self.penSize = math.clamp(self.penSize + dx, 1, 5)
+		end,
+	})
+
 	self:onCartLoad()
 end
 
@@ -348,6 +396,10 @@ function EditSheet:update()
 	-- ui draw:
 	for _,ch in ipairs(self.children) do
 		ch:draw()
+	end
+	-- ui update:
+	for _,ch in ipairs(self.children) do
+		ch:update()
 	end
 
 	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
@@ -900,10 +952,7 @@ function EditSheet:update()
 		end
 	end
 
-	if self:guiButton('X', 16, 128, self.isPaletteSwapping, 'pal swap') then
-		self.isPaletteSwapping = not self.isPaletteSwapping
-	end
-
+--[[
 	-- adjust palette size
 	self:guiSpinner(16, 200, function(dx)
 		self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
@@ -918,6 +967,7 @@ function EditSheet:update()
 	self:guiSpinner(16+48, 200, function(dx)
 		self.penSize = math.clamp(self.penSize + dx, 1, 5)
 	end, 'pen size='..self.penSize)
+--]]
 
 	-- edit palette entries
 	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
