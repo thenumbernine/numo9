@@ -96,20 +96,20 @@ function UITextField:draw(...)
 	end
 
 	app:drawSolidRect(
-		self.pos.x, self.pos.y,
+		0, 0,
 		self.size.x, self.size.y,
 		bg,
 		false,	-- borderOnly
 		false,	-- round
 		app.paletteMenuTex)
-	app:drawMenuText(self.value, self.pos.x, self.pos.y, fg, bg)
+	app:drawMenuText(self.value, 0, 0, fg, bg)
 
 	if self:hasFocus()
 	and getTime() % 1 < .5
 	then
 		app:drawSolidRect(
-			self.pos.x + self.textFieldCursorLoc * menuFontWidth,
-			self.pos.y,
+			self.textFieldCursorLoc * menuFontWidth,
+			0,
 			menuFontWidth,
 			spriteSize.y,
 			0xc,

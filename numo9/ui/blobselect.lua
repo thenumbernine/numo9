@@ -29,7 +29,7 @@ function UIBlobSelect:init(args)
 	local valueTable = assert.index(args, 'valueTable')
 	self.valueTable = valueTable
 	local valueKey = assert.index(args, 'valueKey')
-	self.popupKey = valueKey..'_popupOpen'
+	self.popupOpen = false
 
 	local setValue = assert.index(args, 'setValue')	-- setter on blob index change
 	local generator = args.generator or function()
@@ -62,15 +62,16 @@ function UIBlobSelect:init(args)
 	}
 	self.children:insert(self.textfield)
 
-	self.children:insert(UISpinner{
+	self.spinner = UISpinner{
 		owner = self.owner,
 		pos = vec2d(2, 10),
 		setValue = function(dx)
 			doSetValue(valueTable[valueKey] + dx)
 		end,
-	})
+	}
+	self.children:insert(self.spinner)
 
-	self.children:insert(UIButton{
+	self.addButton = UIButton{
 		owner = self.owner,
 		pos = vec2d(14, 10),
 		text = '+',
@@ -88,12 +89,13 @@ function UIBlobSelect:init(args)
 					self.valueTable[valueKey] = self.valueTable[valueKey] + 1
 				end
 
-				self:updateBlobChanges()
+				app:updateBlobChanges()
 			end,
 		},
-	})
+	}
+	self.children:insert(self.addButton)
 
-	self.children:insert(UIButton{
+	self.delButton = UIButton{
 		owner = self.owner,
 		pos = vec2d(29, 10),
 		text = '-',
@@ -114,34 +116,81 @@ function UIBlobSelect:init(args)
 				blobsOfType:remove(self.valueTable[valueKey]+1)
 				self.valueTable[valueKey] = math.clamp(self.valueTable[valueKey] - 1, 0, #blobsOfType-1)
 
-				self:updateBlobChanges()
+				app:updateBlobChanges()
 			end,
 		},
-	})
+	}
+	self.children:insert(self.delButton)
+end
+
+function UIBlobSelect:update(...)
+	UIBlobSelect.super.update(self, ...)
+	
+	-- has to be done in draw so matrices are setup 
+	-- (I guess, tho its storedin screen space
+	--  so transforming things should always result in pixels, regardless of where it takes place...
+	-- ... so long as children are set up too ...)
+	self.size:set(0,0)
+	self.ssbbox:empty()
+
+	local function stretch(ch)
+		self.ssbbox:stretch(ch.ssbbox)
+		
+		self.size.x = math.max(self.size.x, ch.pos.x + ch.size.x)
+		self.size.y = math.max(self.size.y, ch.pos.y + ch.size.y)
+	end
+
+	stretch(self.textfield)
+	if self.popupOpen then
+		stretch(self.spinner)
+		stretch(self.addButton)
+		stretch(self.delButton)
+	end
 end
 
 function UIBlobSelect:onMouseEnter(...)
 	UIBlobSelect.super.onMouseEnter(self, ...)
+	self.popupOpen = true
 	self:updatePopup()
 end
 function UIBlobSelect:onMouseLeave(...)
 	UIBlobSelect.super.onMouseLeave(self, ...)
+	self.popupOpen = false
 	self:updatePopup()
 end
 
 function UIBlobSelect:onFocus(...)
 	UIBlobSelect.super.onFocus(self, ...)
+	self.popupOpen = true
 	self:updatePopup()
 end
 function UIBlobSelect:onBlur(...)
 	UIBlobSelect.super.onBlur(self, ...)
+	self.popupOpen = false
 	self:updatePopup()
 end
 
 function UIBlobSelect:updatePopup()
-	local popup = self.isHovered or self:hasFocus()
-	self.valueTable[self.popupKey] = popup
-	self.size.y = (popup and 2 or 1) * spriteSize.y
+	if self.popupOpen then
+		if self.owner.currentPopup
+		and self.owner.currentPopup ~= self
+		then
+			self.owner.currentPopup.popupOpen = false
+			self.owner.currentPopup:updatePopup()
+		end
+		self.owner.currentPopup = self
+	else
+		if self.owner.currentPopup == self then
+			self.owner.currentPopup = nil
+		end
+	end
+
+	self.size.y = (self.popupOpen and 2 or 1) * spriteSize.y
+	self.zIndex = self.popupOpen and 1 or 0
+
+	-- TODO overflow:hidden
+	-- clip drawing children
+	-- and clip input events too
 end
 
 return UIBlobSelect

@@ -40,7 +40,7 @@ function UIButton:draw()
 		fg, bg = 0xd, 8
 	end
 
-	self.size.x = app:drawMenuText(self.text, self.pos.x, self.pos.y, fg, bg)
+	self.size.x = app:drawMenuText(self.text, 0, 0, fg, bg)
 	self.size.y = spriteSize.y
 end
 

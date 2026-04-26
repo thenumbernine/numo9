@@ -259,7 +259,7 @@ local function resetPalette(ptr)
 			0xff5a6c84,
 			0xff343c55,
 			-- https://en.wikipedia.org/wiki/List_of_software_palettes
-			0x00000000,
+			0x80000000,
 			0xff75140c,
 			0xff377d22,
 			0xff807f26,

@@ -9,9 +9,12 @@ local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
 local matArrType = numo9_rom.matArrType
+local clipMax = numo9_rom.clipMax
 
 
 local UIWidget = class()
+
+UIWidget.zIndex = 0
 
 function UIWidget:init(args)
 	-- this is the root-level numo9/ui.lua component
@@ -34,6 +37,7 @@ function UIWidget:init(args)
 	self.ssbbox = box2d()
 
 	self.children = table()
+	self.childrenInOrder = table()
 
 	--[[
 	events:
@@ -57,29 +61,80 @@ function UIWidget:event(e) end
 function UIWidget:draw()
 	local owner = self.owner
 	local app = owner.app
+	
+	-- draw background
+	app:drawSolidRect(0, 0, self.size.x, self.size.y, 0xf, nil, nil, app.paletteMenuTex)
+	
+	-- draw border
+	app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, 0xc, nil, app.paletteMenuTex)
+end
 
-	self.modelMatPush:copy(app.ram.modelMat)
-	app:mattrans(self.pos.x, self.pos.y, 0, 0)
+function UIWidget:drawRecurse()
+	local owner = self.owner
+	local app = owner.app
 
 	-- keep track of which tab index this component is
 	self.menuTabIndex = owner.menuTabCounter
 	owner.menuTabCounter = owner.menuTabCounter + 1
 
+	self.modelMatPush:copy(app.ram.modelMat)
+	app:mattrans(self.pos.x, self.pos.y, 0, 0)
+
 	-- store screen-space pixel positions based on current matrix transforms
 	self.ssbbox.min.x, self.ssbbox.min.y = app:transform(0, 0, 0, 1)
 	self.ssbbox.max.x, self.ssbbox.max.y = app:transform(self.size.x, self.size.y, 0, 1)
 
-	for _,ch in ipairs(self.children) do
-		ch:draw()
+	local cx, cy, cw, ch = app:getClipRect()
+	do
+		--[[ set clip rect
+		owner:guiSetClipRect(0, 0, self.size.x, self.size.y)
+		--]]
+		-- [[ reduce
+		local oldx1, oldy1, oldw, oldh = app:getClipRect() 
+		local oldx2 = oldx1 + oldw
+		local oldy2 = oldy1 + oldh
+
+		local sx1, sy1 = app:transform(0, 0)
+		local sx2, sy2 = app:transform(self.size.x, self.size.y)
+		-- flip y
+		sy1, sy2 =
+			app.ram.screenHeight - 1 - sy2,
+			app.ram.screenHeight - 1 - sy1
+
+		sx1 = math.max(sx1, oldx1)
+		sy1 = math.max(sy1, oldy1)
+		sx2 = math.min(sx2, oldx2)
+		sy2 = math.min(sy2, oldy2)
+
+		app:setClipRect(sx1, sy1, sx2 - sx1, sy2 - sy1)	
+		--]]
+	end
+
+	self:draw()
+
+	for i,ch in ipairs(self.children) do
+		self.childrenInOrder[i] = ch
+	end
+	for i=#self.children+1,#self.childrenInOrder do
+		self.childrenInOrder[i] = nil
+	end
+	self.childrenInOrder:sort(function(a,b)
+		return a.zIndex > b.zIndex
+	end)
+
+	for i,ch in ipairs(self.childrenInOrder) do
+		ch:drawRecurse()
 	end
 
 	app.ram.modelMat:copy(self.modelMatPush)
 	app:onModelMatChange()
+	
+	app:setClipRect(cx, cy, cw, ch)
 end
 
 -- a lot like draw except without the successive matrix transformations
 function UIWidget:update()
-	for _,ch in ipairs(self.children) do
+	for _,ch in ipairs(self.childrenInOrder) do
 		ch:update()
 	end
 
@@ -110,7 +165,7 @@ end
 
 function UIWidget:hasFocus()
 	if self.owner.activeElement == self then return true end
-	for _,ch in ipairs(self.children) do
+	for _,ch in ipairs(self.childrenInOrder) do
 		if ch:hasFocus() then return true end
 	end
 	return false
@@ -162,7 +217,7 @@ function UIWidget:event(e)
 	local didCapture
 
 	-- ui events:
-	for _,ch in ipairs(self.children) do
+	for _,ch in ipairs(self.childrenInOrder) do
 		if ch:event(e) then return true end
 	end
 
@@ -177,17 +232,36 @@ function UIWidget:event(e)
 		elseif not self.isHovered and oldIsHovered then
 			self:onMouseLeave(e)
 		end
+
+		--[[ when to not capture?
+		if self.isHovered then
+			didCapture = true
+		end
+		--]]
 	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 		if self.isHovered then
 			self.mouseDownOnThis = true
 		end
+	
+		-- [[ when to not capture?
+		if self.isHovered then
+			didCapture = true
+		end
+		--]]
 	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
 		if self.isHovered
 		and self.mouseDownOnThis
 		then
 			didCapture = self:onClick()
 		end
+		
 		self.mouseDownOnThis = nil
+	
+		-- [[ when to not capture?
+		if self.isHovered then
+			didCapture = true
+		end
+		--]]
 	elseif e.type == sdl.SDL_EVENT_KEY_DOWN then
 		if self:hasFocus() then
 			self:onKeyDown(e)

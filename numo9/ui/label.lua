@@ -20,7 +20,7 @@ function UILabel:draw()
 
 	UILabel.super.draw(self)
 
-	self.size.x = app:drawMenuText(self.text, self.pos.x, self.pos.y, self.fgColorIndex, self.bgColorIndex)
+	self.size.x = app:drawMenuText(self.text, 0, 0, self.fgColorIndex, self.bgColorIndex)
 	self.size.y = spriteSize.y
 end
 

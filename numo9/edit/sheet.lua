@@ -73,6 +73,7 @@ function EditSheet:init(args)
 	}
 
 	self.children = table()
+	self.childrenInOrder = table()
 
 	-- hflip, vflip, hrot, vrot
 	self.children:insert(UIButton{
@@ -1540,27 +1541,25 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 	end
 
 
-	--[[ draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(80, 0, 'sheet', self, 'sheetBlobIndex', function()
-		-- for now only one undo per sheet/palette at a time
-		self.undo:clear()
-	end)
-	self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex', function()
-		-- for now only one undo per sheet/palette at a time
-		self.undo:clear()
-	end)
-	--]]
-
-
 	app:matMenuReset()
 
-	-- ui draw:
-	for _,ch in ipairs(self.children) do
-		ch:draw()
+	for i,ch in ipairs(self.children) do
+		self.childrenInOrder[i] = ch
 	end
+	for i=#self.children+1,#self.childrenInOrder do
+		self.childrenInOrder[i] = nil
+	end
+	self.childrenInOrder:sort(function(a,b)
+		return a.zIndex > b.zIndex
+	end)
+	-- ui draw:
+	app:setClipRect(0, 0, clipMax, clipMax)
+	for _,ch in ipairs(self.childrenInOrder) do
+		ch:drawRecurse()
+	end
+	app:setClipRect(0, 0, clipMax, clipMax)
 
-	-- ui update:
-	for _,ch in ipairs(self.children) do
+	for _,ch in ipairs(self.childrenInOrder) do
 		ch:update()
 	end
 
@@ -1592,7 +1591,7 @@ function EditSheet:event(e)
 	end
 
 	-- ui events:
-	for _,ch in ipairs(self.children) do
+	for _,ch in ipairs(self.childrenInOrder) do
 		if ch:event(e) then return true end
 	end
 end

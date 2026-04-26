@@ -38,12 +38,15 @@ function UISpinner:init(args)
 	})
 end
 
-function UISpinner:draw()
-	UIButton.super.draw(self)
+function UISpinner:update()
+	UIButton.super.update(self)
 
+	self.size:set(0,0)
 	self.ssbbox:empty()
 	for _,ch in ipairs(self.children) do
 		self.ssbbox:stretch(ch.ssbbox)
+		self.size.x = math.max(self.size.x, ch.pos.x + ch.size.x)
+		self.size.y = math.max(self.size.y, ch.pos.y + ch.size.y)
 	end
 end
 
