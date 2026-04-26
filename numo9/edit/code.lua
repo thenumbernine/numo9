@@ -2,7 +2,9 @@
 code editor
 --]]
 local ffi = require 'ffi'
+local table = require 'ext.table'
 local UITextArea = require 'numo9.ui.textarea'
+local UIButton = require 'numo9.ui.button'
 
 local EditCode = require 'numo9.ui':subclass()	-- the UI/editor page
 EditCode.blobType = 'code'
@@ -14,9 +16,28 @@ function EditCode:init(args)
 
 	self[self.blobIndexField] = 0
 
+	-- TODO turn this into a widget...
 	self.uiTextArea = UITextArea{
 		edit = self,
 	}
+
+	-- TODO make EditCode a widget
+	self.children = table()
+	self.children:insert(
+		UIButton{
+			owner = self,
+			text = 'N',
+			pos = {120, 0},
+			isset = function()
+				return self.uiTextArea.useLineNumbers
+			end,
+			events = {
+				click = function()
+					self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
+				end,
+			},
+		}
+	)
 
 	self:onCartLoad()
 end
@@ -44,9 +65,14 @@ function EditCode:update()
 
 	self:setBlobIndex(self[self.blobIndexField])
 
+	for _,ch in ipairs(self.children) do
+		ch:draw()
+	end
+	--[[
 	if self:guiButton('N', 120, 0, self.uiTextArea.useLineNumbers) then
 		self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
 	end
+	--]]
 
 	-- for the text editor, align to the left
 	-- TODO this isnt needed if I just make the text editor rect customizable
@@ -75,6 +101,10 @@ function EditCode:event(e)
 	-- don't call super, which handles arrows to change tab focus
 	-- TODO do handle it somehow
 	-- also TODO - handle key input of editor through :event() here instead of through :update()
+
+	for _,ch in ipairs(self.children) do
+		if ch:event(e) then return true end
+	end
 end
 
 return EditCode

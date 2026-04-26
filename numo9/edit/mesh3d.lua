@@ -861,14 +861,14 @@ function EditMesh3D:update()
 				end
 
 				if self.meshEditMode == 'translate' then
-					--if not self.editTexCoords then
+					if not self.editTexCoords then
 						self.totalTranslation.x = self.totalTranslation.x + dx
 						self.totalTranslation.y = self.totalTranslation.y + dy
 						self.totalTranslation.z = self.totalTranslation.z + dz
-					--else
-					--	self.totalTranslation.x = self.totalTranslation.x + mouseULX - lastMouseULX
-					--	self.totalTranslation.y = self.totalTranslation.y + mouseULY - lastMouseULY
-					--end
+					else
+						self.totalTranslation.x = self.totalTranslation.x + mouseULX - lastMouseULX
+						self.totalTranslation.y = self.totalTranslation.y + mouseULY - lastMouseULY
+					end
 				elseif self.meshEditMode == 'scale' then
 					self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
 					self.totalScreenTranslate.y = self.totalScreenTranslate.y + mouseULY - lastMouseULY

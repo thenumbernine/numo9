@@ -1,6 +1,11 @@
 --[[
 I think I'll put the tile-selection widget here,
 and use it in mesh3d and voxelmap for tile preview/selection.
+
+TODO if I separate the popup/window from teh content
+then I can also put this in the sheet editor
+and I can also embed it in the mesh3d for UV-editing ...
+
 --]]
 local assert = require 'ext.assert'
 local class = require 'ext.class'

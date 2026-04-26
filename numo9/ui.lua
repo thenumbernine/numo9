@@ -52,6 +52,7 @@ UI.editModes = table{
 	'voxelmap',
 }
 
+-- app fields for each editor for each blob type
 UI.editFieldForMode = {
 	code = 'editCode',
 	sheet = 'editSheet',
