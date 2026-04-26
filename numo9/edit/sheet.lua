@@ -14,6 +14,8 @@ local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
 local clip = require 'numo9.clipboard'
+
+local UIButton = require 'numo9.ui.button'
 local Undo = require 'numo9.ui.undo'
 
 local numo9_video = require 'numo9.video'
@@ -65,6 +67,128 @@ function EditSheet:init(args)
 		end,
 	}
 
+	self.children = table()
+
+	-- hflip, vflip, hrot, vrot
+	self.children:insert(UIButton{
+		owner = self,
+		text = 'H',
+		pos = vec2d(0, 96),
+		tooltip = 'hflip',
+		events = {
+			click = function()
+				local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+				local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+				local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+				local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+				for j=0,selh-1 do
+					local y = j + sely
+					for i=0,math.floor(selw/2)-1 do
+						local x1 = selx + i
+						local x2 = selx + (selw - 1 - i)
+						local p1 = self:getpixel(x1, y)
+						local p2 = self:getpixel(x2, y)
+						self:putpixel(x1, y, p2)
+						self:putpixel(x2, y, p1)
+					end
+				end		
+			end,
+		},
+	})
+	self.children:insert(UIButton{
+		owner = self,
+		text = 'V',
+		pos = vec2d(6, 96),
+		tooltip = 'vflip',
+		events = {
+			click = function()
+				local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+				local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+				local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+				local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+				for j=0,math.floor(selh/2)-1 do
+					local y1 = sely + j
+					local y2 = sely + (selh - 1 - j)
+					for i=0,selw-1 do
+						local x = selx + i
+						local p1 = self:getpixel(x, y1)
+						local p2 = self:getpixel(x, y2)
+						self:putpixel(x, y1, p2)
+						self:putpixel(x, y2, p1)
+					end
+				end		
+			end,
+		},
+	})
+	self.children:insert(UIButton{
+		owner = self,
+		text = 'L',
+		pos = vec2d(0, 104),
+		tooltip = 'rot-L',
+		events = {
+			click = function()
+				local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+				local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+				local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+				local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+				-- this is only guaranteed to work for a square ...
+				selw = math.min(selw, selh)
+				selh = selw
+				for j=0,math.floor(selh/2)-1 do
+					for i=0,math.floor(selw/2)-1 do
+						local x1, y1 = selx + i, sely + j
+						local x2, y2 = selx + (selw-1-j), sely + i
+						local x3, y3 = selx + (selw-1-i), sely + (selw-1-j)
+						local x4, y4 = selx + j, sely + (selw-1-i)
+						local p1 = self:getpixel(x1, y1)
+						local p2 = self:getpixel(x2, y2)
+						local p3 = self:getpixel(x3, y3)
+						local p4 = self:getpixel(x4, y4)
+						self:putpixel(x1, y1, p2)
+						self:putpixel(x2, y2, p3)
+						self:putpixel(x3, y3, p4)
+						self:putpixel(x4, y4, p1)
+					end
+				end
+			end,
+		},
+	})
+	self.children:insert(UIButton{
+		owner = self,
+		text = 'R',
+		pos = vec2d(6, 104),
+		tooltip = 'rot-R',
+		events = {
+			click = function()
+				local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+				local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+				local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+				local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+				-- this is only guaranteed to work for a square ...
+				selw = math.min(selw, selh)
+				selh = selw
+				for j=0,math.floor(selh/2)-1 do
+					local y1 = sely + j
+					local y2 = sely + (selh - 1 - j)
+					for i=0,math.floor(selw/2)-1 do
+						local x1, y1 = selx + i, sely + j
+						local x2, y2 = selx + (selw-1-j), sely + i
+						local x3, y3 = selx + (selw-1-i), sely + (selw-1-j)
+						local x4, y4 = selx + j, sely + (selw-1-i)
+						local p1 = self:getpixel(x1, y1)
+						local p2 = self:getpixel(x2, y2)
+						local p3 = self:getpixel(x3, y3)
+						local p4 = self:getpixel(x4, y4)
+						self:putpixel(x1, y1, p4)
+						self:putpixel(x2, y2, p1)
+						self:putpixel(x3, y3, p2)
+						self:putpixel(x4, y4, p3)
+					end
+				end
+			end,
+		},
+	})
+	
 	self:onCartLoad()
 end
 
@@ -116,7 +240,92 @@ function EditSheet:onCartLoad()
 	self.undo:clear()
 end
 
-local selBorderColors = {0xfd,0xfc}
+local selBorderColors = {0xfd, 0xfc}
+
+function EditSheet:getpixel(tx, ty)
+	if not (0 <= tx and tx < spriteSheetSize.x
+	and 0 <= ty and ty < spriteSheetSize.y)
+	then return end
+
+	-- TODO HERE draw a pixel to the sprite sheet ...
+	-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
+	-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
+	local mask = bit.lshift(
+		bit.lshift(1, self.spriteBitDepth) - 1,
+		self.spriteBit
+	)
+
+
+	-- TODO since shift is shift, should I be subtracing it here?
+	-- or should I just be AND'ing it?
+	-- let's subtract it
+	local texelIndex = tx + spriteSheetSize.x * ty
+	assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+	
+	local app = self.app
+	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
+	local sheetRAM = sheetBlob.ramgpu
+	local currentSheetAddr = sheetBlob.addr
+
+	local addr = currentSheetAddr + texelIndex
+	return bit.band(
+		0xff,
+		self.paletteOffset
+		+ bit.rshift(
+			bit.band(mask, app:peek(addr)),
+			self.spriteBit
+		)
+	)
+end
+
+function EditSheet:putpixel(tx,ty, putValue)
+	if not (0 <= tx and tx < spriteSheetSize.x
+	and 0 <= ty and ty < spriteSheetSize.y)
+	then return end
+
+	putValue = putValue or self.paletteSelIndex
+
+	-- TODO HERE draw a pixel to the sprite sheet ...
+	-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
+	-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
+	local mask = bit.lshift(
+		bit.lshift(1, self.spriteBitDepth) - 1,
+		self.spriteBit
+	)
+
+
+	local texelIndex = tx + spriteSheetSize.x * ty
+	assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+	
+	local app = self.app
+	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
+	local sheetRAM = sheetBlob.ramgpu
+	local currentSheetAddr = sheetBlob.addr
+
+	local addr = currentSheetAddr + texelIndex
+	local value = bit.bor(
+		bit.band(
+			bit.bnot(mask),
+			app:peek(addr)
+		),
+		bit.band(
+			mask,
+			bit.lshift(
+				putValue - self.paletteOffset,
+				self.spriteBit
+			)
+		)
+	)
+	self:edit_poke(addr, value)
+	self.hist = nil	-- invalidate histogram
+
+	-- TODO wait does edit_poke write to the blob?
+	-- it has to right?
+	-- if not then pushing the undo content wont matter
+	self.undo:pushContinuous()
+end
+
+
 
 function EditSheet:update()
 	local app = self.app
@@ -135,6 +344,11 @@ function EditSheet:update()
 	local shift = app:key'lshift' or app:key'rshift'
 
 	EditSheet.super.update(self)
+
+	-- ui draw:
+	for _,ch in ipairs(self.children) do
+		ch:draw()
+	end
 
 	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
 	local sheetRAM = sheetBlob.ramgpu
@@ -455,80 +669,6 @@ function EditSheet:update()
 		end
 	end
 
-
-	local function getpixel(tx, ty)
-		if not (0 <= tx and tx < spriteSheetSize.x
-		and 0 <= ty and ty < spriteSheetSize.y)
-		then return end
-
-		-- TODO HERE draw a pixel to the sprite sheet ...
-		-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
-		-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-		local mask = bit.lshift(
-			bit.lshift(1, self.spriteBitDepth) - 1,
-			self.spriteBit
-		)
-
-
-		-- TODO since shift is shift, should I be subtracing it here?
-		-- or should I just be AND'ing it?
-		-- let's subtract it
-		local texelIndex = tx + spriteSheetSize.x * ty
-		assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-		local addr = currentSheetAddr + texelIndex
-		return bit.band(
-			0xff,
-			self.paletteOffset
-			+ bit.rshift(
-				bit.band(mask, app:peek(addr)),
-				self.spriteBit
-			)
-		)
-	end
-
-	local function putpixel(tx,ty, putValue)
-		if not (0 <= tx and tx < spriteSheetSize.x
-		and 0 <= ty and ty < spriteSheetSize.y)
-		then return end
-
-		putValue = putValue or self.paletteSelIndex
-
-		-- TODO HERE draw a pixel to the sprite sheet ...
-		-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
-		-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-		local mask = bit.lshift(
-			bit.lshift(1, self.spriteBitDepth) - 1,
-			self.spriteBit
-		)
-
-
-		local texelIndex = tx + spriteSheetSize.x * ty
-		assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-		local addr = currentSheetAddr + texelIndex
-		local value = bit.bor(
-			bit.band(
-				bit.bnot(mask),
-				app:peek(addr)
-			),
-			bit.band(
-				mask,
-				bit.lshift(
-					putValue - self.paletteOffset,
-					self.spriteBit
-				)
-			)
-		)
-		self:edit_poke(addr, value)
-		self.hist = nil	-- invalidate histogram
-
-		-- TODO wait does edit_poke write to the blob?
-		-- it has to right?
-		-- if not then pushing the undo content wont matter
-		self.undo:pushContinuous()
-	end
-
-
-
 	if self.spriteDrawMode == 'draw'
 	or self.spriteDrawMode == 'dropper'
 	or self.spriteDrawMode == 'fill'
@@ -545,7 +685,7 @@ function EditSheet:update()
 			or (self.spriteDrawMode == 'draw' and shift)
 			or (self.spriteDrawMode == 'fill' and shift)
 			then
-				local c = getpixel(tx, ty)
+				local c = self:getpixel(tx, ty)
 				if c then
 					self.paletteSelIndex = bit.band(0xff, c + self.paletteOffset)
 				end
@@ -573,16 +713,16 @@ function EditSheet:update()
 						and ty < (sely + selh) * spriteSize.y
 						--]]
 						then
-							putpixel(tx,ty)
+							self:putpixel(tx,ty)
 						end
 					end
 				end
 				sheetRAM.tex:unbind()
 			elseif self.spriteDrawMode == 'fill' then
-				local srcColor = getpixel(tx, ty)
+				local srcColor = self:getpixel(tx, ty)
 				if srcColor ~= self.paletteSelIndex then
 					local fillstack = table()
-					putpixel(tx, ty)
+					self:putpixel(tx, ty)
 					fillstack:insert{tx, ty}
 					while #fillstack > 0 do
 						local tx0, ty0 = table.unpack(fillstack:remove())
@@ -602,9 +742,9 @@ function EditSheet:update()
 							and tx1 < (selx + selw) * spriteSize.x
 							and ty1 < (sely + selh) * spriteSize.y
 							--]]
-							and getpixel(tx1, ty1) == srcColor
+							and self:getpixel(tx1, ty1) == srcColor
 							then
-								putpixel(tx1, ty1)
+								self:putpixel(tx1, ty1)
 								fillstack:insert{tx1, ty1}
 							end
 						end
@@ -629,102 +769,6 @@ function EditSheet:update()
 
 	if not spritePanHandled then
 		self.spritePanPressed = false
-	end
-
-	-- hflip, vflip, hrot, vrot
-	do
-		local x = 0
-		local y = 96
-		if self:guiButton('H', x, y, nil, 'hflip') then
-			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
-			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
-			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
-			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
-			for j=0,selh-1 do
-				local y = j + sely
-				for i=0,math.floor(selw/2)-1 do
-					local x1 = selx + i
-					local x2 = selx + (selw - 1 - i)
-					local p1 = getpixel(x1, y)
-					local p2 = getpixel(x2, y)
-					putpixel(x1, y, p2)
-					putpixel(x2, y, p1)
-				end
-			end
-		end
-		x = x + 6
-		if self:guiButton('V', x, y, nil, 'vflip') then
-			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
-			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
-			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
-			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
-			for j=0,math.floor(selh/2)-1 do
-				local y1 = sely + j
-				local y2 = sely + (selh - 1 - j)
-				for i=0,selw-1 do
-					local x = selx + i
-					local p1 = getpixel(x, y1)
-					local p2 = getpixel(x, y2)
-					putpixel(x, y1, p2)
-					putpixel(x, y2, p1)
-				end
-			end
-		end
-		x = x - 6
-		y = y + 8
-		if self:guiButton('L', x, y, nil, 'rot-L') then
-			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
-			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
-			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
-			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
-			-- this is only guaranteed to work for a square ...
-			selw = math.min(selw, selh)
-			selh = selw
-			for j=0,math.floor(selh/2)-1 do
-				for i=0,math.floor(selw/2)-1 do
-					local x1, y1 = selx + i, sely + j
-					local x2, y2 = selx + (selw-1-j), sely + i
-					local x3, y3 = selx + (selw-1-i), sely + (selw-1-j)
-					local x4, y4 = selx + j, sely + (selw-1-i)
-					local p1 = getpixel(x1, y1)
-					local p2 = getpixel(x2, y2)
-					local p3 = getpixel(x3, y3)
-					local p4 = getpixel(x4, y4)
-					putpixel(x1, y1, p2)
-					putpixel(x2, y2, p3)
-					putpixel(x3, y3, p4)
-					putpixel(x4, y4, p1)
-				end
-			end
-		end
-		x = x + 6
-		if self:guiButton('R', x, y, nil, 'rot-R') then
-			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
-			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
-			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
-			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
-			-- this is only guaranteed to work for a square ...
-			selw = math.min(selw, selh)
-			selh = selw
-			for j=0,math.floor(selh/2)-1 do
-				local y1 = sely + j
-				local y2 = sely + (selh - 1 - j)
-				for i=0,math.floor(selw/2)-1 do
-					local x1, y1 = selx + i, sely + j
-					local x2, y2 = selx + (selw-1-j), sely + i
-					local x3, y3 = selx + (selw-1-i), sely + (selw-1-j)
-					local x4, y4 = selx + j, sely + (selw-1-i)
-					local p1 = getpixel(x1, y1)
-					local p2 = getpixel(x2, y2)
-					local p3 = getpixel(x3, y3)
-					local p4 = getpixel(x4, y4)
-					putpixel(x1, y1, p4)
-					putpixel(x2, y2, p1)
-					putpixel(x3, y3, p2)
-					putpixel(x4, y4, p3)
-				end
-			end
-		end
 	end
 
 	-- sprite edit method
@@ -812,10 +856,14 @@ function EditSheet:update()
 					self.paletteSelIndex = paletteIndex
 					self.paletteSelDown = paletteIndex
 				elseif leftButtonDown then
-					local move = paletteIndex - self.paletteSelDown
-					self.paletteOffset = bit.band(0xff, self.paletteOffset - move)
-					self.paletteSelDown = bit.band(0xff, paletteIndex - move)
+					if self.paletteSelDown then
+						local move = paletteIndex - self.paletteSelDown
+						self.paletteOffset = bit.band(0xff, self.paletteOffset - move)
+						self.paletteSelDown = bit.band(0xff, paletteIndex - move)
+					end
 				else
+					self.paletteSelDown = nil
+
 					-- histogram info ... TODO when to recalculate it ...
 					if not self.hist then
 						self.hist = Quantize.buildHistogram(sheetRAM.image)
@@ -1178,6 +1226,17 @@ function EditSheet:popUndo(redo)
 		ffi.copy(paletteBlob.ramgpu.image.buffer, undoEntry.palette.buffer, paletteBlob.ramgpu.image:getBufferSize())
 		sheetBlob.ramgpu.dirtyCPU = true
 		paletteBlob.ramgpu.dirtyCPU = true
+	end
+end
+
+function EditSheet:event(e)
+	if EditSheet.super.event(self, e) then
+		return true
+	end
+
+	-- ui events:
+	for _,ch in ipairs(self.children) do
+		if ch:event(e) then return true end
 	end
 end
 

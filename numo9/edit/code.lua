@@ -23,21 +23,20 @@ function EditCode:init(args)
 
 	-- TODO make EditCode a widget
 	self.children = table()
-	self.children:insert(
-		UIButton{
-			owner = self,
-			text = 'N',
-			pos = {120, 0},
-			isset = function()
-				return self.uiTextArea.useLineNumbers
+	self.children:insert(UIButton{
+		owner = self,
+		text = 'N',
+		pos = {120, 0},
+		-- ok `isset` makes it more like a checkbox I admit...
+		isset = function()
+			return self.uiTextArea.useLineNumbers
+		end,
+		events = {
+			click = function()
+				self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
 			end,
-			events = {
-				click = function()
-					self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
-				end,
-			},
-		}
-	)
+		},
+	})
 
 	self:onCartLoad()
 end
@@ -65,14 +64,10 @@ function EditCode:update()
 
 	self:setBlobIndex(self[self.blobIndexField])
 
+	-- ui draw:
 	for _,ch in ipairs(self.children) do
 		ch:draw()
 	end
-	--[[
-	if self:guiButton('N', 120, 0, self.uiTextArea.useLineNumbers) then
-		self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
-	end
-	--]]
 
 	-- for the text editor, align to the left
 	-- TODO this isnt needed if I just make the text editor rect customizable
@@ -88,7 +83,6 @@ function EditCode:update()
 
 	self.uiTextArea:update()
 
-
 	app:matMenuReset()
 
 	self:drawTooltip()
@@ -102,6 +96,7 @@ function EditCode:event(e)
 	-- TODO do handle it somehow
 	-- also TODO - handle key input of editor through :event() here instead of through :update()
 
+	-- ui events:
 	for _,ch in ipairs(self.children) do
 		if ch:event(e) then return true end
 	end

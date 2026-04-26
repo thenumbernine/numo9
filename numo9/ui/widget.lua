@@ -52,6 +52,18 @@ function UIWidget:draw()
 	self.ssbbox.max.x, self.ssbbox.max.y = app:transform(self.pos.x + self.size.x, self.pos.y + self.size.y, 0, 1)
 end
 
+function UIWidget:onFocus(e)
+	-- if you mouse over an event thens witch to its tab index...
+	-- ... TODO only do this when you click?
+	self.owner.menuTabIndex = self.menuTabIndex
+
+	if self.events.focus then self.events.focus(self) end
+end
+
+function UIWidget:onBlur(e)
+	if self.events.blur then self.events.blur(self) end
+end
+
 -- returns true if captured an event
 function UIWidget:event(e)
 	local didCapture
@@ -63,24 +75,24 @@ function UIWidget:event(e)
 		local oldHasFocus = self.hasFocus
 		self.hasFocus = self.ssbbox:contains(vec2d(mx, my)) 
 		if self.hasFocus and not oldHasFocus then
-			if self.events.focus then self.events.focus(self) end
+			self:onFocus(e)
 		elseif not self.hasFocus and oldHasFocus then
-			if self.events.blur then self.events.blur(self) end
+			self:onBlur(e)
 		end
 	end
 
 	if e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 		if self.hasFocus then
-print('press on widget', self)			
+--DEBUG:print('press on widget', self)			
 			self.mouseDownOnThis = true
 		end
 	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
 		if self.hasFocus
 		and self.mouseDownOnThis 
 		then
-print('press and release on widget', self)			
+--DEBUG:print('press and release on widget', self)			
 			if self.events.click then
-print'...clicking'				
+--DEBUG:print'...clicking'				
 				self.events.click(self)
 				didCapture = true
 			end
