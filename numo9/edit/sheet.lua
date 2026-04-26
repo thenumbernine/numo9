@@ -290,7 +290,7 @@ function EditSheet:init(args)
 		},
 	}
 	self.children:insert(self.spriteBitDepthTextField)
-	self.spriteBitDepthSpinner = UISpinner{
+	self.children:insert(UISpinner{
 		owner = self,
 		pos = vec2d(128+16+24+32, 20),
 		tooltip = function()
@@ -301,8 +301,7 @@ function EditSheet:init(args)
 			-- or should I wrap around bits and be really unnecessarily clever?
 			self:setSpriteBitDepth(self.spriteBitDepth + dx)
 		end,
-	}
-	self.children:insert(self.spriteBitDepthSpinner)
+	})
 
 	-- spritesheet pan vs select
 	self.children:insert(UIRadio{
@@ -381,6 +380,140 @@ function EditSheet:init(args)
 		},
 	}
 	self.children:insert(self.paletteSelIndexTextField)
+	
+	-- edit palette entries
+	self.children:insert(UILabel{
+		owner = self,
+		text = 'C=',
+		pos = vec2d(16, 216),
+		fgColorIndex = 13,
+		bgColorIndex = -1,
+	})
+
+	-- update its value on self.paletteSelIndex change
+	-- or on that palette index's value's change
+	self.selColorValueTextField = UITextField{
+		owner = self,
+		pos = vec2d(16+10, 216),
+		width = 20,
+		events = {
+			change = function(target, e)
+				local result = target.value
+				result = tonumber(result, 16)
+				if not result then return end
+
+				self.undo:pushContinuous()
+
+				self:setPaletteSelIndexColor(result)
+			end,
+		},
+	}
+	self.children:insert(self.selColorValueTextField)
+
+	for _,info in ipairs{
+		{
+			letter = 'R',
+			y = 224,
+			textfield = 'selColorRedValueTextField',
+			shift = 0,
+		},
+		{
+			letter = 'G',
+			y = 224+8,
+			textfield = 'selColorGreenValueTextField',
+			shift = 5,
+		},
+		{
+			letter = 'B',
+			y = 224+16,
+			textfield = 'selColorBlueValueTextField',
+			shift = 10,
+		},
+	} do
+		self.children:insert(UILabel{
+			owner = self,
+			text = info.letter..'=',
+			pos = vec2d(16, info.y),
+			fgColorIndex = 13,
+			bgColorIndex = -1,
+		})		
+		self[info.textfield] = UITextField{
+			owner = self,
+			pos = vec2d(16+10, info.y),
+			width = 20,
+			events = {
+				change = function(target, e)
+					local result = target.value
+					result = tonumber(result, 16)
+					if not result then return end
+
+					self.undo:pushContinuous()
+
+					local selColorValue = self:getPaletteSelIndexColor()
+					local mask = bit.lshift(0x1f, info.shift)
+					selColorValue = bit.bor(
+						bit.band(
+							bit.lshift(result, info.shift),
+							mask
+						),
+						bit.band(
+							selColorValue,
+							bit.bnot(mask)
+						)
+					)
+					self:setPaletteSelIndexColor(selColorValue)
+				end,
+			},
+		}
+		self.children:insert(self[info.textfield])
+		self.children:insert(UISpinner{
+			owner = self,
+			pos = vec2d(16+32, info.y),
+			setValue = function(dx)
+				self.undo:pushContinuous()
+				local selColorValue = self:getPaletteSelIndexColor()
+				local mask = bit.lshift(0x1f, info.shift)
+				selColorValue = bit.bor(
+					bit.band(
+						selColorValue + bit.lshift(dx, info.shift),
+						mask
+					),
+					bit.band(
+						selColorValue,
+						bit.bnot(mask)
+					)
+				)
+				self:setPaletteSelIndexColor(selColorValue)
+			end,
+		})
+	end
+	
+	self.children:insert(UIButton{
+		owner = self,
+		pos = vec2d(16, 224+24),
+		text = 'A',
+		events = {
+			click = function()
+				local selColorValue = self:getPaletteSelIndexColor()
+				local alpha = 0 ~= bit.band(selColorValue,0x8000)
+				self.undo:pushContinuous()
+				if alpha then	-- if it was set then clear it
+					selColorValue = bit.band(selColorValue, 0x7fff)
+				else	-- otherwise set it
+					selColorValue = bit.bor(selColorValue, 0x8000)
+				end				
+				self:setPaletteSelIndexColor(selColorValue)
+			end,
+		},
+	})
+
+	self.alphaLabel = UILabel{
+		owner = self,
+		pos = vec2d(16+16, 224+24),
+		fgColorIndex = 13,
+		bgColorIndex = -1,
+	}
+	self.children:insert(self.alphaLabel)
 
 	self:onCartLoad()
 end
@@ -481,7 +614,47 @@ function EditSheet:setPaletteSelIndex(x)
 
 	if self.paletteSelIndex ~= oldvalue then
 		self.paletteSelIndexTextField.value = tostring(self.paletteSelIndex)
+		self:updatePaletteSelIndexColor()
 	end
+end
+
+-- on changing C, R, G, B, A, call this to update all fields
+function EditSheet:updatePaletteSelIndexColor()
+	local selColorValue = self:getPaletteSelIndexColor()
+
+	self.selColorValueTextField.value = ('%04X'):format(selColorValue)
+	self.selColorRedValueTextField.value = ('%02X'):format(
+		bit.band(selColorValue, 0x1f)
+	)
+	self.selColorGreenValueTextField.value = ('%02X'):format(
+		bit.band(bit.rshift(selColorValue, 5), 0x1f)
+	)
+	self.selColorBlueValueTextField.value = ('%02X'):format(
+		bit.band(bit.rshift(selColorValue, 10), 0x1f)
+	)
+
+	local alpha = bit.band(selColorValue,0x8000)~=0
+	self.alphaLabel.text = 'opaque' or 'clear'
+end
+
+function EditSheet:getPaletteSelIndexColor()
+	local app = self.app
+	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
+	local paletteRAM = paletteBlob.ramgpu
+	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
+	local selColorValue = app:peekw(selPaletteAddr)
+	return selColorValue 
+end
+
+function EditSheet:setPaletteSelIndexColor(selColorValue)
+	local app = self.app
+	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
+	local paletteRAM = paletteBlob.ramgpu
+	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
+	self:edit_pokew(selPaletteAddr, selColorValue)
+
+	-- change all C R G B A fields:
+	self:updatePaletteSelIndexColor()
 end
 
 local selBorderColors = {0xfd, 0xfc}
@@ -944,34 +1117,10 @@ function EditSheet:update()
 	end
 
 	-- sprite edit method
-	local x = 32
-	local y = 96
-	--[[
-	self:guiRadio(x, y, {'draw', 'dropper', 'fill', 'pan'}, self.spriteDrawMode, function(result)
-		self.spriteDrawMode = result
-	end)
-
-	-- select palette color to draw
-	app:drawMenuText(
-		'#',
-		16,
-		112,
-		13,
-		-1
-	)
-	self:guiTextField(
-		16+5,
-		112,
-		15,
-		self, 'paletteSelIndex',
-		function(result)
-			self.paletteSelIndex = tonumber(result) or self.paletteSelIndex
-		end
-	)
-	--]]
 
 	-- TODO how to draw all colors
 	-- or how many to draw ...
+	local x = 32
 	local y = 128
 	app:drawBorderRect(
 		x-1,
@@ -1074,7 +1223,7 @@ function EditSheet:update()
 		end
 	end
 
-	-- edit palette entries
+--[[ edit palette entries
 	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
 	local selColorValue = app:peekw(selPaletteAddr)
 	app:drawMenuText('C=', 16, 216, 13, -1)
@@ -1168,6 +1317,7 @@ function EditSheet:update()
 		end
 	end
 	app:drawMenuText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
+--]]
 
 	if self:guiButton('P', 112, 32, self.pasteKeepsPalette, 'Paste Keeps Pal='..tostring(self.pasteKeepsPalette)) then
 		self.pasteKeepsPalette = not self.pasteKeepsPalette
@@ -1381,6 +1531,8 @@ function EditSheet:popUndo(redo)
 		ffi.copy(paletteBlob.ramgpu.image.buffer, undoEntry.palette.buffer, paletteBlob.ramgpu.image:getBufferSize())
 		sheetBlob.ramgpu.dirtyCPU = true
 		paletteBlob.ramgpu.dirtyCPU = true
+
+		self:updatePaletteSelIndexColor()
 	end
 end
 

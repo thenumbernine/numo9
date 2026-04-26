@@ -10,6 +10,8 @@ local UILabel = UIWidget:subclass()
 
 function UILabel:init(args)
 	UILabel.super.init(self, args)
+
+	self.text = self.text ~= nil and tostring(self.text) or ''
 end
 
 function UILabel:draw()
