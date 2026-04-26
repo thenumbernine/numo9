@@ -19,6 +19,7 @@ local UIButton = require 'numo9.ui.button'
 local UISpinner = require 'numo9.ui.spinner'
 local UILabel = require 'numo9.ui.label'
 local UITextField = require 'numo9.ui.textfield'
+local UIRadio = require 'numo9.ui.radio'
 local Undo = require 'numo9.ui.undo'
 
 local numo9_video = require 'numo9.video'
@@ -310,6 +311,19 @@ function EditSheet:init(args)
 	}
 	self.children:insert(self.spriteBitDepthSpinner)
 
+	-- spritesheet pan vs select
+	self.children:insert(UIRadio{
+		owner = self,
+		pos = vec2d(224, 12),
+		options = {'select', 'pan'},
+		getSelected = function()
+			return self.spritesheetEditMode
+		end,
+		setSelected = function(result)
+			self.spritesheetEditMode = result
+		end,
+	})
+
 	self:onCartLoad()
 end
 
@@ -507,12 +521,6 @@ function EditSheet:update()
 
 	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
 	local paletteRAM = paletteBlob.ramgpu
-
-	-- spritesheet pan vs select
-	self:guiRadio(224, 12, {'select', 'pan'}, self.spritesheetEditMode,
-		function(result)
-			self.spritesheetEditMode = result
-		end)
 
 	local x = 126
 	local y = 32

@@ -127,11 +127,6 @@ function UIWidget:onFocus(e)
 	self.owner.menuTabIndex = self.menuTabIndex
 
 	if self.events.focus then self.events.focus(self, e) end
-
-	-- ok when you click a textbox ...
-	-- when does it set the text cursor position?
-	-- i'm doing it here so focus can change the contents before i determine .value length
-	self.textFieldCursorLoc = #self.value
 end
 
 function UIWidget:onBlur(e)

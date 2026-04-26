@@ -68,6 +68,15 @@ function UITextField:onKeyDown(e)
 	end
 end
 
+function UITextField:onFocus(e)
+	UITextField.super.onFocus(self, e)
+
+	-- ok when you click a textbox ...
+	-- when does it set the text cursor position?
+	-- i'm doing it here so focus can change the contents before i determine .value length
+	self.textFieldCursorLoc = #self.value
+end
+
 function UITextField:onBlur(e)
 	UITextField.super.onBlur(self, e)
 	if self.events.change then self.events.change(self, e) end
