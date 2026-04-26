@@ -97,7 +97,7 @@ function UIBlobSelect:init(args)
 
 	self.delButton = UIButton{
 		owner = self.owner,
-		pos = vec2d(29, 10),
+		pos = vec2d(19, 10),
 		text = '-',
 		isset = function()
 			local blobsOfType = app.blobs[blobName]
@@ -173,7 +173,6 @@ function UIBlobSelect:onBlur(...)
 end
 
 function UIBlobSelect:updatePopup()
-print(self, 'popup', self.popupOpen)	
 	if self.popupOpen then
 		if self.owner.currentPopup
 		and self.owner.currentPopup ~= self

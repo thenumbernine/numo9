@@ -1609,14 +1609,12 @@ function EditSheet:event(e)
 ::done::	
 	if newWidgetUnderMouse ~= self.widgetUnderMouse then
 		if self.widgetUnderMouse then
-print('leaving', self.widgetUnderMouse)
 			-- TODO propagate this to parents?
 			self.widgetUnderMouse.isHovered = nil
 			self.widgetUnderMouse:onMouseLeave(e)
 		end
 		self.widgetUnderMouse = newWidgetUnderMouse
 		if self.widgetUnderMouse then
-print('entering', self.widgetUnderMouse)
 			-- TODO propagate this to parents?
 			self.widgetUnderMouse.isHovered = true
 			self.widgetUnderMouse:onMouseEnter(e)
