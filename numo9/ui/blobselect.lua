@@ -1,10 +1,13 @@
 local assert = require 'ext.assert'
+local math = require 'ext.math'
+local vec2d = require 'vec-ffi.vec2d'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
+local minBlobPerType = numo9_blobs.minBlobPerType
 
 local UIWidget = require 'numo9.ui.widget'
 local UITextField = require 'numo9.ui.textfield'
@@ -15,9 +18,9 @@ local UIButton = require 'numo9.ui.button'
 local UIBlobSelect = UIWidget:subclass()
 
 function UIBlobSelect:init(args)
-	local app = self.owner.app
-
 	UIBlobSelect.super.init(self, args)
+	
+	local app = self.owner.app
 	
 	local blobName = assert.index(args, 'blobName')
 
@@ -26,7 +29,7 @@ function UIBlobSelect:init(args)
 	local valueTable = assert.index(args, 'valueTable')
 	self.valueTable = valueTable
 	local valueKey = assert.index(args, 'valueKey')
-	self.popupKey = assert.index(args, 'popupKey')
+	self.popupKey = valueKey..'_popupOpen'
 
 	local setValue = assert.index(args, 'setValue')	-- setter on blob index change
 	local generator = args.generator or function()
@@ -37,24 +40,27 @@ function UIBlobSelect:init(args)
 		if not newValue then return end
 		local blobsOfType = app.blobs[blobName]
 		newValue = math.clamp(newValue, 0, #blobsOfType-1)
-		self.valueTable[self.valueKey] = newValue
+		self.valueTable[valueKey] = newValue
 		if setValue then setValue(newValue) end
 	end
 
-	self.children:insert(UITextField{
+	self.textfield = UITextField{
 		owner = self.owner,
 		pos = vec2d(0, 0),
+		width = 12,
 		-- TODO update when the value key changes
-		value = tostring(self.valueTable[self.valueKey]),
+		value = tostring(self.valueTable[valueKey]),
+		tooltip = blobName,
 		events = {
 			focus = function(target, e)
-				target.value = tostring(self.valueTable[self.valueKey])
+				target.value = tostring(self.valueTable[valueKey])
 			end,
 			change = function(target, e)
 				doSetValue(tonumber(target.value))
 			end,
 		},
-	})
+	}
+	self.children:insert(self.textfield)
 
 	self.children:insert(UISpinner{
 		owner = self.owner,
@@ -72,14 +78,14 @@ function UIBlobSelect:init(args)
 			click = function(target, e)
 
 				local blobsOfType = app.blobs[blobName]
-				self.valueTable[self.valueKey] = math.clamp(self.valueTable[self.valueKey], 0, #blobsOfType-1)
+				self.valueTable[valueKey] = math.clamp(self.valueTable[valueKey], 0, #blobsOfType-1)
 				if #blobsOfType == 0 then
 					blobsOfType:insert(generator())
-					self.valueTable[self.valueKey] = 0
+					self.valueTable[valueKey] = 0
 				else
 					-- insert after this 0-based blob = +2
-					blobsOfType:insert(self.valueTable[self.valueKey]+2, generator())
-					self.valueTable[self.valueKey] = self.valueTable[self.valueKey] + 1
+					blobsOfType:insert(self.valueTable[valueKey]+2, generator())
+					self.valueTable[valueKey] = self.valueTable[valueKey] + 1
 				end
 
 				self:updateBlobChanges()
@@ -104,9 +110,9 @@ function UIBlobSelect:init(args)
 					return
 				end
 
-				self.valueTable[self.valueKey] = math.clamp(self.valueTable[self.valueKey], 0, #blobsOfType-1)
-				blobsOfType:remove(self.valueTable[self.valueKey]+1)
-				self.valueTable[self.valueKey] = math.clamp(self.valueTable[self.valueKey] - 1, 0, #blobsOfType-1)
+				self.valueTable[valueKey] = math.clamp(self.valueTable[valueKey], 0, #blobsOfType-1)
+				blobsOfType:remove(self.valueTable[valueKey]+1)
+				self.valueTable[valueKey] = math.clamp(self.valueTable[valueKey] - 1, 0, #blobsOfType-1)
 
 				self:updateBlobChanges()
 			end,

@@ -59,7 +59,7 @@ function UIWidget:draw()
 	local app = owner.app
 
 	self.modelMatPush:copy(app.ram.modelMat)
-	app:mattrans(self.pos.x, self.pos.y, 0)
+	app:mattrans(self.pos.x, self.pos.y, 0, 0)
 
 	-- keep track of which tab index this component is
 	self.menuTabIndex = owner.menuTabCounter
@@ -74,6 +74,7 @@ function UIWidget:draw()
 	end
 
 	app.ram.modelMat:copy(self.modelMatPush)
+	app:onModelMatChange()
 end
 
 -- a lot like draw except without the successive matrix transformations
@@ -82,7 +83,9 @@ function UIWidget:update()
 		ch:update()
 	end
 
-	if (self.isHovered or self:hasFocus()) and self.tooltip then
+	if (self.isHovered or self:hasFocus())
+	and self.tooltip
+	then
 		local owner = self.owner
 		local app = owner.app
 		-- ram mousePos is relative to matMenuReset()'s matrices

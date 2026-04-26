@@ -20,6 +20,7 @@ local UISpinner = require 'numo9.ui.spinner'
 local UILabel = require 'numo9.ui.label'
 local UITextField = require 'numo9.ui.textfield'
 local UIRadio = require 'numo9.ui.radio'
+local UIBlobSelect = require 'numo9.ui.blobselect'
 local Undo = require 'numo9.ui.undo'
 
 local numo9_video = require 'numo9.video'
@@ -576,6 +577,111 @@ function EditSheet:init(args)
 
 	-- flags ... ???
 
+	self.sheetBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = vec2d(80, 0),
+		blobName = 'sheet',
+		valueTable = self,
+		valueKey = 'sheetBlobIndex',
+		setValue = function(value)
+			-- for now only one undo per sheet/palette at a time
+			self.undo:clear()
+		end,
+	}
+	self.children:insert(self.sheetBlobSelect)
+	
+	self.paletteBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = vec2d(96, 0),
+		blobName = 'palette',
+		valueTable = self,
+		valueKey = 'paletteBlobIndex',
+		setValue = function()
+			-- for now only one undo per sheet/palette at a time
+			self.undo:clear()
+		end,
+	}
+	self.children:insert(self.paletteBlobSelect)
+
+
+	local private = {}
+	local getset = {
+		paletteBlobIndex = {
+			get = function(self, k)
+				return private[k]
+			end,
+			set = function(self, k, v)
+				private[k] = v
+
+				-- on self.paletteBlobIndex change...
+				self.paletteBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		sheetBlobIndex = {
+			get = function(self, k)
+				return private[k]
+			end,
+			set = function(self, k, v)
+				private[k] = v
+
+				-- on self.sheetBlobIndex change...
+				self.sheetBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+	}
+	local mt = getmetatable(self)
+	setmetatable(self, table.union({}, mt, {
+		__index = function(self, k)
+			local gs = getset[k]
+			if gs then 
+				local get = gs.get
+				if get then
+					return get(self, k)
+				end
+			end
+
+			local index = mt.__index
+			if index then
+				if type(index) == 'function' then
+					return index(self, k, v)
+				elseif type(index) == 'table' then
+					local v = index[k]
+					if v ~= nil then return v end
+				elseif type(index) == 'nil' then
+					-- fall through to return nil
+				else
+					error("unknown index type "..type(index))
+				end
+			end
+
+			return nil
+		end,
+		__newindex = function(self, k, v)
+			local gs = getset[k]
+			if gs then
+				local set = gs.set
+				if set then
+					return set(self, k, v)
+				end
+			end
+
+			local newindex = mt.__newindex
+			if newindex  then
+				if type(newindex) == 'function' then
+					return newindex(self, k, v)
+				elseif type(newindex) == 'table' then
+					-- still fall through to rawset, right?
+				elseif type(newindex) == 'nil' then
+					-- fall through
+				else
+					error("unknown newindex type "..type(newindex))
+				end
+			end
+
+			rawset(self, k, v)
+		end
+	}))
+
 	self:onCartLoad()
 end
 
@@ -822,15 +928,6 @@ function EditSheet:update()
 	local shift = app:key'lshift' or app:key'rshift'
 
 	EditSheet.super.update(self)
-
-	-- ui draw:
-	for _,ch in ipairs(self.children) do
-		ch:draw()
-	end
-	-- ui update:
-	for _,ch in ipairs(self.children) do
-		ch:update()
-	end
 
 	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
 	local sheetRAM = sheetBlob.ramgpu
@@ -1442,7 +1539,8 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 		end
 	end
 
-	-- draw ui menubar last so it draws over the rest of the page
+
+	--[[ draw ui menubar last so it draws over the rest of the page
 	self:guiBlobSelect(80, 0, 'sheet', self, 'sheetBlobIndex', function()
 		-- for now only one undo per sheet/palette at a time
 		self.undo:clear()
@@ -1451,6 +1549,20 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 		-- for now only one undo per sheet/palette at a time
 		self.undo:clear()
 	end)
+	--]]
+
+
+	app:matMenuReset()
+
+	-- ui draw:
+	for _,ch in ipairs(self.children) do
+		ch:draw()
+	end
+
+	-- ui update:
+	for _,ch in ipairs(self.children) do
+		ch:update()
+	end
 
 	self:drawTooltip()
 end
