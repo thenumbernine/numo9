@@ -11,7 +11,7 @@ local UIButton = UIWidget:subclass()
 function UIButton:init(args)
 	UIButton.super.init(self, args)
 
-	self.text = assert.index(args, 'text')
+	assert(self.text, "UIButton expected .text")
 
 	-- function for determining whether to highlight or not
 	-- makes this into a checkbox ...
@@ -30,11 +30,11 @@ function UIButton:draw()
 	if self.isset then isset = self:isset() end
 
 	local fg, bg
-	if isset and self.hasFocus then
+	if isset and (self.isHovered or self:hasFocus()) then
 		fg, bg = 0xc, 9
 	elseif isset then
 		fg, bg = 0xc, 8
-	elseif self.hasFocus then
+	elseif (self.isHovered or self:hasFocus()) then
 		fg, bg = 0xd, 9
 	else
 		fg, bg = 0xd, 8

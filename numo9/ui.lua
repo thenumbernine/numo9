@@ -657,6 +657,11 @@ function UI:event(e)
 		return true
 	end
 
+	-- TODO TODO TODO
+	-- I'm switching to a gui scenegraph
+	-- so now tabbing is broken
+	-- so convert everything to the gui scenegraph to fix it.
+	--[[
 	-- TODO this is blocking 'return's in the text editors in the menu ...
 	-- tempting to switch all ui controls over to :event()'s
 	-- tempting to just use a tree based ui ... and give them event-capturing and bubble in and out and everything
@@ -666,6 +671,7 @@ function UI:event(e)
 		self.execMenuTab = true
 		return true
 	end
+	--]]
 end
 
 -- editor calsl this when it replaces a blob
@@ -799,6 +805,23 @@ function UI:guiSetClipRect(x,y,w,h)
 		app.ram.screenHeight - 1 - sy2,
 		app.ram.screenHeight - 1 - sy1
 	app:setClipRect(sx1, sy1, sx2 - sx1, sy2 - sy1)
+end
+
+-- works with the new UI scenegraph:
+-- should go in whatever root-level for the final ui design
+function UI:setFocusWidget(widget, e)
+	-- can you re-focus the same widget?
+	if self.activeElement == widget then return end
+
+	if self.activeElement then
+		self.activeElement:onBlur(e)
+	end
+
+	self.activeElement = widget
+
+	if self.activeElement then
+		self.activeElement:onFocus(e)
+	end
 end
 
 return UI

@@ -17,6 +17,8 @@ local clip = require 'numo9.clipboard'
 
 local UIButton = require 'numo9.ui.button'
 local UISpinner = require 'numo9.ui.spinner'
+local UILabel = require 'numo9.ui.label'
+local UITextField = require 'numo9.ui.textfield'
 local Undo = require 'numo9.ui.undo'
 
 local numo9_video = require 'numo9.video'
@@ -92,7 +94,7 @@ function EditSheet:init(args)
 						self:putpixel(x1, y, p2)
 						self:putpixel(x2, y, p1)
 					end
-				end		
+				end
 			end,
 		},
 	})
@@ -117,7 +119,7 @@ function EditSheet:init(args)
 						self:putpixel(x, y1, p2)
 						self:putpixel(x, y2, p1)
 					end
-				end		
+				end
 			end,
 		},
 	})
@@ -237,6 +239,77 @@ function EditSheet:init(args)
 		end,
 	})
 
+	-- choose spriteBit
+	self.children:insert(UILabel{
+		owner = self,
+		text = '#',
+		pos = vec2d(128+16+24, 12),
+		fgColorIndex = 13,
+		bgColorIndex = -1,
+	})
+	self.spriteBitTextField = UITextField{
+		owner = self,
+		pos = vec2d(128+16+24+5, 12),
+		width = 10,
+		events = {
+			focus = function(target, e)
+				target.value = tostring(self.spriteBit)
+			end,
+			-- input = immediate, change = on 'enter' or blur
+			change = function(target, e)
+				self:setSpriteBit(target.value)
+			end,
+		},
+	}
+	self.children:insert(self.spriteBitTextField)
+	self.spriteBitSpinner = UISpinner{
+		owner = self,
+		pos = vec2d(128+16+24, 20),
+		tooltip = function()
+			return 'bit='..self.spriteBit
+		end,
+		setValue = function(dx)
+			self:setSpriteBit(self.spriteBit + dx)
+		end,
+	}
+	self.children:insert(self.spriteBitSpinner)
+
+	-- choose spriteMask
+	self.children:insert(UILabel{
+		owner = self,
+		text = '#',
+		pos = vec2d(128+16+24+32, 12),
+		fgColorIndex = 13,
+		bgColorIndex = -1,
+	})
+	self.spriteBitDepthTextField = UITextField{
+		owner = self,
+		pos = vec2d(128+16+24+32+5, 12),
+		width = 10,
+		events = {
+			focus = function(target, e)
+				target.value = tostring(self.spriteBitDepth)
+			end,
+			change = function(target, e)
+				self:setSpriteBitDepth(target.value)
+			end,
+		},
+	}
+	self.children:insert(self.spriteBitDepthTextField)
+	self.spriteBitDepthSpinner = UISpinner{
+		owner = self,
+		pos = vec2d(128+16+24+32, 20),
+		tooltip = function()
+			return 'bpp='..self.spriteBitDepth
+		end,
+		setValue = function(dx)
+			-- should I not let this exceed 8 - spriteBit ?
+			-- or should I wrap around bits and be really unnecessarily clever?
+			self:setSpriteBitDepth(self.spriteBitDepth + dx)
+		end,
+	}
+	self.children:insert(self.spriteBitDepthSpinner)
+
 	self:onCartLoad()
 end
 
@@ -268,8 +341,8 @@ function EditSheet:onCartLoad()
 	self.spritePanDownPos = vec2d()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
 
-	self.spriteBit = 0	-- which bitplane to start at: 0-7
-	self.spriteBitDepth = 8	-- how many bits to edit at once: 1-8
+	self:setSpriteBit(0)	-- which bitplane to start at: 0-7
+	self:setSpriteBitDepth(8)	-- how many bits to edit at once: 1-8
 	self.spritesheetEditMode = 'select'
 
 	self.spriteDrawMode = 'draw'
@@ -286,6 +359,29 @@ function EditSheet:onCartLoad()
 	self.pasteTransparent = false
 
 	self.undo:clear()
+end
+
+function EditSheet:setSpriteBit(x)
+	local oldvalue = self.spriteBit
+
+	self.spriteBit = math.clamp(tonumber(x) or self.spriteBit, 0, 7)
+
+	-- only update if different
+	if self.spriteBit ~= oldvalue then
+		self.spriteBitTextField.value = tostring(self.spriteBit)
+	end
+end
+
+function EditSheet:setSpriteBitDepth(x)
+	local oldvalue = self.spriteBitDepth
+
+	-- should I not let this exceed 8 - spriteBit ?
+	-- or should I wrap around bits and be really unnecessarily clever?
+	self.spriteBitDepth = math.clamp(tonumber(x) or self.spriteBitDepth, 1, 8)
+
+	if self.spriteBitDepth ~= oldvalue then
+		self.spriteBitDepthTextField.value = tostring(self.spriteBitDepth)
+	end
 end
 
 local selBorderColors = {0xfd, 0xfc}
@@ -309,7 +405,7 @@ function EditSheet:getpixel(tx, ty)
 	-- let's subtract it
 	local texelIndex = tx + spriteSheetSize.x * ty
 	assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-	
+
 	local app = self.app
 	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
 	local sheetRAM = sheetBlob.ramgpu
@@ -344,7 +440,7 @@ function EditSheet:putpixel(tx,ty, putValue)
 
 	local texelIndex = tx + spriteSheetSize.x * ty
 	assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-	
+
 	local app = self.app
 	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
 	local sheetRAM = sheetBlob.ramgpu
@@ -412,51 +508,6 @@ function EditSheet:update()
 	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
 	local paletteRAM = paletteBlob.ramgpu
 
-	-- choose spriteBit
-	app:drawMenuText(
-		'#',
-		128+16+24,
-		12,
-		13,
-		-1
-	)
-	self:guiTextField(
-		128+16+24+5,
-		12,
-		10,
-		self, 'spriteBit',
-		function(result)
-			self.spriteBit = math.clamp(tonumber(result) or self.spriteBit, 0, 7)
-		end
-	)
-	self:guiSpinner(128+16+24, 20, function(dx)
-		self.spriteBit = math.clamp(self.spriteBit + dx, 0, 7)
-	end, 'bit='..self.spriteBit)
-
-	-- choose spriteMask
-	app:drawMenuText(
-		'#',
-		128+16+24+32,
-		12,
-		13,
-		-1
-	)
-	self:guiTextField(
-		128+16+24+32+5,
-		12,
-		10,
-		self, 'spriteBitDepth',
-		function(result)
-			self.spriteBitDepth = tonumber(result) or self.spriteBitDepth
-		end
-	)
-
-	self:guiSpinner(128+16+24+32, 20, function(dx)
-		-- should I not let this exceed 8 - spriteBit ?
-		-- or should I wrap around bits and be really unnecessarily clever?
-		self.spriteBitDepth = math.clamp(self.spriteBitDepth + dx, 1, 8)
-	end, 'bpp='..self.spriteBitDepth)
-
 	-- spritesheet pan vs select
 	self:guiRadio(224, 12, {'select', 'pan'}, self.spritesheetEditMode,
 		function(result)
@@ -499,8 +550,8 @@ function EditSheet:update()
 		self.sheetBlobIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
-		0,		-- spriteBit
-		0xFF	-- spriteMask
+		0,		-- spriteBit ... TODO show the current spriteBit here?
+		0xFF	-- spriteMask ... TODO same?
 	)
 
 	app.ram.paletteBlobIndex = pushPalBlobIndex
@@ -951,23 +1002,6 @@ function EditSheet:update()
 			end
 		end
 	end
-
---[[
-	-- adjust palette size
-	self:guiSpinner(16, 200, function(dx)
-		self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
-	end, 'pal bpp='..bit.lshift(1,self.log2PalBits))
-
-	-- adjust palette offset
-	self:guiSpinner(16+24, 200, function(dx)
-		self.paletteOffset = bit.band(0xff, self.paletteOffset + dx)
-	end, 'pal ofs='..self.paletteOffset)
-
-	-- adjust pen size
-	self:guiSpinner(16+48, 200, function(dx)
-		self.penSize = math.clamp(self.penSize + dx, 1, 5)
-	end, 'pen size='..self.penSize)
---]]
 
 	-- edit palette entries
 	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)

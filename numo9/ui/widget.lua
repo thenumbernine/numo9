@@ -19,6 +19,12 @@ function UIWidget:init(args)
 	-- TODO turn it into the root UI component
 	self.owner = assert.index(args, 'owner')
 
+	-- common in lots of child clases, but not required
+	self.text = args.text	-- for labels, buttons, etc
+	self.value = args.value	-- for input values
+	self.fgColorIndex = args.fgColorIndex
+	self.bgColorIndex = args.bgColorIndex
+
 	self.tooltip = args.tooltip
 
 	-- menu-space pos and size
@@ -31,11 +37,15 @@ function UIWidget:init(args)
 
 	--[[
 	events:
-		click
-			callback for triggering this button with click 
+		click = callback for triggering this button with click
 			or enter or space when tabstop-focused
-		focus
-		blur
+		focus = when you click (or tab to) a widget
+		blur = when you click off of (or tab away from) a widget
+		mouseenter = when you move mouse over a widget
+		mouseleave = when you move mouse away from a widget
+		input = textfield on any key change
+		change = textfield on 'enter' or blur
+		keyup, keydown = yup
 	--]]
 	self.events = table(args.events):setmetatable(nil)
 
@@ -72,12 +82,13 @@ function UIWidget:update()
 		ch:update()
 	end
 
-	if self.hasFocus and self.tooltip then
+	if (self.isHovered or self:hasFocus()) and self.tooltip then
 		local owner = self.owner
 		local app = owner.app
 		-- ram mousePos is relative to matMenuReset()'s matrices
 		-- this will be the root-level modelMatPush
 		-- so handle this outside of draw
+		-- ... or pass mousePos down through draw and constantly inverse-apply matrix transforms to it it as you go ...
 		local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
 		local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
 
@@ -94,27 +105,58 @@ function UIWidget:update()
 	end
 end
 
+function UIWidget:hasFocus()
+	if self.owner.activeElement == self then return true end
+	for _,ch in ipairs(self.children) do
+		if ch:hasFocus() then return true end
+	end
+	return false
+end
+
+function UIWidget:onMouseEnter(e)
+	if self.events.mouseenter then self.events.mouseenter(self, e) end
+end
+
+function UIWidget:onMouseLeave(e)
+	if self.events.mouseleave then self.events.mouseleave(self, e) end
+end
+
 function UIWidget:onFocus(e)
 	-- if you mouse over an event thens witch to its tab index...
 	-- ... TODO only do this when you click?
 	self.owner.menuTabIndex = self.menuTabIndex
 
-	if self.events.focus then self.events.focus(self) end
+	if self.events.focus then self.events.focus(self, e) end
+
+	-- ok when you click a textbox ...
+	-- when does it set the text cursor position?
+	-- i'm doing it here so focus can change the contents before i determine .value length
+	self.textFieldCursorLoc = #self.value
 end
 
 function UIWidget:onBlur(e)
-	if self.events.blur then self.events.blur(self) end
+	if self.events.blur then self.events.blur(self, e) end
 end
 
 function UIWidget:onClick(e)
+	self.owner:setFocusWidget(self, e)
+
 	if self.events.click then
-		self.events.click(self)
-		
-		-- hmm return true always? 
+		self.events.click(self, e)
+
+		-- hmm return true always?
 		-- only if events.click returns true?
 		-- always unless events.click returns false?
 		return true
 	end
+end
+
+function UIWidget:onKeyDown(e)
+	if self.events.keydown then self.events.keydown(self, e) end
+end
+
+function UIWidget:onKeyUp(e)
+	if self.events.keyup then self.events.keyup(self, e) end
 end
 
 -- returns true if captured an event
@@ -129,27 +171,33 @@ function UIWidget:event(e)
 	-- TODO this in widget
 	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
 		local mx, my = e.motion.x, e.motion.y
-		-- TODO separate box2d 'contains' functions for contains-numbers, contains-vec, contains-box ...
-		local oldHasFocus = self.hasFocus
-		self.hasFocus = self.ssbbox:contains(vec2d(mx, my)) 
-		if self.hasFocus and not oldHasFocus then
-			self:onFocus(e)
-		elseif not self.hasFocus and oldHasFocus then
-			self:onBlur(e)
-		end
-	end
 
-	if e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
-		if self.hasFocus then
+		local oldIsHovered = self.isHovered
+		self.isHovered = self.ssbbox:contains(vec2d(mx, my))
+		if self.isHovered and not oldIsHovered then
+			self:onMouseEnter(e)
+		elseif not self.isHovered and oldIsHovered then
+			self:onMouseLeave(e)
+		end
+	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
+		if self.isHovered then
 			self.mouseDownOnThis = true
 		end
 	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
-		if self.hasFocus
-		and self.mouseDownOnThis 
+		if self.isHovered
+		and self.mouseDownOnThis
 		then
 			didCapture = self:onClick()
 		end
 		self.mouseDownOnThis = nil
+	elseif e.type == sdl.SDL_EVENT_KEY_DOWN then
+		if self:hasFocus() then
+			self:onKeyDown(e)
+		end
+	elseif e.type == sdl.SDL_EVENT_KEY_UP then
+		if self:hasFocus() then
+			self:onKeyUp(e)
+		end
 	end
 
 	return didCapture
