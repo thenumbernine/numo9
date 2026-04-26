@@ -515,6 +515,67 @@ function EditSheet:init(args)
 	}
 	self.children:insert(self.alphaLabel)
 
+	self.children:insert(UIButton{
+		owner = self,
+		pos = vec2d(112, 32),
+		text = 'P',
+		tooltip = function()
+			return 'Paste Keeps Pal='..tostring(self.pasteKeepsPalette)
+		end,
+		isset = function()
+			return self.pasteKeepsPalette
+		end,
+		events = {
+			click = function()
+				self.pasteKeepsPalette = not self.pasteKeepsPalette
+			end,
+		},
+	})
+	self.children:insert(UIButton{
+		owner = self,
+		pos = vec2d(112, 42),
+		text = 'A',
+		tooltip = function()
+			return 'Paste Transparent='..tostring(self.pasteTransparent)
+		end,
+		isset = function()
+			return self.pasteTransparent
+		end,
+		events = {
+			click = function()
+				self.pasteTransparent = not self.pasteTransparent
+			end,
+		},
+	})
+
+	--[[
+	self:guiSpinner(96, 52, function(dx)
+		self.pasteTargetNumColors = bit.band(self.pasteTargetNumColors + dx)
+	end, 'paste target # colors='..tostring(self.pasteTargetNumColors))
+	--]]
+	-- [[
+	self.children:insert(UITextField{
+		owner = self,
+		pos = vec2d(80, 32),
+		width = 4*8,
+		tooltip = function()
+			return 'paste target # colors='..self.pasteTargetNumColors
+		end,
+		events = {
+			focus = function(target, e)
+				target.value = tostring(self.pasteTargetNumColors)
+			end,
+			change = function(target, e)
+				self.pasteTargetNumColors = tonumber(target.value) or 0
+			end,
+		},
+	})
+	--]]
+
+	-- TODO button for cut copy and paste as well?
+
+	-- flags ... ???
+
 	self:onCartLoad()
 end
 
@@ -1222,129 +1283,6 @@ function EditSheet:update()
 			end
 		end
 	end
-
---[[ edit palette entries
-	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
-	local selColorValue = app:peekw(selPaletteAddr)
-	app:drawMenuText('C=', 16, 216, 13, -1)
-	self:guiTextField(
-		16+10, 216, 20,
-		('%04X'):format(selColorValue), nil,
-		function(result)
-			result = tonumber(result, 16)
-			if result then
-				self.undo:pushContinuous()
-				self:edit_pokew(selPaletteAddr, result)
-				selColorValue = result
-			end
-		end
-	)
-
-	app:drawMenuText('R=', 16, 224, 13, -1)
-	self:guiTextField(
-		16+10, 224, 20,
-		('%02X'):format(bit.band(selColorValue,0x1f)), nil,
-		function(result)
-			result = tonumber(result, 16)
-			if result then
-				self.undo:pushContinuous()
-				selColorValue = bit.bor(
-					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x1f)),
-					result
-				)
-				self:edit_pokew(selPaletteAddr, selColorValue)
-			end
-		end
-	)
-	self:guiSpinner(16+32, 224, function(dx)
-		selColorValue = bit.bor(bit.band(selColorValue+dx,0x1f), bit.band(selColorValue,bit.bnot(0x1f)))
-		self:edit_pokew(selPaletteAddr, selColorValue)
-	end)
-
-	app:drawMenuText('G=', 16, 224+8, 13, -1)
-	self:guiTextField(
-		16+10, 224+8, 20,
-		('%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), nil,
-		function(result)
-			result = tonumber(result, 16)
-			if result then
-				self.undo:pushContinuous()
-				selColorValue = bit.bor(
-					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x3e0)),
-					bit.lshift(result, 5)
-				)
-				self:edit_pokew(selPaletteAddr, selColorValue)
-			end
-		end
-	)
-	self:guiSpinner(16+32, 224+8, function(dx)
-		self.undo:pushContinuous()
-		selColorValue = bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
-		self:edit_pokew(selPaletteAddr, selColorValue)
-	end)
-
-	app:drawMenuText('B=', 16, 224+16, 13, -1)
-	self:guiTextField(
-		16+10, 224+16, 20,
-		('%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), nil,
-		function(result)
-			result = tonumber(result, 16)
-			if result then
-				self.undo:pushContinuous()
-				selColorValue = bit.bor(
-					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x7c00)),
-					bit.lshift(result, 10)
-				)
-				self:edit_pokew(selPaletteAddr, selColorValue)
-			end
-		end
-	)
-	self:guiSpinner(16+32, 224+16, function(dx)
-		self.undo:pushContinuous()
-		selColorValue = bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
-		self:edit_pokew(selPaletteAddr, selColorValue)
-	end)
-
-	local alpha = bit.band(selColorValue,0x8000)~=0
-	if self:guiButton('A', 16, 224+24, alpha) then
-		self.undo:pushContinuous()
-		if alpha then	-- if it was set then clear it
-			selColorValue = bit.band(selColorValue, 0x7fff)
-			self:edit_pokew(selPaletteAddr, selColorValue)
-		else	-- otherwise set it
-			selColorValue = bit.bor(selColorValue, 0x8000)
-			self:edit_pokew(selPaletteAddr, selColorValue)
-		end
-	end
-	app:drawMenuText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
---]]
-
-	if self:guiButton('P', 112, 32, self.pasteKeepsPalette, 'Paste Keeps Pal='..tostring(self.pasteKeepsPalette)) then
-		self.pasteKeepsPalette = not self.pasteKeepsPalette
-	end
-	if self:guiButton('A', 112, 42, self.pasteTransparent, 'Paste Transparent='..tostring(self.pasteTransparent)) then
-		self.pasteTransparent = not self.pasteTransparent
-	end
-
-	--[[
-	self:guiSpinner(96, 52, function(dx)
-		self.pasteTargetNumColors = bit.band(self.pasteTargetNumColors + dx)
-	end, 'paste target # colors='..tostring(self.pasteTargetNumColors))
-	--]]
-	-- [[
-	self:guiTextField(
-		80, 32, 4*8,
-		self, 'pasteTargetNumColors',
-		function(result)
-			self.pasteTargetNumColors = tonumber(result) or 0
-		end,
-		'paste target # colors='..self.pasteTargetNumColors
-	)
-	--]]
-
-	-- TODO button for cut copy and paste as well
-
-	-- flags ... ???
 
 	-- handle input
 
