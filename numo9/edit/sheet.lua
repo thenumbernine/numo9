@@ -253,10 +253,6 @@ function EditSheet:init(args)
 		pos = vec2d(128+16+24+5, 12),
 		width = 10,
 		events = {
-			focus = function(target, e)
-				target.value = tostring(self.spriteBit)
-			end,
-			-- input = immediate, change = on 'enter' or blur
 			change = function(target, e)
 				self:setSpriteBit(target.value)
 			end,
@@ -288,9 +284,6 @@ function EditSheet:init(args)
 		pos = vec2d(128+16+24+32+5, 12),
 		width = 10,
 		events = {
-			focus = function(target, e)
-				target.value = tostring(self.spriteBitDepth)
-			end,
 			change = function(target, e)
 				self:setSpriteBitDepth(target.value)
 			end,
@@ -323,6 +316,71 @@ function EditSheet:init(args)
 			self.spritesheetEditMode = result
 		end,
 	})
+	
+	-- sprite edit area
+	local x = 2
+	local y = 12
+	self.children:insert(UILabel{
+		owner = self,
+		text = '#',
+		pos = vec2d(x + 32, y),
+		fgColorIndex = 0xfd,
+		bgColorIndex = -1,
+	})
+	
+	self.spriteSelIndexTextField = UITextField{
+		owner = self,
+		pos = vec2d(x + 32 + 5, y),
+		width = 20,
+		events = {
+			change = function(target, e)
+				local index = tonumber(target.value)
+				if not index then return end
+				
+				-- hmm might be more cohesive to store a single index
+				self:setSpriteSelDown(
+					index % spriteSheetSizeInTiles.x,
+					(index - self.spriteSelDown.x) / spriteSheetSizeInTiles.x
+				)
+			end,
+		},
+	}
+	self.children:insert(self.spriteSelIndexTextField)
+
+	-- sprite edit method
+	local x = 32
+	local y = 96
+	self.children:insert(UIRadio{
+		owner = self,
+		pos = vec2d(x, y),
+		options = {'draw', 'dropper', 'fill', 'pan'},
+		getSelected = function()
+			return self.spriteDrawMode
+		end,
+		setSelected = function(result)
+			self.spriteDrawMode = result
+		end,
+	})
+	
+	-- select palette color to draw
+	self.children:insert(UILabel{
+		owner = self,
+		text = '#',
+		pos = vec2d(16, 112),
+		fgColorIndex = 13,
+		bgColorIndex = -1,
+	})
+	self.paletteSelIndexTextField = UITextField{
+		owner = self,
+		pos = vec2d(16+5, 112),
+		width = 15,
+		events = {
+			change = function(target, e)
+				self:setPaletteSelIndex(target.value)
+			end,
+		},
+	}
+	self.children:insert(self.paletteSelIndexTextField)
 
 	self:onCartLoad()
 end
@@ -344,8 +402,10 @@ function EditSheet:onCartLoad()
 --]]
 
 	-- sprite edit mode
-	self.spriteSelDown = vec2i()
+	self.spriteSelDown = vec2i(-1, -1)	-- differ from 0,0 so it'll trigger the onchange
 	self.spriteSelUp = vec2i()
+	self:setSpriteSelDown(self.spriteSelDown:unpack())
+
 	self.spritesheetPanOffset = vec2d()
 	self.spritesheetPanDownPos = vec2d()
 	self.spritesheetScale = 1
@@ -360,7 +420,7 @@ function EditSheet:onCartLoad()
 	self.spritesheetEditMode = 'select'
 
 	self.spriteDrawMode = 'draw'
-	self.paletteSelIndex = 0	-- which color we are painting
+	self:setPaletteSelIndex(0)	-- which color we are painting
 	self.log2PalBits = 3	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
@@ -395,6 +455,32 @@ function EditSheet:setSpriteBitDepth(x)
 
 	if self.spriteBitDepth ~= oldvalue then
 		self.spriteBitDepthTextField.value = tostring(self.spriteBitDepth)
+	end
+end
+
+function EditSheet:setSpriteSelDown(x, y)
+	local oldx = self.spriteSelDown.x
+	local oldy = self.spriteSelDown.y
+
+	self.spriteSelDown.x = math.clamp(x, 0, spriteSheetSizeInTiles.x-1)
+	self.spriteSelDown.y = math.clamp(y, 0, spriteSheetSizeInTiles.x-1)
+
+	if self.spriteSelDown.x ~= oldx
+	or self.spriteSelDown.y ~= oldy
+	then
+		self.spriteSelIndexTextField.value = tostring(self.spriteSelDown.x + spriteSheetSizeInTiles.x * self.spriteSelDown.y)
+	end
+
+	self.spriteSelUp:set(self.spriteSelDown:unpack())
+end
+
+function EditSheet:setPaletteSelIndex(x)
+	local oldvalue = self.paletteSelIndex
+
+	self.paletteSelIndex = bit.band(0xff, tonumber(x) or self.paletteSelIndex)
+
+	if self.paletteSelIndex ~= oldvalue then
+		self.paletteSelIndexTextField.value = tostring(self.paletteSelIndex)
 	end
 end
 
@@ -645,10 +731,8 @@ function EditSheet:update()
 		end
 		if self.spritesheetEditMode == 'select' then
 			if leftButtonPress then
-				self.spriteSelDown:set(fbToSheetCoord(mouseX, mouseY))
-				self.spriteSelDown.x = math.clamp(self.spriteSelDown.x, 0, spriteSheetSizeInTiles.x-1)
-				self.spriteSelDown.y = math.clamp(self.spriteSelDown.y, 0, spriteSheetSizeInTiles.x-1)
-				self.spriteSelUp:set(self.spriteSelDown:unpack())
+				self:setSpriteSelDown(fbToSheetCoord(mouseX, mouseY))
+
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
 				self.spriteSelUp:set(fbToSheetCoord(mouseX, mouseY))
@@ -668,29 +752,6 @@ function EditSheet:update()
 
 	-- sprite edit area
 	local x = 2
-	local y = 12
-	app:drawMenuText(
-		'#',
-		x + 32,
-		y,
-		0xfd,
-		-1
-	)
-	self:guiTextField(
-		x + 32 + 5,
-		y,
-		20,
-		self.spriteSelDown.x + spriteSheetSizeInTiles.x * self.spriteSelDown.y, nil,
-		function(result)
-			local index = tonumber(result)
-			if index then
-				self.spriteSelDown.x = index % spriteSheetSizeInTiles.x
-				self.spriteSelDown.y = (index - self.spriteSelDown.x) / spriteSheetSizeInTiles.x
-				self.spriteSelUp:set(self.spriteSelDown:unpack())
-			end
-		end
-	)
-
 	local y = 24
 	local w = 64
 	local h = 64
@@ -798,7 +859,7 @@ function EditSheet:update()
 			then
 				local c = self:getpixel(tx, ty)
 				if c then
-					self.paletteSelIndex = bit.band(0xff, c + self.paletteOffset)
+					self:setPaletteSelIndex(c + self.paletteOffset)
 				end
 			elseif self.spriteDrawMode == 'draw' then
 				local tx0 = tx - math.floor(self.penSize / 2)
@@ -885,6 +946,7 @@ function EditSheet:update()
 	-- sprite edit method
 	local x = 32
 	local y = 96
+	--[[
 	self:guiRadio(x, y, {'draw', 'dropper', 'fill', 'pan'}, self.spriteDrawMode, function(result)
 		self.spriteDrawMode = result
 	end)
@@ -906,6 +968,7 @@ function EditSheet:update()
 			self.paletteSelIndex = tonumber(result) or self.paletteSelIndex
 		end
 	)
+	--]]
 
 	-- TODO how to draw all colors
 	-- or how many to draw ...
@@ -964,7 +1027,7 @@ function EditSheet:update()
 						)
 						self.isPaletteSwapping = false
 					end
-					self.paletteSelIndex = paletteIndex
+					self:setPaletteSelIndex(paletteIndex)
 					self.paletteSelDown = paletteIndex
 				elseif leftButtonDown then
 					if self.paletteSelDown then

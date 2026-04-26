@@ -20,6 +20,7 @@ function UIRadio:init(args)
 			owner = self.owner,
 			pos = vec2d(x,0),
 			text = option:sub(1,1):upper(),
+			tooltip = option,
 			isset = function()
 				return self.getSelected() == option
 			end,
