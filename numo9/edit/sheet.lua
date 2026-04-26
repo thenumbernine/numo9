@@ -2,6 +2,7 @@
 This will be the code editor
 --]]
 local ffi = require 'ffi'
+local sdl = require 'sdl'
 local gl = require 'gl'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
@@ -73,6 +74,7 @@ function EditSheet:init(args)
 
 	self.children = table()
 	self.childrenInOrder = table()
+	self.allWidgetsInOrder = table()
 
 	-- hflip, vflip, hrot, vrot
 	self.children:insert(UIButton{
@@ -1551,6 +1553,9 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 	self.childrenInOrder:sort(function(a,b)
 		return a.zIndex < b.zIndex
 	end)
+	for i=#self.allWidgetsInOrder,1,-1 do
+		self.allWidgetsInOrder[i] = nil
+	end
 	-- ui draw:
 	app:setClipRect(0, 0, clipMax, clipMax)
 	for _,ch in ipairs(self.childrenInOrder) do
@@ -1586,6 +1591,38 @@ function EditSheet:popUndo(redo)
 end
 
 function EditSheet:event(e)
+
+	-- mouseenter and mouseleave do not bubble
+	local newWidgetUnderMouse 
+	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
+		
+		local mx, my = e.motion.x, e.motion.y
+		local mousepos = vec2d(mx, my)
+		for i=#self.allWidgetsInOrder,1,-1 do
+			local ch = self.allWidgetsInOrder[i]
+			if ch.ssbbox:contains(mousepos) then
+				newWidgetUnderMouse = ch
+				goto done	
+			end
+		end
+	end
+::done::	
+	if newWidgetUnderMouse ~= self.widgetUnderMouse then
+		if self.widgetUnderMouse then
+print('leaving', self.widgetUnderMouse)
+			-- TODO propagate this to parents?
+			self.widgetUnderMouse.isHovered = nil
+			self.widgetUnderMouse:onMouseLeave(e)
+		end
+		self.widgetUnderMouse = newWidgetUnderMouse
+		if self.widgetUnderMouse then
+print('entering', self.widgetUnderMouse)
+			-- TODO propagate this to parents?
+			self.widgetUnderMouse.isHovered = true
+			self.widgetUnderMouse:onMouseEnter(e)
+		end
+	end
+
 	if EditSheet.super.event(self, e) then
 		return true
 	end

@@ -47,6 +47,8 @@ function UIWidget:init(args)
 		blur = when you click off of (or tab away from) a widget
 		mouseenter = when you move mouse over a widget
 		mouseleave = when you move mouse away from a widget
+		mouseover = " " but bubbles
+		mouseout = " " but bubbles
 		input = textfield on any key change
 		change = textfield on 'enter' or blur
 		keyup, keydown = yup
@@ -69,17 +71,16 @@ function UIWidget:draw()
 	app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, 0xc, nil, app.paletteMenuTex)
 end
 
-function UIWidget:drawRecurse(dz)
-	dz = dz or 0
+function UIWidget:drawRecurse()
 	local owner = self.owner
 	local app = owner.app
 
-	-- keep track of which tab index this component is
-	self.menuTabIndex = owner.menuTabCounter
-	owner.menuTabCounter = owner.menuTabCounter + 1
+	-- track widgets in drawn order
+	-- used for mouseenter/mouseleave detection
+	owner.allWidgetsInOrder:insert(self)
 
 	self.modelMatPush:copy(app.ram.modelMat)
-	app:mattrans(self.pos.x, self.pos.y, dz, 0)
+	app:mattrans(self.pos.x, self.pos.y, -1, 0)
 
 	-- store screen-space pixel positions based on current matrix transforms
 	self.ssbbox.min.x, self.ssbbox.min.y = app:transform(0, 0, 0, 1)
@@ -124,11 +125,8 @@ function UIWidget:drawRecurse(dz)
 	end)
 
 	-- TODO how to get widgets with higher zIndex to draw over other widgets 
-	local dz = 0
-	local lastZ = 0
 	for i,ch in ipairs(self.childrenInOrder) do
-		dz = ch.zIndex - lastZ
-		ch:drawRecurse(dz)
+		ch:drawRecurse()
 	end
 
 	app.ram.modelMat:copy(self.modelMatPush)
@@ -139,6 +137,13 @@ end
 
 -- a lot like draw except without the successive matrix transformations
 function UIWidget:update()
+	local owner = self.owner
+	local app = owner.app
+
+	-- keep track of which tab index this component is
+	self.menuTabIndex = owner.menuTabCounter
+	owner.menuTabCounter = owner.menuTabCounter + 1
+
 	for _,ch in ipairs(self.childrenInOrder) do
 		ch:update()
 	end
@@ -146,8 +151,6 @@ function UIWidget:update()
 	if (self.isHovered or self:hasFocus())
 	and self.tooltip
 	then
-		local owner = self.owner
-		local app = owner.app
 		-- ram mousePos is relative to matMenuReset()'s matrices
 		-- this will be the root-level modelMatPush
 		-- so handle this outside of draw
@@ -183,6 +186,15 @@ end
 function UIWidget:onMouseLeave(e)
 	if self.events.mouseleave then self.events.mouseleave(self, e) end
 end
+
+function UIWidget:onMouseOver(e)
+	if self.events.mouseover then self.events.mouseover(self, e) end
+end
+
+function UIWidget:onMouseOut(e)
+	if self.events.mouseout then self.events.mouseout(self, e) end
+end
+
 
 function UIWidget:onFocus(e)
 	-- if you mouse over an event thens witch to its tab index...
@@ -230,16 +242,18 @@ function UIWidget:event(e)
 	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
 		local mx, my = e.motion.x, e.motion.y
 
-		local oldIsHovered = self.isHovered
-		self.isHovered = self.ssbbox:contains(vec2d(mx, my))
-		if self.isHovered and not oldIsHovered then
-			self:onMouseEnter(e)
-		elseif not self.isHovered and oldIsHovered then
-			self:onMouseLeave(e)
+		local oldIsMouseOver = self.isMouseOver
+		self.isMouseOver = self.ssbbox:contains(vec2d(mx, my))
+		if self.isMouseOver and not oldIsMouseOver then
+			self:onMouseOver(e)
+		elseif not self.isMouseOver and oldIsMouseOver then
+			self:onMouseOut(e)
 		end
 
 		--[[ when to not capture?
-		if self.isHovered then
+		-- how to not trigger mousemove on widgets that are blocked by other widgets?
+		--if self.isHovered then
+		if self.isMouseOver then
 			didCapture = true
 		end
 		--]]

@@ -148,13 +148,15 @@ function UIBlobSelect:update(...)
 	end
 end
 
-function UIBlobSelect:onMouseEnter(...)
-	UIBlobSelect.super.onMouseEnter(self, ...)
+function UIBlobSelect:onMouseOver(...)
+print('	UIBlobSelect:onMouseOver(...)')
+	UIBlobSelect.super.onMouseOver(self, ...)
 	self.popupOpen = true
 	self:updatePopup()
 end
-function UIBlobSelect:onMouseLeave(...)
-	UIBlobSelect.super.onMouseLeave(self, ...)
+function UIBlobSelect:onMouseOut(...)
+print('	UIBlobSelect:onMouseOut(...)')
+	UIBlobSelect.super.onMouseOut(self, ...)
 	self.popupOpen = false
 	self:updatePopup()
 end
@@ -171,6 +173,7 @@ function UIBlobSelect:onBlur(...)
 end
 
 function UIBlobSelect:updatePopup()
+print(self, 'popup', self.popupOpen)	
 	if self.popupOpen then
 		if self.owner.currentPopup
 		and self.owner.currentPopup ~= self
