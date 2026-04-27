@@ -8,6 +8,10 @@ local UITextArea = require 'numo9.ui.textarea'
 local UIButton = require 'numo9.ui.button'
 local UIBlobSelect = require 'numo9.ui.blobselect'
 
+local numo9_rom = require 'numo9.rom'
+local spriteSize = numo9_rom.spriteSize
+
+
 local EditCode = require 'numo9.ui':subclass()	-- the UI/editor page
 EditCode.blobType = 'code'
 EditCode.blobIndexField = 'codeBlobIndex'
@@ -25,10 +29,12 @@ function EditCode:init(args)
 	-- TODO offset correctly, and handle input correctly
 	self.uiTextArea = UITextArea{
 		owner = self,
-		pos = {0, 0},
+		pos = {0, spriteSize.y},
 		size = {9999, 256},
 	}
 	self:addChild(self.uiTextArea)
+
+	self:setFocusWidget(self.uiTextArea)
 
 	self:addChild(UIButton{
 		owner = self,
@@ -70,6 +76,7 @@ function EditCode:setBlobIndex(i)
 	self[self.blobField] = self.app.blobs[self.blobType][self[self.blobIndexField]+1]
 
 	-- update textarea underlying vec as well ...
+	-- TODO more proper way would be to memcpy back and forth and keep the two buffers separate ....
 	self.uiTextArea.vec = self[self.blobField].vec
 end
 
@@ -80,19 +87,13 @@ function EditCode:update()
 
 	self:setBlobIndex(self[self.blobIndexField])
 
-	self.uiTextArea.pos.x, self.uiTextArea.pos.y = self.app:invTransform(0, 0, 0, 0)
 
-	-- for the text editor, align to the left
-	-- TODO this isnt needed if I just make the text editor rect customizable
-	--[[ same as matMenuReset but without the translate
 	local app = self.app
-	local ar = app.ram.screenWidth / app.ram.screenHeight
-	app:matident(0)
-	app:matident(1)
-	app:matident(2)
-	app:matortho(0, app.ram.screenWidth, app.ram.screenHeight, 0)
-	app:matscale(app.width / app.menuSizeInSprites.x, app.height / app.menuSizeInSprites.y)
-	--]]
+	self.uiTextArea.pos.x = app:invTransform(0, 0, 0, 0)
+	self.uiTextArea.size:set(
+		256 * tonumber(app.ram.screenWidth) / tonumber(app.ram.screenHeight),
+		256 - spriteSize.y
+	)
 
 	self:updateAndDrawNewUISceneGraph()
 end

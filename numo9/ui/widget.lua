@@ -51,6 +51,7 @@ function UIWidget:init(args)
 		mouseout = " " but bubbles
 		mousedown
 		mouseup
+		mousemove
 		click
 		input = textfield on any key change
 		change = textfield on 'enter' or blur
@@ -226,10 +227,14 @@ function UIWidget:onMouseUp(e)
 	if self.isHovered
 	and self.mouseDownOnThis
 	then
-		local stop = self:onClick()
+		local stop = self:onClick(e)
 	end
 
 	self.mouseDownOnThis = nil
+end
+
+function UIWidget:onMouseMove(e)
+	if self.events.mousemove then self.events.mousemove(self, e) end
 end
 
 function UIWidget:onFocus(e)
@@ -263,25 +268,25 @@ function UIWidget:onKeyUp(e)
 end
 
 -- returns true if captured an event
-function UIWidget:event(e)
-	local didCapture
-
+function UIWidget:event(sdlEvent)
 	-- ui events:
 	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:event(e) then return true end
+		if ch:event(sdlEvent) then return true end
 	end
 
-	if e.type == sdl.SDL_EVENT_KEY_DOWN then
+	if sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN then
 		if self:hasFocus() then
-			self:onKeyDown(e)
+			self:onKeyDown{
+				sdl = sdlEvent,
+			}
 		end
-	elseif e.type == sdl.SDL_EVENT_KEY_UP then
+	elseif sdlEvent.type == sdl.SDL_EVENT_KEY_UP then
 		if self:hasFocus() then
-			self:onKeyUp(e)
+			self:onKeyUp{
+				sdl = sdlEvent,
+			}
 		end
 	end
-
-	return didCapture
 end
 
 return UIWidget

@@ -15,6 +15,7 @@ local Quantize = require 'image.quantize_mediancut'
 
 local clip = require 'numo9.clipboard'
 
+local UIWidget = require 'numo9.ui.widget'
 local UIButton = require 'numo9.ui.button'
 local UISpinner = require 'numo9.ui.spinner'
 local UILabel = require 'numo9.ui.label'
@@ -626,6 +627,7 @@ function EditSheet:init(args)
 
 	self.spriteSheetPicker = SpriteSheetPicker{
 		owner = self,
+		pos = vec2d(0,0),
 	}
 	self:addChild(self.spriteSheetPicker)
 

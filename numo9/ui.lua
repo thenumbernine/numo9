@@ -868,23 +868,32 @@ function UI:updateAndDrawNewUISceneGraph()
 end
 
 local UIWidget = require 'numo9.ui.widget'
-function UI:bubbleCallback(o, field, ...)
+function UI:bubbleCallback(o, field, sdlEvent, ...)
+	local event = {
+		sdl = sdlEvent,
+	}
+
 	-- TODO bubble-in first
 
 	while o ~= nil 
 	and UIWidget:isa(o)	-- TODO make editor UI's UIWidget's
 	do
-		if o[field](o, ...) then return true end
+		if o[field](o, event, ...) then return true end
 		-- propagate this to parents
 		o = o.parent
 	end
 end
 
-function UI:handleEventNewUISceneGraph(e, skipSuper)
+function UI:handleEventNewUISceneGraph(sdlEvent, skipSuper)
+	self.app:matMenuReset()	-- so mouse coord transforms work
 
-	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
+	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_MOTION then
+		if self.widgetUnderMouse then
+			self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
+		end
+
 		local newWidgetUnderMouse 
-		local mx, my = e.motion.x, e.motion.y
+		local mx, my = sdlEvent.motion.x, sdlEvent.motion.y
 		local mousepos = vec2d(mx, my)
 		for i=#self.allWidgetsInOrder,1,-1 do
 			local ch = self.allWidgetsInOrder[i]
@@ -897,37 +906,46 @@ function UI:handleEventNewUISceneGraph(e, skipSuper)
 		-- mouseenter and mouseleave do not bubble
 		if newWidgetUnderMouse ~= self.widgetUnderMouse then
 			if self.widgetUnderMouse then
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOut', e)
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOut', sdlEvent)
 
 				-- put this in onMouseLeave?
 				self.widgetUnderMouse.isHovered = nil
-				self.widgetUnderMouse:onMouseLeave(e)
+				self.widgetUnderMouse:onMouseLeave{
+					sdl = sdlEvent,
+				}
 			end
 			self.widgetUnderMouse = newWidgetUnderMouse
 			if self.widgetUnderMouse then
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOver', e)
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOver', sdlEvent)
 
 				self.widgetUnderMouse.isHovered = true
-				self.widgetUnderMouse:onMouseEnter(e)
+				self.widgetUnderMouse:onMouseEnter{
+					sdl = sdlEvent,
+				}
+
+				-- extra movement into the new event
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
 			end
 		end
 	end
 
-	if e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
-		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown', e)
-	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
-		self:bubbleCallback(self.widgetUnderMouse, 'onMouseUp', e)
+	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
+print('clicking down with self.widgetUnderMouse', self.widgetUnderMouse)
+		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown', sdlEvent)
+	elseif sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
+print('clicking up with self.widgetUnderMouse', self.widgetUnderMouse)
+		self:bubbleCallback(self.widgetUnderMouse, 'onMouseUp', sdlEvent)
 	end
 
 	if not skipSuper
-	and UI.event(self, e)
+	and UI.event(self, sdlEvent)
 	then
 		return true
 	end
 
 	-- ui events:
 	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:event(e) then return true end
+		if ch:event(sdlEvent) then return true end
 	end
 end
 

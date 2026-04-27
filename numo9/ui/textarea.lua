@@ -4,6 +4,8 @@ local class = require 'ext.class'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
+local vector = require 'stl.vector-lua'
+local sdl = require 'sdl'
 
 local clip = require 'numo9.clipboard'
 local UIWidget = require 'numo9.ui.widget'
@@ -13,10 +15,15 @@ local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
 local keyCodeForName = numo9_keys.keyCodeForName
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
+local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local menuFontWidth = numo9_rom.menuFontWidth
+
+
+local uint8_t = ffi.typeof'uint8_t'
+
 
 local colors = {
 	fg = 0xc,
@@ -34,7 +41,7 @@ local UITextArea = UIWidget:subclass()
 function UITextArea:init(args)
 	UITextArea.super.init(self, args)
 
-	self.vec = args.vec						-- holds vector<uint8_t> of code text data
+	self.vec = vector(uint8_t)	-- holds vector<uint8_t> of code text data
 
 	-- text cursor loc
 	self.cursorLoc = 0	-- 0-based index of our cursor
@@ -43,6 +50,7 @@ function UITextArea:init(args)
 	self.scrollX = 0
 	self.scrollY = 0
 	self.useLineNumbers = true
+		
 
 	self.undo = Undo{
 		get = function()
@@ -151,21 +159,12 @@ end
 
 function UITextArea:draw()
 	local app = self.owner.app
-	local leftButtonDown = app:key'mouse_left'
-	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
-
-	local ar = tonumber(app.ram.screenWidth) / tonumber(app.ram.screenHeight)
-	local height = 256 - spriteSize.y
-	local width = height * ar
-	self.size:set(width, height)
 
 	-- draw text
 	local textareaX = 0	-- offset into textarea where we start drawing text
-	local textareaY = spriteSize.y
-	local textareaWidth = width
-	local textareaHeight = height - spriteSize.y
+	local textareaY = 0
+	local textareaWidth = self.size.x
+	local textareaHeight = self.size.y
 
 	if self.useLineNumbers then
 		-- clear the background incl line numbers
@@ -181,7 +180,7 @@ function UITextArea:draw()
 		)
 
 		-- determine line number width while we draw line numbers
-		for y=1,height/spriteSize.y-2 do
+		for y=1,self.size.y/spriteSize.y-2 do
 			if y + self.scrollY < 1
 			or y + self.scrollY >= #self.newlines
 			then break end
@@ -191,12 +190,16 @@ function UITextArea:draw()
 			textareaX = math.max(textareaX, app:drawMenuText(
 				tostring(y + self.scrollY),
 				0,
-				y * spriteSize.y,
+				(y-1) * spriteSize.y,
 				colors.fg,
 				colors.bg
 			))
 		end
 		textareaX = textareaX + 2
+	
+		self.lineNumbersWidth = textareaX
+	else
+		self.lineNumbersWidth = 0
 	end
 	textareaWidth = textareaWidth - textareaX
 
@@ -212,7 +215,7 @@ function UITextArea:draw()
 		app.paletteMenuTex
 	)
 
-	for y=1,height/spriteSize.y-2 do
+	for y=1,self.size.y/spriteSize.y-2 do
 		if y + self.scrollY < 1
 		or y + self.scrollY >= #self.newlines
 		then break end
@@ -230,7 +233,7 @@ function UITextArea:draw()
 			lineX = lineX + app:drawMenuText(
 				self:getText():sub(i, selLineStart-1),
 				lineX,
-				lineY,
+				lineY - spriteSize.y,
 				colors.fg,
 				colors.bg
 			)
@@ -239,7 +242,7 @@ function UITextArea:draw()
 			lineX = lineX + app:drawMenuText(
 				self:getText():sub(selLineStart,selLineEnd-1),
 				lineX,
-				lineY,
+				lineY - spriteSize.y,
 				colors.fgSel,
 				colors.bgSel
 			)
@@ -248,7 +251,7 @@ function UITextArea:draw()
 			lineX = lineX + app:drawMenuText(
 				self:getText():sub(selLineEnd, j-1),
 				lineX,
-				lineY,
+				lineY - spriteSize.y,
 				colors.fg,
 				colors.bg
 			)
@@ -258,8 +261,8 @@ function UITextArea:draw()
 	-- if you want variable font width then TODO store cursor x and y pixel as well as row and col
 	if self.cursorRow < self.scrollY+1 then
 		self.scrollY = math.max(0, self.cursorRow-1)
-	elseif self.cursorRow - (height/spriteSize.y-2) > self.scrollY then
-		self.scrollY = math.max(0, self.cursorRow - (height/spriteSize.y-2))
+	elseif self.cursorRow - (self.size.y/spriteSize.y-2) > self.scrollY then
+		self.scrollY = math.max(0, self.cursorRow - (self.size.y/spriteSize.y-2))
 	end
 	local textAreaWidthInLetters = math.ceil(textareaWidth / menuFontWidth)
 	if self.cursorCol < self.scrollX+1 then
@@ -273,7 +276,7 @@ function UITextArea:draw()
 	if getTime() % 1 < .5 then
 		app:drawSolidRect(
 			textareaX + (self.cursorCol-1 - self.scrollX) * menuFontWidth,
-			(self.cursorRow - self.scrollY) * spriteSize.y,
+			(self.cursorRow - self.scrollY - 1) * spriteSize.y,
 			menuFontWidth,
 			spriteSize.y,
 			12,
@@ -286,202 +289,10 @@ function UITextArea:draw()
 	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	app:drawMenuText(footer, 0, height, colors.fgFooter, colors.bgFooter)
+	app:drawMenuText(footer, 0, self.size.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	footer = self.cursorLoc..'/'..self:getTextLen()
-	self.footerWidth = app:drawMenuText(footer, width - (self.footerWidth or 0), height - spriteSize.y, colors.fgFooter, colors.bgFooter)
-
-	-- handle mouse
-
-	-- find cursor - do this before we start selection
-	if leftButtonDown
-	then
-		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
-		if y >= 1	-- no clicks on top row
-		and y + self.scrollY >= 1
-		and y + self.scrollY < #self.newlines-1
-		then
-			local i = self.newlines[y + self.scrollY] + 1
-			local j = self.newlines[y + self.scrollY + 1]
-			local x = math.floor((mouseX - textareaX - self.scrollX) / menuFontWidth) + i
-			x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
-			self.cursorLoc = x-1
-			self:refreshCursorColRowForLoc()	-- just in case?
-		end
-	end
-	if leftButtonPress then
-		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
-		if y >= 1	-- no clicks on top row
-		and y + self.scrollY >= 1
-		and y + self.scrollY < #self.newlines-1
-		then
-			self:startSelect()
-		end
-	end
-	if leftButtonDown then
-		if self.selectDownLoc then
-			self:growSelect()
-		end
-	end
-
-	-- handle keyboard
-
-	-- TODO shift+arrows to select text
-	local shift = app:key'lshift' or app:key'rshift'
-	local uikey
-	if ffi.os == 'OSX' then
-		uikey = app:key'lgui' or app:key'rgui'
-	else
-		uikey = app:key'lctrl' or app:key'rctrl'
-	end
-
-	if uikey then
-		-- trap all uikey+keys here, throw out the ones we won't handle
-		if app:keyp'a' then						-- select-all
-			-- select all
-			self.selectStart = 1
-			self.selectEnd = self:getTextLen()+1		-- how did i end up using an exclusive, 1-based range ... smh
-		elseif app:keyp'x' or app:keyp'c' then 	-- cut/copy
-			if self.selectStart then
-				local sel = self:getText():sub(self.selectStart, self.selectEnd-1)
-				clip.text(sel)	-- error on fail
-
-				if app:keyp'x' then -- cut only
-					self.undo:push()
-					self:deleteSelection()
-					self:refreshNewlines()
-					self:refreshCursorColRowForLoc()
-				end
-			end
-		elseif app:keyp'v' then 				-- paste
-			local paste = clip.text()
-			if self.selectStart or paste then
-				-- only save undo if we're (a) going to be deleting selected text with this paste or (b) going to be pasting text
-				-- if there's an empty clipboard, don't let repeated ctrl+v's stack up in the undo buffer
-				-- TODO or I can just have undo:push check the last undo buffer and see if the text changed ... but for big text that might be slow?
-				self.undo:push()
-			end
-			self:deleteSelection()
-			if paste then
-				--[[
-				self:setText(
-					self:getText():sub(1, self.cursorLoc)
-					..paste
-					..self:getText():sub(self.cursorLoc+1)
-				)
-				--]]
-				-- [[
-				self:insertText(self.cursorLoc, paste)
-				--]]
-				self.cursorLoc = self.cursorLoc + #paste
-			end
-			self:refreshNewlines()
-			self:refreshCursorColRowForLoc()
-		elseif app:keyp'z' then
-			-- ui+z = undo, shift+ui+z = redo
-			self:popUndo(shift)
-		elseif app:keyp'home' then
-			self.cursorLoc = 0
-			self:refreshCursorColRowForLoc()
-		elseif app:keyp'end' then
-			self.cursorLoc = self:getTextLen()
-			self:refreshCursorColRowForLoc()
-		end
-	else
-		for keycode=0,#keyCodeNames-1 do
-			if app:keyp(keycode,30,5) then
-				local ch = getAsciiForKeyCode(keycode, shift)
-				if keycode == keyCodeForName.tab then
-					self.undo:pushContinuous()
-					if self.selectStart ~= nil then
-						-- search the selectStart back to the start of the current line
-						while self:getText():byte(self.selectStart-1) ~= newlineByte do
-							self.selectStart = self.selectStart - 1
-							if self.selectStart == 0 then
-								self.selectStart = 1
-								break
-							end
-						end
-						-- add tab and do indent up there
-						local oldTabbedText = self:getText():sub(self.selectStart, self.selectEnd-1)
-						local tabbedText
-						if shift then
-							tabbedText = oldTabbedText:gsub('\n\t', '\n')
-							-- if our current line starts with \t then remove that too ...
-							if tabbedText:byte(self.selectStart) == tabByte then
-								tabbedText = tabbedText:sub(2)
-							end
-						else
-							tabbedText = '\t' .. oldTabbedText:gsub('\n', '\n\t')
-						end
-						--[[
-						self:setText(
-							self:getText():sub(1, self.selectStart-1)
-							.. tabbedText
-							.. self:getText():sub(self.selectEnd)
-						)
-						--]]
-						-- [[
-						self:removeText(self.selectStart-1, self.selectEnd-1)
-						self:insertText(self.selectStart, tabbedText)
-						--]]
-						self.selectEnd = self.selectEnd + #tabbedText - #oldTabbedText
-						self:refreshNewlines()
-						self:refreshCursorColRowForLoc()
-					else
-						-- just insert a tab or space character ...
-						self:addCharToText(tabByte)
-					end
-				elseif ch then
-					self.undo:pushContinuous()
-					self:addCharToText(ch)
-				elseif keycode == keyCodeForName['return'] then
-					self.undo:pushContinuous()
-					self:addCharToText(newlineByte)
-				elseif keycode == keyCodeForName.up
-				or keycode == keyCodeForName.down
-				or keycode == keyCodeForName.left
-				or keycode == keyCodeForName.right
-				or keycode == keyCodeForName.pageup
-				or keycode == keyCodeForName.pagedown
-				then
-					if shift then
-						if not self.selectDownLoc then	-- how will mouse drag + kbd shift+move work together?
-							self:startSelect()
-						end
-					else
-						self:clearSelect()
-					end
-					local dx =
-					self:moveCursor(
-						({
-							[keyCodeForName.left] = -1,
-							[keyCodeForName.right] = 1,
-						})[keycode] or 0, --dx,
-						({
-							[keyCodeForName.up] = -1,
-							[keyCodeForName.down] = 1,
-							[keyCodeForName.pageup] = -30,
-							[keyCodeForName.pagedown] = 30,
-						})[keycode] or 0	--dy
-					)
-					if shift and self.selectDownLoc then
-						self:growSelect()
-					end
-				elseif keycode == keyCodeForName.home then
-					self.cursorCol = 1
-					-- TODO refresh cursorLoc from cursorRow/cursorCol
-					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
-					self:refreshCursorColRowForLoc()
-				elseif keycode == keyCodeForName['end'] then
-					self.cursorCol = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
-					-- TODO refresh cursorLoc from cursorRow/cursorCol
-					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
-					self:refreshCursorColRowForLoc()
-				end
-			end
-		end
-	end
+	self.footerWidth = app:drawMenuText(footer, self.size.x - (self.footerWidth or 0), self.size.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
 end
 
 function UITextArea:moveCursor(dx, dy)
@@ -602,6 +413,218 @@ function UITextArea:popUndo(redo)
 	self:clearSelect()
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
+end
+
+function UITextArea:onMouseDown(e)
+	UITextArea.super.onMouseDown(self, e)
+	self:updateSelMouseCursor(e)
+
+	local app = self.owner.app
+	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+
+	local y = math.floor((mouseY - self.pos.y) / spriteSize.y) + 1
+	if y >= 1
+	and y + self.scrollY >= 1
+	and y + self.scrollY < #self.newlines-1
+	then
+		self:startSelect()
+	end
+end
+
+function UITextArea:onMouseMove(e)
+	UITextArea.super.onMouseMove(self, e)
+	self:updateSelMouseCursor(e)
+
+	-- TODO if it's a drag
+	if self.selectDownLoc then
+		self:growSelect()
+	end
+end
+
+function UITextArea:updateSelMouseCursor(e)
+	local app = self.owner.app
+	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+
+	if not self.mouseDownOnThis then return end
+
+	-- find cursor - do this before we start selection
+	local y = math.floor((mouseY - self.pos.y) / spriteSize.y) + 1
+	if y >= 1
+	and y + self.scrollY >= 1
+	and y + self.scrollY < #self.newlines-1
+	then
+		local i = self.newlines[y + self.scrollY] + 1
+		local j = self.newlines[y + self.scrollY + 1]
+		local x = math.floor((mouseX - self.pos.x - self.scrollX - self.lineNumbersWidth) / menuFontWidth) + i
+		x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
+		self.cursorLoc = x-1
+		self:refreshCursorColRowForLoc()	-- just in case?
+	end
+end
+
+function UITextArea:onKeyDown(e)
+	local sdlkey = e.sdl.key.key
+
+	UITextArea.super.onKeyDown(self, e)
+
+	local app = self.owner.app
+
+	-- TODO shift+arrows to select text
+	local shift = app:key'lshift' or app:key'rshift'
+	local uikey
+	if ffi.os == 'OSX' then
+		uikey = app:key'lgui' or app:key'rgui'
+	else
+		uikey = app:key'lctrl' or app:key'rctrl'
+	end
+
+	if uikey then
+		-- trap all uikey+keys here, throw out the ones we won't handle
+		if sdlkey == sdl.SDLK_A then
+			-- select all
+			self.selectStart = 1
+			self.selectEnd = self:getTextLen()+1		-- how did i end up using an exclusive, 1-based range ... smh
+		elseif sdlkey == sdl.SDLK_X or sdlkey == sdl.SDLK_C then 	-- cut/copy
+			if self.selectStart then
+				local sel = self:getText():sub(self.selectStart, self.selectEnd-1)
+				clip.text(sel)	-- error on fail
+
+				if sdlkey == sdl.SDLK_X then -- cut only
+					self.undo:push()
+					self:deleteSelection()
+					self:refreshNewlines()
+					self:refreshCursorColRowForLoc()
+				end
+			end
+		elseif sdlkey == sdl.SDLK_V then 				-- paste
+			local paste = clip.text()
+			if self.selectStart or paste then
+				-- only save undo if we're (a) going to be deleting selected text with this paste or (b) going to be pasting text
+				-- if there's an empty clipboard, don't let repeated ctrl+v's stack up in the undo buffer
+				-- TODO or I can just have undo:push check the last undo buffer and see if the text changed ... but for big text that might be slow?
+				self.undo:push()
+			end
+			self:deleteSelection()
+			if paste then
+				--[[
+				self:setText(
+					self:getText():sub(1, self.cursorLoc)
+					..paste
+					..self:getText():sub(self.cursorLoc+1)
+				)
+				--]]
+				-- [[
+				self:insertText(self.cursorLoc, paste)
+				--]]
+				self.cursorLoc = self.cursorLoc + #paste
+			end
+			self:refreshNewlines()
+			self:refreshCursorColRowForLoc()
+		elseif sdlkey == sdl.SDLKEY_Z then
+			-- ui+z = undo, shift+ui+z = redo
+			self:popUndo(shift)
+		elseif sdlkey == sdl.SDLKEY_HOME then
+			self.cursorLoc = 0
+			self:refreshCursorColRowForLoc()
+		elseif sdlkey == sdl.SDLKEY_END then
+			self.cursorLoc = self:getTextLen()
+			self:refreshCursorColRowForLoc()
+		end
+	else
+		for cmpsdlkey,keycode in pairs(sdlSymToKeyCode) do
+			if sdlkey == cmpsdlkey then 
+				local ch = getAsciiForKeyCode(keycode, shift)
+				if keycode == keyCodeForName.tab then
+					self.undo:pushContinuous()
+					if self.selectStart ~= nil then
+						-- search the selectStart back to the start of the current line
+						while self:getText():byte(self.selectStart-1) ~= newlineByte do
+							self.selectStart = self.selectStart - 1
+							if self.selectStart == 0 then
+								self.selectStart = 1
+								break
+							end
+						end
+						-- add tab and do indent up there
+						local oldTabbedText = self:getText():sub(self.selectStart, self.selectEnd-1)
+						local tabbedText
+						if shift then
+							tabbedText = oldTabbedText:gsub('\n\t', '\n')
+							-- if our current line starts with \t then remove that too ...
+							if tabbedText:byte(self.selectStart) == tabByte then
+								tabbedText = tabbedText:sub(2)
+							end
+						else
+							tabbedText = '\t' .. oldTabbedText:gsub('\n', '\n\t')
+						end
+						--[[
+						self:setText(
+							self:getText():sub(1, self.selectStart-1)
+							.. tabbedText
+							.. self:getText():sub(self.selectEnd)
+						)
+						--]]
+						-- [[
+						self:removeText(self.selectStart-1, self.selectEnd-1)
+						self:insertText(self.selectStart, tabbedText)
+						--]]
+						self.selectEnd = self.selectEnd + #tabbedText - #oldTabbedText
+						self:refreshNewlines()
+						self:refreshCursorColRowForLoc()
+					else
+						-- just insert a tab or space character ...
+						self:addCharToText(tabByte)
+					end
+				elseif ch then
+					self.undo:pushContinuous()
+					self:addCharToText(ch)
+				elseif keycode == keyCodeForName['return'] then
+					self.undo:pushContinuous()
+					self:addCharToText(newlineByte)
+				elseif keycode == keyCodeForName.up
+				or keycode == keyCodeForName.down
+				or keycode == keyCodeForName.left
+				or keycode == keyCodeForName.right
+				or keycode == keyCodeForName.pageup
+				or keycode == keyCodeForName.pagedown
+				then
+					if shift then
+						if not self.selectDownLoc then	-- how will mouse drag + kbd shift+move work together?
+							self:startSelect()
+						end
+					else
+						self:clearSelect()
+					end
+					local dx =
+					self:moveCursor(
+						({
+							[keyCodeForName.left] = -1,
+							[keyCodeForName.right] = 1,
+						})[keycode] or 0, --dx,
+						({
+							[keyCodeForName.up] = -1,
+							[keyCodeForName.down] = 1,
+							[keyCodeForName.pageup] = -30,
+							[keyCodeForName.pagedown] = 30,
+						})[keycode] or 0	--dy
+					)
+					if shift and self.selectDownLoc then
+						self:growSelect()
+					end
+				elseif keycode == keyCodeForName.home then
+					self.cursorCol = 1
+					-- TODO refresh cursorLoc from cursorRow/cursorCol
+					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
+					self:refreshCursorColRowForLoc()
+				elseif keycode == keyCodeForName['end'] then
+					self.cursorCol = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
+					-- TODO refresh cursorLoc from cursorRow/cursorCol
+					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
+					self:refreshCursorColRowForLoc()
+				end
+			end
+		end
+	end
 end
 
 return UITextArea
