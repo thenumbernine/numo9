@@ -38,6 +38,7 @@ local palettePtrType = numo9_rom.palettePtrType
 
 local uint8_t = ffi.typeof'uint8_t'
 
+
 -- used by fill
 local dirs = {
 	{1,0},
@@ -45,8 +46,6 @@ local dirs = {
 	{-1,0},
 	{0,-1},
 }
-
-
 
 local SpriteSheetPicker = UIWidget:subclass()
 

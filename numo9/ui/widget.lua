@@ -59,7 +59,14 @@ function UIWidget:init(args)
 		change = textfield on 'enter' or blur
 		keyup, keydown = yup
 	--]]
-	self.events = table(args.events):setmetatable(nil)
+	self.eventListeners = {}
+	if args.events then
+		for k,v in ipairs(args.events) do
+			assert.type(v, 'function')
+			self.eventListeners[k] = self.eventListeners[k] or table()
+			self.eventListeners[k]:insert(v)
+		end
+	end
 
 	self.modelMatPush = matArrType()
 end
@@ -200,33 +207,42 @@ function UIWidget:hasFocus()
 	return false
 end
 
+function UIWidget:triggerEvents(eventName, ...)
+	local listenersForEvent = self.eventListeners[eventName]
+	if listenersForEvent then
+		for _,l in ipairs(listenersForEvent) do
+			l(self, ...)
+		end
+	end
+end
+
 function UIWidget:onMouseEnter(e)
-	if self.events.mouseenter then self.events.mouseenter(self, e) end
+	self:triggerEvents('mouseenter', e)
 end
 
 function UIWidget:onMouseLeave(e)
-	if self.events.mouseleave then self.events.mouseleave(self, e) end
+	self:triggerEvents('mouseleave', e)
 end
 
 function UIWidget:onMouseOver(e)
 	self.isMouseOver = true
-	if self.events.mouseover then self.events.mouseover(self, e) end
+	self:triggerEvents('mouseover', e)
 end
 
 function UIWidget:onMouseOut(e)
 	self.isMouseOver = false
-	if self.events.mouseout then self.events.mouseout(self, e) end
+	self:triggerEvents('mouseout', e)
 end
 
 function UIWidget:onMouseDown(e)
 	if self.isMouseOver then
 		self.mouseDownOnThis = true
 	end
-	if self.events.mousedown then self.events.mousedown(self, e) end
+	self:triggerEvents('mousedown', e)
 end
 
 function UIWidget:onMouseUp(e)
-	if self.events.mouseup then self.events.mouseup(self, e) end
+	self:triggerEvents('mouseup', e)
 
 	-- TODO because this is interleaved in onMouseUp, we can't stop propagation
 	-- if I made it separate then I'd have to interject isHovered && mouseDownOnThis tests every iteration in the bubbleCallback function
@@ -241,7 +257,7 @@ function UIWidget:onMouseUp(e)
 end
 
 function UIWidget:onMouseMove(e)
-	if self.events.mousemove then self.events.mousemove(self, e) end
+	self:triggerEvents('mousemove', e)
 end
 
 function UIWidget:onFocus(e)
@@ -249,11 +265,11 @@ function UIWidget:onFocus(e)
 	-- ... TODO only do this when you click?
 	self.owner.menuTabIndex = self.menuTabIndex
 
-	if self.events.focus then self.events.focus(self, e) end
+	self:triggerEvents('focus', e)
 end
 
 function UIWidget:onBlur(e)
-	if self.events.blur then self.events.blur(self, e) end
+	self:triggerEvents('blur', e)
 end
 
 function UIWidget:onClick(e)
@@ -261,17 +277,15 @@ function UIWidget:onClick(e)
 
 	self.root:setFocusWidget(self, e)
 
-	if self.events.click then
-		self.events.click(self, e)
-	end
+	self:triggerEvents('click', e)
 end
 
 function UIWidget:onKeyDown(e)
-	if self.events.keydown then self.events.keydown(self, e) end
+	self:triggerEvents('keydown', e)
 end
 
 function UIWidget:onKeyUp(e)
-	if self.events.keyup then self.events.keyup(self, e) end
+	self:triggerEvents('keyup', e)
 end
 
 -- returns true if captured an event
