@@ -36,13 +36,14 @@ function UITextField:init(args)
 end
 
 function UITextField:onKeyDown(e)
-	
+	local sdlkey = e.sdl.key.key
+
 	-- if prevent default then bail, right?
 	-- or should I use return status? like I did elsewhere?
 	-- hmm...
 	UITextField.super.onKeyDown(self, e)
 
-	local keycode = sdlSymToKeyCode[e.key.key]
+	local keycode = sdlSymToKeyCode[sdlkey]
 	if not keycode then return end
 
 	local ch = getAsciiForKeyCode(keycode, shift)
