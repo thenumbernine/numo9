@@ -164,7 +164,7 @@ function UIWidget:update()
 		ch:update()
 	end
 
-	if (self.isHovered or self:hasFocus())
+	if (self.isMouseOver or self:hasFocus())
 	and self.tooltip
 	then
 		-- ram mousePos is relative to matMenuReset()'s matrices
@@ -214,7 +214,7 @@ function UIWidget:onMouseOut(e)
 end
 
 function UIWidget:onMouseDown(e)
-	if self.isHovered then	-- children too? i.e. :hasFocus() ?
+	if self.isMouseOver then
 		self.mouseDownOnThis = true
 	end
 	if self.events.mousedown then self.events.mousedown(self, e) end
@@ -226,10 +226,10 @@ function UIWidget:onMouseUp(e)
 	-- TODO because this is interleaved in onMouseUp, we can't stop propagation
 	-- if I made it separate then I'd have to interject isHovered && mouseDownOnThis tests every iteration in the bubbleCallback function
 	-- hmm.
-	if self.isHovered
+	if self.isMouseOver
 	and self.mouseDownOnThis
 	then
-		local stop = self:onClick(e)
+		local stopPropagation = self:onClick(e)
 	end
 
 	self.mouseDownOnThis = nil

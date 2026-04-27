@@ -30,11 +30,11 @@ function UIButton:draw()
 	if self.isset then isset = self:isset() end
 
 	local fg, bg
-	if isset and (self.isHovered or self:hasFocus()) then
+	if isset and (self.isMouseOver or self:hasFocus()) then
 		fg, bg = 0xc, 9
 	elseif isset then
 		fg, bg = 0xc, 8
-	elseif (self.isHovered or self:hasFocus()) then
+	elseif (self.isMouseOver or self:hasFocus()) then
 		fg, bg = 0xd, 9
 	else
 		fg, bg = 0xd, 8

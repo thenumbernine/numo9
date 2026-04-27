@@ -280,9 +280,6 @@ function EditSheet:init(args)
 	self.spriteBitSpinner = UISpinner{
 		owner = self,
 		pos = vec2d(128+16+24, 20),
-		tooltip = function()
-			return 'bit='..self.spriteBit
-		end,
 		setValue = function(dx)
 			self.spriteBit = self.spriteBit + dx
 		end,
@@ -662,7 +659,7 @@ function EditSheet:init(args)
 			set = function(self, k, v)
 				local oldvalue = private[k]
 
-				private[k] = bit.band(0xff, tonumber(x) or private[k])
+				private[k] = bit.band(0xff, tonumber(v) or private[k])
 
 				if private[k] ~= oldvalue then
 					self.paletteSelIndexTextField.value = tostring(private[k])
@@ -677,10 +674,11 @@ function EditSheet:init(args)
 			set = function(self, k, v)
 				local oldvalue = private[k]
 
-				private[k] = math.clamp(tonumber(x) or private[k], 0, 7)
+				private[k] = math.clamp(tonumber(v) or private[k], 0, 7)
 
 				-- only update if different
 				if private[k] ~= oldvalue then
+					self.spriteBitSpinner.tooltip = 'bit='..private[k]
 					self.spriteBitTextField.value = tostring(private[k])
 				end
 			end,
@@ -694,7 +692,7 @@ function EditSheet:init(args)
 
 				-- should I not let this exceed 8 - spriteBit ?
 				-- or should I wrap around bits and be really unnecessarily clever?
-				private[k] = math.clamp(tonumber(x) or private[k], 1, 8)
+				private[k] = math.clamp(tonumber(v) or private[k], 1, 8)
 
 				if private[k] ~= oldvalue then
 					self.spriteBitDepthTextField.value = tostring(private[k])

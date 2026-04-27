@@ -90,7 +90,7 @@ function UITextField:draw(...)
 	UITextField.super.draw(self, ...)
 
 	local fg, bg
-	if self.isHovered or self:hasFocus() then
+	if self.isMouseOver or self:hasFocus() then
 		fg, bg = self.fgSel, self.bgSel
 	else
 		fg, bg = self.fgDesel, self.bgDesel
