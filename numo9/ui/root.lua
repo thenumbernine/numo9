@@ -42,6 +42,8 @@ function UIRoot:rootUpdateAndDraw()
 	self.modelMatPush:copy(app.ram.modelMat)
 	app:mattrans(self.pos.x, self.pos.y, 0, 0)
 
+	self.root = self
+
 	for _,ch in ipairs(self.childrenInOrder) do
 		ch:drawRecurse(self)
 	end
@@ -137,5 +139,23 @@ function UIRoot:bubbleCallback(o, field, sdlEvent, ...)
 		o = o.parent
 	end
 end
+
+-- works with the new UI scenegraph:
+-- should go in whatever root-level for the final ui design
+function UIRoot:setFocusWidget(widget, e)
+	-- can you re-focus the same widget?
+	if self.activeElement == widget then return end
+
+	if self.activeElement then
+		self.activeElement:onBlur(e)
+	end
+
+	self.activeElement = widget
+
+	if self.activeElement then
+		self.activeElement:onFocus(e)
+	end
+end
+
 
 return UIRoot

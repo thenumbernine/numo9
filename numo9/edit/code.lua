@@ -24,7 +24,7 @@ function EditCode:init(args)
 
 	-- TODO make EditCode a widget
 
-	self:setupNewUISceneGraph()
+	self:newUI_setup()
 
 	-- TODO offset correctly, and handle input correctly
 	self.uiTextArea = UITextArea{
@@ -65,7 +65,7 @@ end
 function EditCode:onCartLoad()
 	self:setBlobIndex(0)
 	self.uiTextArea:refreshText()
-	self:setFocusWidget(self.uiTextArea)
+	self.uiRoot:setFocusWidget(self.uiTextArea)
 end
 
 -- called internally, upon init or when the user changes the current code blob
@@ -99,11 +99,11 @@ function EditCode:update()
 		end
 	end
 
-	self:updateAndDrawNewUISceneGraph()
+	self:newUI_update()
 end
 
 function EditCode:event(e)
-	return self:handleEventNewUISceneGraph(e, true)
+	return self:newUI_event(e, true)
 end
 
 return EditCode

@@ -88,6 +88,9 @@ function UIWidget:draw()
 end
 
 function UIWidget:drawRecurse(root)
+	-- store for later (onClick etc)
+	self.root = assert(root)
+
 	local owner = self.owner
 	local app = owner.app
 
@@ -188,9 +191,11 @@ function UIWidget:update()
 end
 
 function UIWidget:hasFocus()
-	if self.owner.activeElement == self then return true end
-	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:hasFocus() then return true end
+	if self.root then
+		if self.root.activeElement == self then return true end
+		for _,ch in ipairs(self.childrenInOrder) do
+			if ch:hasFocus() then return true end
+		end
 	end
 	return false
 end
@@ -254,7 +259,7 @@ end
 function UIWidget:onClick(e)
 	--if not (self.isHovered and self.mouseDownOnThis) then return end
 
-	self.owner:setFocusWidget(self, e)
+	self.root:setFocusWidget(self, e)
 
 	if self.events.click then
 		self.events.click(self, e)

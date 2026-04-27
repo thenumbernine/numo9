@@ -89,7 +89,7 @@ function EditSheet:init(args)
 		end,
 	}
 
-	self:setupNewUISceneGraph()
+	self:newUI_setup()
 
 	-- hflip, vflip, hrot, vrot
 	self:addChild(UIButton{
@@ -1587,7 +1587,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 		end
 	end
 
-	self:updateAndDrawNewUISceneGraph()
+	self:newUI_update()
 end
 
 function EditSheet:popUndo(redo)
@@ -1610,7 +1610,7 @@ function EditSheet:popUndo(redo)
 end
 
 function EditSheet:event(e)
-	return self:handleEventNewUISceneGraph(e)
+	return self:newUI_event(e)
 end
 
 return EditSheet

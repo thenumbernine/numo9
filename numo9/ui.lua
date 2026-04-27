@@ -808,34 +808,16 @@ function UI:guiSetClipRect(x,y,w,h)
 	app:setClipRect(sx1, sy1, sx2 - sx1, sy2 - sy1)
 end
 
--- works with the new UI scenegraph:
--- should go in whatever root-level for the final ui design
-function UI:setFocusWidget(widget, e)
-	-- can you re-focus the same widget?
-	if self.activeElement == widget then return end
-
-	if self.activeElement then
-		self.activeElement:onBlur(e)
-	end
-
-	self.activeElement = widget
-
-	if self.activeElement then
-		self.activeElement:onFocus(e)
-	end
-end
-
-
 
 -- to-be-widget functionality:
 
-function UI:setupNewUISceneGraph()
+function UI:newUI_setup()
 	self.uiRoot = require 'numo9.ui.root'{
 		owner = self,
 	}
 end
 
-function UI:updateAndDrawNewUISceneGraph()
+function UI:newUI_update()
 	local app = self.app
 
 	app:matMenuReset()
@@ -850,14 +832,14 @@ function UI:updateAndDrawNewUISceneGraph()
 	self:drawTooltip()
 end
 
-function UI:handleEventNewUISceneGraph(sdlEvent, skipSuper)
+function UI:newUI_event(sdlEvent, skipSuper)
 	self.uiRoot:rootEvent(sdlEvent, not skipSuper and function()
 		return UI.event(self, sdlEvent)
 	end)
 end
 
 function UI:addChild(...)
-	self.uiRoot:addChild(...)
+	return self.uiRoot:addChild(...)
 end
 
 return UI
