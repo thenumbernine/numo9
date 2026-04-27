@@ -890,10 +890,9 @@ function UI:handleEventNewUISceneGraph(e, skipSuper)
 			local ch = self.allWidgetsInOrder[i]
 			if ch.ssbbox:contains(mousepos) then
 				newWidgetUnderMouse = ch
-				goto done	
+				break
 			end
 		end
-::done::	
 
 		-- mouseenter and mouseleave do not bubble
 		if newWidgetUnderMouse ~= self.widgetUnderMouse then

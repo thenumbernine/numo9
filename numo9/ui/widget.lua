@@ -76,10 +76,10 @@ function UIWidget:event(e) end
 function UIWidget:draw()
 	local owner = self.owner
 	local app = owner.app
-	
+
 	-- draw background
 	app:drawSolidRect(0, 0, self.size.x, self.size.y, 0xf, nil, nil, app.paletteMenuTex)
-	
+
 	-- draw border
 	app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, 0xc, nil, app.paletteMenuTex)
 end
@@ -105,7 +105,7 @@ function UIWidget:drawRecurse()
 		owner:guiSetClipRect(0, 0, self.size.x, self.size.y)
 		--]]
 		-- [[ reduce
-		local oldx1, oldy1, oldw, oldh = app:getClipRect() 
+		local oldx1, oldy1, oldw, oldh = app:getClipRect()
 		local oldx2 = oldx1 + oldw
 		local oldy2 = oldy1 + oldh
 
@@ -121,7 +121,7 @@ function UIWidget:drawRecurse()
 		sx2 = math.min(sx2, oldx2)
 		sy2 = math.min(sy2, oldy2)
 
-		app:setClipRect(sx1, sy1, sx2 - sx1, sy2 - sy1)	
+		app:setClipRect(sx1, sy1, sx2 - sx1, sy2 - sy1)
 		--]]
 	end
 
@@ -137,14 +137,14 @@ function UIWidget:drawRecurse()
 		return a.zIndex < b.zIndex
 	end)
 
-	-- TODO how to get widgets with higher zIndex to draw over other widgets 
+	-- TODO how to get widgets with higher zIndex to draw over other widgets
 	for i,ch in ipairs(self.childrenInOrder) do
 		ch:drawRecurse()
 	end
 
 	app.ram.modelMat:copy(self.modelMatPush)
 	app:onModelMatChange()
-	
+
 	app:setClipRect(cx, cy, cw, ch)
 end
 

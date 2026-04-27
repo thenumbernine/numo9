@@ -492,10 +492,15 @@ function EditSheet:init(args)
 		owner = self,
 		pos = vec2d(16, 224+24),
 		text = 'A',
+		isset = function()
+			local selColorValue = self:getPaletteSelIndexColor()
+			local alpha = 0 ~= bit.band(selColorValue, 0x8000)
+			return alpha
+		end,
 		events = {
 			click = function()
 				local selColorValue = self:getPaletteSelIndexColor()
-				local alpha = 0 ~= bit.band(selColorValue,0x8000)
+				local alpha = 0 ~= bit.band(selColorValue, 0x8000)
 				self.undo:pushContinuous()
 				if alpha then	-- if it was set then clear it
 					selColorValue = bit.band(selColorValue, 0x7fff)

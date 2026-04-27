@@ -157,14 +157,15 @@ function UITextArea:draw()
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
 	local ar = tonumber(app.ram.screenWidth) / tonumber(app.ram.screenHeight)
-	local height = 256 --
+	local height = 256 - spriteSize.y
 	local width = height * ar
+	self.size:set(width, height)
 
 	-- draw text
 	local textareaX = 0	-- offset into textarea where we start drawing text
 	local textareaY = spriteSize.y
 	local textareaWidth = width
-	local textareaHeight = height - 2*spriteSize.y
+	local textareaHeight = height - spriteSize.y
 
 	if self.useLineNumbers then
 		-- clear the background incl line numbers
@@ -198,7 +199,6 @@ function UITextArea:draw()
 		textareaX = textareaX + 2
 	end
 	textareaWidth = textareaWidth - textareaX
-	self.size:set(textareaWidth, textareaHeight)
 
 	-- 2nd text background apart from the line numbers
 	app:drawSolidRect(
@@ -286,7 +286,7 @@ function UITextArea:draw()
 	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	app:drawMenuText(footer, 0, height - spriteSize.y, colors.fgFooter, colors.bgFooter)
+	app:drawMenuText(footer, 0, height, colors.fgFooter, colors.bgFooter)
 
 	footer = self.cursorLoc..'/'..self:getTextLen()
 	self.footerWidth = app:drawMenuText(footer, width - (self.footerWidth or 0), height - spriteSize.y, colors.fgFooter, colors.bgFooter)
@@ -309,7 +309,6 @@ function UITextArea:draw()
 			self:refreshCursorColRowForLoc()	-- just in case?
 		end
 	end
-
 	if leftButtonPress then
 		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
 		if y >= 1	-- no clicks on top row

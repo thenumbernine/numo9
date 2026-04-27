@@ -22,11 +22,11 @@ function EditCode:init(args)
 
 	self:setupNewUISceneGraph()
 
-	-- TODO turn this into a widget...
+	-- TODO offset correctly, and handle input correctly
 	self.uiTextArea = UITextArea{
 		owner = self,
-		pos = {0,0},
-		size = {999,999},
+		pos = {0, 0},
+		size = {9999, 256},
 	}
 	self:addChild(self.uiTextArea)
 
@@ -34,10 +34,7 @@ function EditCode:init(args)
 		owner = self,
 		text = 'N',
 		pos = {120, 0},
-		--tooltip = 'line numbers',
-		tooltip = function()
-			return 'lines='..tostring(self.uiTextArea.useLineNumbers)
-		end,
+		tooltip = 'line numbers',
 		-- `isset` makes it more like a checkbox I admit...
 		isset = function()
 			return self.uiTextArea.useLineNumbers
@@ -83,10 +80,11 @@ function EditCode:update()
 
 	self:setBlobIndex(self[self.blobIndexField])
 
+	self.uiTextArea.pos.x, self.uiTextArea.pos.y = self.app:invTransform(0, 0, 0, 0)
 
 	-- for the text editor, align to the left
 	-- TODO this isnt needed if I just make the text editor rect customizable
-	-- [[ same as matMenuReset but without the translate
+	--[[ same as matMenuReset but without the translate
 	local app = self.app
 	local ar = app.ram.screenWidth / app.ram.screenHeight
 	app:matident(0)
