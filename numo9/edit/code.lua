@@ -18,21 +18,27 @@ function EditCode:init(args)
 
 	self[self.blobIndexField] = 0
 
-	-- TODO turn this into a widget...
-	self.uiTextArea = UITextArea{
-		edit = self,
-	}
-
 	-- TODO make EditCode a widget
 
 	self:setupNewUISceneGraph()
 
-	self.children:insert(UIButton{
+	-- TODO turn this into a widget...
+	self.uiTextArea = UITextArea{
+		owner = self,
+		pos = {0,0},
+		size = {999,999},
+	}
+	self:addChild(self.uiTextArea)
+
+	self:addChild(UIButton{
 		owner = self,
 		text = 'N',
 		pos = {120, 0},
-		tooltip = 'line numbers',
-		-- ok `isset` makes it more like a checkbox I admit...
+		--tooltip = 'line numbers',
+		tooltip = function()
+			return 'lines='..tostring(self.uiTextArea.useLineNumbers)
+		end,
+		-- `isset` makes it more like a checkbox I admit...
 		isset = function()
 			return self.uiTextArea.useLineNumbers
 		end,
@@ -43,7 +49,7 @@ function EditCode:init(args)
 		},
 	})
 
-	self.children:insert(UIBlobSelect{
+	self:addChild(UIBlobSelect{
 		owner = self,
 		pos = {80, 0},
 		blobName = self.blobType,
@@ -89,8 +95,6 @@ function EditCode:update()
 	app:matortho(0, app.ram.screenWidth, app.ram.screenHeight, 0)
 	app:matscale(app.width / app.menuSizeInSprites.x, app.height / app.menuSizeInSprites.y)
 	--]]
-
-	self.uiTextArea:update()
 
 	self:updateAndDrawNewUISceneGraph()
 end

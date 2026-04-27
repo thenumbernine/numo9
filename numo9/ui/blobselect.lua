@@ -25,6 +25,7 @@ function UIBlobSelect:init(args)
 	local blobName = assert.index(args, 'blobName')
 
 	self.size.y = spriteSize.y
+	self.overflow = 'hidden'
 
 	local valueTable = assert.index(args, 'valueTable')
 	self.valueTable = valueTable
@@ -60,7 +61,7 @@ function UIBlobSelect:init(args)
 			end,
 		},
 	}
-	self.children:insert(self.textfield)
+	self:addChild(self.textfield)
 
 	self.spinner = UISpinner{
 		owner = self.owner,
@@ -69,7 +70,7 @@ function UIBlobSelect:init(args)
 			doSetValue(valueTable[valueKey] + dx)
 		end,
 	}
-	self.children:insert(self.spinner)
+	self:addChild(self.spinner)
 
 	self.addButton = UIButton{
 		owner = self.owner,
@@ -93,7 +94,7 @@ function UIBlobSelect:init(args)
 			end,
 		},
 	}
-	self.children:insert(self.addButton)
+	self:addChild(self.addButton)
 
 	self.delButton = UIButton{
 		owner = self.owner,
@@ -120,7 +121,7 @@ function UIBlobSelect:init(args)
 			end,
 		},
 	}
-	self.children:insert(self.delButton)
+	self:addChild(self.delButton)
 end
 
 function UIBlobSelect:update(...)

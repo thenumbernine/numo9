@@ -16,7 +16,7 @@ function UIRadio:init(args)
 
 	local x = 0
 	for _,option in ipairs(self.options) do
-		self.children:insert(UIButton{
+		self:addChild(UIButton{
 			owner = self.owner,
 			pos = vec2d(x,0),
 			text = option:sub(1,1):upper(),

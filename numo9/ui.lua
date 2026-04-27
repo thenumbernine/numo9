@@ -827,6 +827,9 @@ function UI:setFocusWidget(widget, e)
 end
 
 
+
+-- to-be-widget functionality:
+
 function UI:setupNewUISceneGraph()
 	self.children = table()
 	self.childrenInOrder = table()
@@ -864,11 +867,23 @@ function UI:updateAndDrawNewUISceneGraph()
 	self:drawTooltip()
 end
 
+local UIWidget = require 'numo9.ui.widget'
+function UI:bubbleCallback(o, field, ...)
+	-- TODO bubble-in first
+
+	while o ~= nil 
+	and UIWidget:isa(o)	-- TODO make editor UI's UIWidget's
+	do
+		if o[field](o, ...) then return true end
+		-- propagate this to parents
+		o = o.parent
+	end
+end
+
 function UI:handleEventNewUISceneGraph(e, skipSuper)
-	-- mouseenter and mouseleave do not bubble
-	local newWidgetUnderMouse 
+
 	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
-		
+		local newWidgetUnderMouse 
 		local mx, my = e.motion.x, e.motion.y
 		local mousepos = vec2d(mx, my)
 		for i=#self.allWidgetsInOrder,1,-1 do
@@ -878,20 +893,31 @@ function UI:handleEventNewUISceneGraph(e, skipSuper)
 				goto done	
 			end
 		end
-	end
 ::done::	
-	if newWidgetUnderMouse ~= self.widgetUnderMouse then
-		if self.widgetUnderMouse then
-			-- TODO propagate this to parents?
-			self.widgetUnderMouse.isHovered = nil
-			self.widgetUnderMouse:onMouseLeave(e)
+
+		-- mouseenter and mouseleave do not bubble
+		if newWidgetUnderMouse ~= self.widgetUnderMouse then
+			if self.widgetUnderMouse then
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOut', e)
+
+				-- put this in onMouseLeave?
+				self.widgetUnderMouse.isHovered = nil
+				self.widgetUnderMouse:onMouseLeave(e)
+			end
+			self.widgetUnderMouse = newWidgetUnderMouse
+			if self.widgetUnderMouse then
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOver', e)
+
+				self.widgetUnderMouse.isHovered = true
+				self.widgetUnderMouse:onMouseEnter(e)
+			end
 		end
-		self.widgetUnderMouse = newWidgetUnderMouse
-		if self.widgetUnderMouse then
-			-- TODO propagate this to parents?
-			self.widgetUnderMouse.isHovered = true
-			self.widgetUnderMouse:onMouseEnter(e)
-		end
+	end
+
+	if e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
+		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown', e)
+	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
+		self:bubbleCallback(self.widgetUnderMouse, 'onMouseUp', e)
 	end
 
 	if not skipSuper
@@ -904,6 +930,14 @@ function UI:handleEventNewUISceneGraph(e, skipSuper)
 	for _,ch in ipairs(self.childrenInOrder) do
 		if ch:event(e) then return true end
 	end
+end
+
+function UI:addChild(ch)
+	if ch.parent then
+		ch.parent.children:removeObject(ch)
+	end
+	ch.parent = self
+	self.children:insertUnique(ch)
 end
 
 return UI

@@ -49,6 +49,9 @@ function UIWidget:init(args)
 		mouseleave = when you move mouse away from a widget
 		mouseover = " " but bubbles
 		mouseout = " " but bubbles
+		mousedown
+		mouseup
+		click
 		input = textfield on any key change
 		change = textfield on 'enter' or blur
 		keyup, keydown = yup
@@ -56,6 +59,16 @@ function UIWidget:init(args)
 	self.events = table(args.events):setmetatable(nil)
 
 	self.modelMatPush = matArrType()
+end
+
+-- DO NOT directly children:insert
+-- instead use this
+function UIWidget:addChild(ch)
+	if ch.parent then
+		ch.parent.children:removeObject(ch)
+	end
+	ch.parent = self
+	self.children:insertUnique(ch)
 end
 
 function UIWidget:event(e) end
@@ -87,7 +100,7 @@ function UIWidget:drawRecurse()
 	self.ssbbox.max.x, self.ssbbox.max.y = app:transform(self.size.x, self.size.y, 0, 1)
 
 	local cx, cy, cw, ch = app:getClipRect()
-	do
+	if self.overflow == 'hidden' then
 		--[[ set clip rect
 		owner:guiSetClipRect(0, 0, self.size.x, self.size.y)
 		--]]
@@ -188,13 +201,36 @@ function UIWidget:onMouseLeave(e)
 end
 
 function UIWidget:onMouseOver(e)
+	self.isMouseOver = true
 	if self.events.mouseover then self.events.mouseover(self, e) end
 end
 
 function UIWidget:onMouseOut(e)
+	self.isMouseOver = false
 	if self.events.mouseout then self.events.mouseout(self, e) end
 end
 
+function UIWidget:onMouseDown(e)
+	if self.isHovered then	-- children too? i.e. :hasFocus() ?
+		self.mouseDownOnThis = true
+	end
+	if self.events.mousedown then self.events.mousedown(self, e) end
+end
+
+function UIWidget:onMouseUp(e)
+	if self.events.mouseup then self.events.mouseup(self, e) end
+
+	-- TODO because this is interleaved in onMouseUp, we can't stop propagation
+	-- if I made it separate then I'd have to interject isHovered && mouseDownOnThis tests every iteration in the bubbleCallback function
+	-- hmm.
+	if self.isHovered
+	and self.mouseDownOnThis
+	then
+		local stop = self:onClick()
+	end
+
+	self.mouseDownOnThis = nil
+end
 
 function UIWidget:onFocus(e)
 	-- if you mouse over an event thens witch to its tab index...
@@ -209,15 +245,12 @@ function UIWidget:onBlur(e)
 end
 
 function UIWidget:onClick(e)
+	--if not (self.isHovered and self.mouseDownOnThis) then return end
+
 	self.owner:setFocusWidget(self, e)
 
 	if self.events.click then
 		self.events.click(self, e)
-
-		-- hmm return true always?
-		-- only if events.click returns true?
-		-- always unless events.click returns false?
-		return true
 	end
 end
 
@@ -238,50 +271,7 @@ function UIWidget:event(e)
 		if ch:event(e) then return true end
 	end
 
-	-- TODO this in widget
-	if e.type == sdl.SDL_EVENT_MOUSE_MOTION then
-		local mx, my = e.motion.x, e.motion.y
-
-		local oldIsMouseOver = self.isMouseOver
-		self.isMouseOver = self.ssbbox:contains(vec2d(mx, my))
-		if self.isMouseOver and not oldIsMouseOver then
-			self:onMouseOver(e)
-		elseif not self.isMouseOver and oldIsMouseOver then
-			self:onMouseOut(e)
-		end
-
-		--[[ when to not capture?
-		-- how to not trigger mousemove on widgets that are blocked by other widgets?
-		--if self.isHovered then
-		if self.isMouseOver then
-			didCapture = true
-		end
-		--]]
-	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
-		if self.isHovered then
-			self.mouseDownOnThis = true
-		end
-	
-		-- [[ when to not capture?
-		if self.isHovered then
-			didCapture = true
-		end
-		--]]
-	elseif e.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
-		if self.isHovered
-		and self.mouseDownOnThis
-		then
-			didCapture = self:onClick()
-		end
-		
-		self.mouseDownOnThis = nil
-	
-		-- [[ when to not capture?
-		if self.isHovered then
-			didCapture = true
-		end
-		--]]
-	elseif e.type == sdl.SDL_EVENT_KEY_DOWN then
+	if e.type == sdl.SDL_EVENT_KEY_DOWN then
 		if self:hasFocus() then
 			self:onKeyDown(e)
 		end

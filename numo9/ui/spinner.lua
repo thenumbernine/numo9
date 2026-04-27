@@ -12,7 +12,7 @@ function UISpinner:init(args)
 
 	local setValue = assert.index(args, 'setValue')
 
-	self.children:insert(UIButton{
+	self:addChild(UIButton{
 		owner = args.owner,
 		text = '<',
 		pos = vec2d(0, 0),
@@ -26,7 +26,7 @@ function UISpinner:init(args)
 	local fontWidth = 5
 	local spacing = 1
 
-	self.children:insert(UIButton{
+	self:addChild(UIButton{
 		owner = args.owner,
 		text = '>',
 		pos = vec2d(fontWidth + spacing, 0),

@@ -6,6 +6,7 @@ local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
 
 local clip = require 'numo9.clipboard'
+local UIWidget = require 'numo9.ui.widget'
 local Undo = require 'numo9.ui.undo'
 
 local numo9_keys = require 'numo9.keys'
@@ -28,10 +29,11 @@ local colors = {
 
 
 -- subclass the other widgets or nah? idk.
-local UITextArea = class()
+local UITextArea = UIWidget:subclass()
 
 function UITextArea:init(args)
-	self.edit = assert.index(args, 'edit')	-- points back to editCode
+	UITextArea.super.init(self, args)
+
 	self.vec = args.vec						-- holds vector<uint8_t> of code text data
 
 	-- text cursor loc
@@ -147,8 +149,8 @@ function UITextArea:refreshCursorColRowForLoc()
 	self.cursorCol = self.cursorLoc+1 - self.newlines[self.cursorRow]	-- 1-based  like all UI show it as
 end
 
-function UITextArea:update()
-	local app = self.edit.app
+function UITextArea:draw()
+	local app = self.owner.app
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
@@ -196,6 +198,7 @@ function UITextArea:update()
 		textareaX = textareaX + 2
 	end
 	textareaWidth = textareaWidth - textareaX
+	self.size:set(textareaWidth, textareaHeight)
 
 	-- 2nd text background apart from the line numbers
 	app:drawSolidRect(
