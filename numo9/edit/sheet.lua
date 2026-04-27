@@ -2,7 +2,6 @@
 This will be the code editor
 --]]
 local ffi = require 'ffi'
-local gl = require 'gl'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
@@ -12,6 +11,8 @@ local vec2i = require 'vec-ffi.vec2i'
 require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
+local gl = require 'gl'
+local sdl = require 'sdl'
 
 local clip = require 'numo9.clipboard'
 
@@ -626,6 +627,175 @@ function EditSheet:init(args)
 		pos = vec2d(0,0),
 	}
 	self:addChild(self.spriteSheetPicker)
+
+	self.uiRoot:addEventListener('keydown', function(root, e)
+		local app = self.app
+		local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
+		local sheetRAM = sheetBlob.ramgpu
+		local currentSheetAddr = sheetBlob.addr
+		local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
+		local paletteRAM = paletteBlob.ramgpu
+
+		local sdlkey = e.sdl.key.key
+
+		local uikey
+		if ffi.os == 'OSX' then
+			uikey = app:key'lgui' or app:key'rgui'
+		else
+			uikey = app:key'lctrl' or app:key'rctrl'
+		end
+
+		if uikey then
+			local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+			local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+			local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+			local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+			local x = spriteSize.x * selx
+			local y = spriteSize.y * sely
+			local width = spriteSize.x * selw
+			local height = spriteSize.y * selh
+			if sdlkey == sdl.SDLK_X or sdlkey == sdl.SDLK_C then
+				-- copy the selected region in the sprite/tile sheet
+				-- TODO copy the current-edit region? wait it's the same region ...
+				-- TODO if there is such a spriteSheetRAM.dirtyGPU then flush GPU changes here ... but there's not cuz I never write to it with the GPU ...
+				assert(not sheetRAM.dirtyGPU)
+				assert(x >= 0 and y >= 0 and x + width <= sheetRAM.image.width and y + height <= sheetRAM.image.height)
+				local image = sheetRAM.image:copy{x=x, y=y, width=width, height=height}
+				if image.channels == 1 then
+	--DEBUG:print'BAKING PALETTE'
+					-- TODO move palette functionality inot Image
+					-- TODO offset palette by current bits / shift?
+					local rgba = Image(image.width, image.height, 4, uint8_t)
+					local srcp = image.buffer
+					local dstp = rgba.buffer
+					for i=0,image.width*image.height-1 do
+						dstp[0],dstp[1],dstp[2],dstp[3] = rgba5551_to_rgba8888_4ch(
+							ffi.cast(palettePtrType, paletteBlob.ramptr)[srcp[0]]
+						)
+	--DEBUG:print(i, dstp[0],dstp[1],dstp[2],dstp[3])
+						dstp = dstp + 4
+						srcp = srcp + 1
+					end
+					image = rgba	-- current clipboard restrictions ... only 32bpp
+				end
+				clip.image(image)
+				if sdlkey == sdl.SDLK_X then
+					self.undo:push()
+					-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
+					sheetRAM.dirtyCPU = true
+					assert.eq(sheetRAM.image.channels, 1)
+					for j=y,y+height-1 do
+						for i=x,x+width-1 do
+							self:edit_poke(currentSheetAddr + i + sheetRAM.image.width * j, self.paletteOffset)
+						end
+					end
+					self.hist = nil	-- invalidate histogram
+				end
+			elseif sdlkey == sdl.SDLK_V then
+				-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
+				assert(not sheetRAM.dirtyGPU)
+				local image = clip.image()
+				if image then
+					self.undo:push()
+					--[[
+					image paste options:
+					- constrain to selection vs spill over (same with drawing pen)
+					- blit to selection vs keeping 1:1 with original
+					- quantize palette ...
+						- use current palette
+							- option to preserve pasted image original indexes vs remap them
+						- or create new palette from pasted image
+							- option to preserve spritesheet original indexes vs remap them
+						- or create new palette from current and pasted image
+						- target bitness?  just use spriteFlags?
+						- target palette offset?  just use paletteOffset?
+					- quantize tiles? only relevant for whatever the tilemap is pointing into ...
+						- use 'convert-to-8x8x4pp's trick there ...
+					--]]
+					if image.channels ~= 1 then
+	print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
+						assert.ge(image.channels, 3)	-- NOTICE it's only RGB right now ... not even alpha
+						image = image:rgba()
+						assert.eq(image.channels, 4, "image channels")
+
+						-- TODO move this into image next to toIndexed, or Quantize
+						if self.pasteKeepsPalette then
+							local image1ch = Image(image.width, image.height, 1, uint8_t)
+							local srcp = image.buffer
+							local dstp = image1ch.buffer
+							for i=0,image.width*image.height-1 do
+								-- slow way - just test every color against every color
+								-- TODO build a mapping and then use 'applyColorMap' to go quicker
+								local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
+								--local r,g,b = srcp[0], srcp[1], srcp[2]
+								local bestIndex = bit.band(0xff, self.paletteOffset)
+								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bestIndex])
+								local bestDistSq
+								if palA == 0 then
+									bestDistSq = (palA-a)^2
+								else
+									bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+								end
+								for j=1,self.pasteTargetNumColors-1 do
+									local colorIndex = bit.band(0xff, j + self.paletteOffset)
+									local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[colorIndex])
+									local distSq
+									if palA == 0 then
+										distSq = (palA-a)^2
+									else
+										distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+									end
+									if distSq < bestDistSq then
+										bestDistSq = distSq
+										bestIndex = colorIndex
+									end
+								end
+								dstp[0] = bestIndex
+								dstp = dstp + 1
+								srcp = srcp + image.channels
+							end
+							image = image1ch
+						else
+							image = image:toIndexed()
+							for i,color in ipairs(image.palette) do
+								self:edit_pokew(
+									paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
+									rgba8888_4ch_to_5551(
+										color[1],
+										color[2],
+										color[3],
+										color[4] or 0xff
+									)
+								)
+							end
+						end
+					end
+					assert.eq(image.channels, 1, "image.channels")
+	--DEBUG:print'pasting image'
+	--DEBUG:print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
+					for j=0,image.height-1 do
+						for i=0,image.width-1 do
+							local destx = i + x
+							local desty = j + y
+							if destx >= 0 and destx < sheetRAM.image.width
+							and desty >= 0 and desty < sheetRAM.image.height
+							then
+								local c = image.buffer[i + image.width * j]
+								local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[c])
+								if not self.pasteTransparent or a > 0 then
+									self:edit_poke(currentSheetAddr + destx + sheetRAM.image.width * desty, c)
+								end
+							end
+						end
+					end
+					self.hist = nil
+				end
+			elseif sdlkey == sdl.SDLK_Z then
+				self:popUndo(shift)
+			end
+		end
+
+	end)
 
 	local private = {}
 	local getset = {
@@ -1428,163 +1598,6 @@ function EditSheet:update()
 		end
 	end
 
-	-- handle input
-
-	local uikey
-	if ffi.os == 'OSX' then
-		uikey = app:key'lgui' or app:key'rgui'
-	else
-		uikey = app:key'lctrl' or app:key'rctrl'
-	end
-	if uikey then
-		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
-		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
-		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
-		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
-		local x = spriteSize.x * selx
-		local y = spriteSize.y * sely
-		local width = spriteSize.x * selw
-		local height = spriteSize.y * selh
-		if app:keyp'x' or app:keyp'c' then
-			-- copy the selected region in the sprite/tile sheet
-			-- TODO copy the current-edit region? wait it's the same region ...
-			-- TODO if there is such a spriteSheetRAM.dirtyGPU then flush GPU changes here ... but there's not cuz I never write to it with the GPU ...
-			assert(not sheetRAM.dirtyGPU)
-			assert(x >= 0 and y >= 0 and x + width <= sheetRAM.image.width and y + height <= sheetRAM.image.height)
-			local image = sheetRAM.image:copy{x=x, y=y, width=width, height=height}
-			if image.channels == 1 then
---DEBUG:print'BAKING PALETTE'
-				-- TODO move palette functionality inot Image
-				-- TODO offset palette by current bits / shift?
-				local rgba = Image(image.width, image.height, 4, uint8_t)
-				local srcp = image.buffer
-				local dstp = rgba.buffer
-				for i=0,image.width*image.height-1 do
-					dstp[0],dstp[1],dstp[2],dstp[3] = rgba5551_to_rgba8888_4ch(
-						ffi.cast(palettePtrType, paletteBlob.ramptr)[srcp[0]]
-					)
---DEBUG:print(i, dstp[0],dstp[1],dstp[2],dstp[3])
-					dstp = dstp + 4
-					srcp = srcp + 1
-				end
-				image = rgba	-- current clipboard restrictions ... only 32bpp
-			end
-			clip.image(image)
-			if app:keyp'x' then
-				self.undo:push()
-				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
-				sheetRAM.dirtyCPU = true
-				assert.eq(sheetRAM.image.channels, 1)
-				for j=y,y+height-1 do
-					for i=x,x+width-1 do
-						self:edit_poke(currentSheetAddr + i + sheetRAM.image.width * j, self.paletteOffset)
-					end
-				end
-				self.hist = nil	-- invalidate histogram
-			end
-		elseif app:keyp'v' then
-			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
-			assert(not sheetRAM.dirtyGPU)
-			local image = clip.image()
-			if image then
-				self.undo:push()
-				--[[
-				image paste options:
-				- constrain to selection vs spill over (same with drawing pen)
-				- blit to selection vs keeping 1:1 with original
-				- quantize palette ...
-					- use current palette
-						- option to preserve pasted image original indexes vs remap them
-					- or create new palette from pasted image
-						- option to preserve spritesheet original indexes vs remap them
-					- or create new palette from current and pasted image
-					- target bitness?  just use spriteFlags?
-					- target palette offset?  just use paletteOffset?
-				- quantize tiles? only relevant for whatever the tilemap is pointing into ...
-					- use 'convert-to-8x8x4pp's trick there ...
-				--]]
-				if image.channels ~= 1 then
-print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
-					assert.ge(image.channels, 3)	-- NOTICE it's only RGB right now ... not even alpha
-					image = image:rgba()
-					assert.eq(image.channels, 4, "image channels")
-
-					-- TODO move this into image next to toIndexed, or Quantize
-					if self.pasteKeepsPalette then
-						local image1ch = Image(image.width, image.height, 1, uint8_t)
-						local srcp = image.buffer
-						local dstp = image1ch.buffer
-						for i=0,image.width*image.height-1 do
-							-- slow way - just test every color against every color
-							-- TODO build a mapping and then use 'applyColorMap' to go quicker
-							local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
-							--local r,g,b = srcp[0], srcp[1], srcp[2]
-							local bestIndex = bit.band(0xff, self.paletteOffset)
-							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bestIndex])
-							local bestDistSq
-							if palA == 0 then
-								bestDistSq = (palA-a)^2
-							else
-								bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
-							end
-							for j=1,self.pasteTargetNumColors-1 do
-								local colorIndex = bit.band(0xff, j + self.paletteOffset)
-								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[colorIndex])
-								local distSq
-								if palA == 0 then
-									distSq = (palA-a)^2
-								else
-									distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
-								end
-								if distSq < bestDistSq then
-									bestDistSq = distSq
-									bestIndex = colorIndex
-								end
-							end
-							dstp[0] = bestIndex
-							dstp = dstp + 1
-							srcp = srcp + image.channels
-						end
-						image = image1ch
-					else
-						image = image:toIndexed()
-						for i,color in ipairs(image.palette) do
-							self:edit_pokew(
-								paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
-								rgba8888_4ch_to_5551(
-									color[1],
-									color[2],
-									color[3],
-									color[4] or 0xff
-								)
-							)
-						end
-					end
-				end
-				assert.eq(image.channels, 1, "image.channels")
---DEBUG:print'pasting image'
---DEBUG:print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
-				for j=0,image.height-1 do
-					for i=0,image.width-1 do
-						local destx = i + x
-						local desty = j + y
-						if destx >= 0 and destx < sheetRAM.image.width
-						and desty >= 0 and desty < sheetRAM.image.height
-						then
-							local c = image.buffer[i + image.width * j]
-							local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[c])
-							if not self.pasteTransparent or a > 0 then
-								self:edit_poke(currentSheetAddr + destx + sheetRAM.image.width * desty, c)
-							end
-						end
-					end
-				end
-				self.hist = nil
-			end
-		elseif app:keyp'z' then
-			self:popUndo(shift)
-		end
-	end
 
 	self:newUI_update()
 end

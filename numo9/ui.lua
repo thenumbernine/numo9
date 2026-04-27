@@ -630,7 +630,8 @@ function UI:event(e)
 		and e[0].gaxis.axis == 1
 		and e[0].gaxis.value < -10000)
 	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_UP)
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN 
+	and e[0].key.key == sdl.SDLK_UP)
 	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
 	then
 		self.menuTabIndex = self.menuTabIndex - 1
@@ -649,7 +650,8 @@ function UI:event(e)
 		and e[0].gaxis.axis == 1
 		and e[0].gaxis.value > 10000)
 	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_DOWN)
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN 
+	and e[0].key.key == sdl.SDLK_DOWN)
 	then
 		self.menuTabIndex = self.menuTabIndex + 1
 		if self.menuTabMax and self.menuTabMax > 0 then

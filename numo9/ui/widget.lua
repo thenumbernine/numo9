@@ -61,14 +61,17 @@ function UIWidget:init(args)
 	--]]
 	self.eventListeners = {}
 	if args.events then
-		for k,v in ipairs(args.events) do
-			assert.type(v, 'function')
-			self.eventListeners[k] = self.eventListeners[k] or table()
-			self.eventListeners[k]:insert(v)
+		for k,v in pairs(args.events) do
+			self:addEventListener(k, v)
 		end
 	end
 
 	self.modelMatPush = matArrType()
+end
+
+function UIWidget:addEventListener(eventName, callback)
+	self.eventListeners[eventName] = self.eventListeners[eventName] or table()
+	self.eventListeners[eventName]:insert(callback)
 end
 
 -- DO NOT directly children:insert
@@ -78,6 +81,7 @@ function UIWidget:addChild(ch)
 		ch.parent.children:removeObject(ch)
 	end
 	ch.parent = self
+	ch.root = self.root
 	self.children:insertUnique(ch)
 end
 
@@ -174,7 +178,7 @@ function UIWidget:update()
 		ch:update()
 	end
 
-	if (self.isMouseOver or self:hasFocus())
+	if (self.isMouseOver or self.selfOrChildHasFocus)
 	and self.tooltip
 	then
 		-- ram mousePos is relative to matMenuReset()'s matrices
@@ -195,16 +199,6 @@ function UIWidget:update()
 
 		owner:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
-end
-
-function UIWidget:hasFocus()
-	if self.root then
-		if self.root.activeElement == self then return true end
-		for _,ch in ipairs(self.childrenInOrder) do
-			if ch:hasFocus() then return true end
-		end
-	end
-	return false
 end
 
 function UIWidget:triggerEvents(eventName, ...)
@@ -272,11 +266,19 @@ function UIWidget:onBlur(e)
 	self:triggerEvents('blur', e)
 end
 
+-- like focus/blur but does bubble
+function UIWidget:onFocusIn(...)
+	self.selfOrChildHasFocus = true
+	self:triggerEvents('focusin', ...)
+end
+function UIWidget:onFocusOut(...)
+	self.selfOrChildHasFocus = false
+	self:triggerEvents('focusout', ...)
+end
+
 function UIWidget:onClick(e)
 	--if not (self.isHovered and self.mouseDownOnThis) then return end
-
 	self.root:setFocusWidget(self, e)
-
 	self:triggerEvents('click', e)
 end
 
@@ -290,19 +292,20 @@ end
 
 -- returns true if captured an event
 function UIWidget:event(sdlEvent)
+
 	-- ui events:
 	for _,ch in ipairs(self.childrenInOrder) do
 		if ch:event(sdlEvent) then return true end
 	end
 
 	if sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN then
-		if self:hasFocus() then
+		if self.selfOrChildHasFocus then
 			self:onKeyDown{
 				sdl = sdlEvent,
 			}
 		end
 	elseif sdlEvent.type == sdl.SDL_EVENT_KEY_UP then
-		if self:hasFocus() then
+		if self.selfOrChildHasFocus then
 			self:onKeyUp{
 				sdl = sdlEvent,
 			}

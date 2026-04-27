@@ -90,7 +90,7 @@ function UITextField:draw(...)
 	UITextField.super.draw(self, ...)
 
 	local fg, bg
-	if self.isMouseOver or self:hasFocus() then
+	if self.isMouseOver or self.selfOrChildHasFocus then
 		fg, bg = self.fgSel, self.bgSel
 	else
 		fg, bg = self.fgDesel, self.bgDesel
@@ -105,7 +105,7 @@ function UITextField:draw(...)
 		app.paletteMenuTex)
 	app:drawMenuText(self.value, 0, 0, fg, bg)
 
-	if self:hasFocus()
+	if self.selfOrChildHasFocus
 	and getTime() % 1 < .5
 	then
 		app:drawSolidRect(

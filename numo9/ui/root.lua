@@ -16,6 +16,11 @@ function UIRoot:init(args)
 	UIRoot.super.init(self, args)
 
 	self.allWidgetsInOrder = table()
+
+	-- who gets keyboard by default?
+	-- javascript model, focused objects get keyboard
+	-- or if nothing is in focus, then the root
+	self:setFocusWidget(self)
 end
 
 function UIRoot:rootUpdateAndDraw()
@@ -54,9 +59,7 @@ function UIRoot:rootUpdateAndDraw()
 	app:setClipRect(0, 0, clipMax, clipMax)
 	app:matMenuReset()
 
-	for _,ch in ipairs(self.childrenInOrder) do
-		ch:update()
-	end
+	self:update()
 end
 
 function UIRoot:rootEvent(sdlEvent, handleUIEvent)
@@ -120,9 +123,7 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	end
 
 	-- ui events:
-	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:event(sdlEvent) then return true end
-	end
+	return self:event(sdlEvent)
 end
 
 local UIWidget = require 'numo9.ui.widget'
@@ -133,7 +134,7 @@ function UIRoot:bubbleCallback(o, field, sdlEvent, ...)
 
 	-- TODO bubble-in first
 
-	while o ~= nil do
+	while o do
 		if o[field](o, event, ...) then return true end
 		-- propagate this to parents
 		o = o.parent
@@ -142,18 +143,20 @@ end
 
 -- works with the new UI scenegraph:
 -- should go in whatever root-level for the final ui design
-function UIRoot:setFocusWidget(widget, e)
+function UIRoot:setFocusWidget(widget, ...)
 	-- can you re-focus the same widget?
 	if self.activeElement == widget then return end
 
 	if self.activeElement then
-		self.activeElement:onBlur(e)
+		self:bubbleCallback(self.activeElement, 'onFocusOut', ...)
+		self.activeElement:onBlur(...)
 	end
 
 	self.activeElement = widget
 
 	if self.activeElement then
-		self.activeElement:onFocus(e)
+		self:bubbleCallback(self.activeElement, 'onFocusIn', ...)
+		self.activeElement:onFocus(...)
 	end
 end
 
