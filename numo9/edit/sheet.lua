@@ -45,6 +45,23 @@ local dirs = {
 	{0,-1},
 }
 
+
+
+local SpriteSheetPicker = UIWidget:subclass()
+
+function SpriteSheetPicker:init(args)
+	SpriteSheetPicker.super.init(self, args)
+end
+
+function SpriteSheetPicker:draw(args)
+	SpriteSheetPicker.super.draw(self, args)
+end
+
+function SpriteSheetPicker:update(args)
+	SpriteSheetPicker.super.update(self, args)
+end
+
+
 local EditSheet = require 'numo9.ui':subclass()
 
 function EditSheet:init(args)
@@ -254,7 +271,7 @@ function EditSheet:init(args)
 		width = 10,
 		events = {
 			change = function(target, e)
-				self:setSpriteBit(target.value)
+				self.spriteBit = target.value
 			end,
 		},
 	}
@@ -266,7 +283,7 @@ function EditSheet:init(args)
 			return 'bit='..self.spriteBit
 		end,
 		setValue = function(dx)
-			self:setSpriteBit(self.spriteBit + dx)
+			self.spriteBit = self.spriteBit + dx
 		end,
 	}
 	self:addChild(self.spriteBitSpinner)
@@ -285,7 +302,7 @@ function EditSheet:init(args)
 		width = 10,
 		events = {
 			change = function(target, e)
-				self:setSpriteBitDepth(target.value)
+				self.spriteBitDepth = target.value
 			end,
 		},
 	}
@@ -299,7 +316,7 @@ function EditSheet:init(args)
 		setValue = function(dx)
 			-- should I not let this exceed 8 - spriteBit ?
 			-- or should I wrap around bits and be really unnecessarily clever?
-			self:setSpriteBitDepth(self.spriteBitDepth + dx)
+			self.spriteBitDepth = self.spriteBitDepth + dx
 		end,
 	})
 
@@ -375,7 +392,7 @@ function EditSheet:init(args)
 		width = 15,
 		events = {
 			change = function(target, e)
-				self:setPaletteSelIndex(target.value)
+				self.paletteSelIndex = target.value
 			end,
 		},
 	}
@@ -607,6 +624,10 @@ function EditSheet:init(args)
 	}
 	self:addChild(self.paletteBlobSelect)
 
+	self.spriteSheetPicker = SpriteSheetPicker{
+		owner = self,
+	}
+	self:addChild(self.spriteSheetPicker)
 
 	local private = {}
 	local getset = {
@@ -630,6 +651,52 @@ function EditSheet:init(args)
 
 				-- on self.sheetBlobIndex change...
 				self.sheetBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		paletteSelIndex = {
+			get = function(self, k)
+				return private[k]
+			end,
+			set = function(self, k, v)
+				local oldvalue = private[k]
+
+				private[k] = bit.band(0xff, tonumber(x) or private[k])
+
+				if private[k] ~= oldvalue then
+					self.paletteSelIndexTextField.value = tostring(private[k])
+					self:updatePaletteSelIndexColor()
+				end		
+			end,
+		},
+		spriteBit = {
+			get = function(self, k)
+				return private[k]
+			end,
+			set = function(self, k, v)
+				local oldvalue = private[k]
+
+				private[k] = math.clamp(tonumber(x) or private[k], 0, 7)
+
+				-- only update if different
+				if private[k] ~= oldvalue then
+					self.spriteBitTextField.value = tostring(private[k])
+				end
+			end,
+		},
+		spriteBitDepth = {
+			get = function(self, k)
+				return private[k]
+			end,
+			set = function(self, k, v)
+				local oldvalue = private[k]
+
+				-- should I not let this exceed 8 - spriteBit ?
+				-- or should I wrap around bits and be really unnecessarily clever?
+				private[k] = math.clamp(tonumber(x) or private[k], 1, 8)
+
+				if private[k] ~= oldvalue then
+					self.spriteBitDepthTextField.value = tostring(private[k])
+				end
 			end,
 		},
 	}
@@ -719,12 +786,12 @@ function EditSheet:onCartLoad()
 	self.spritePanDownPos = vec2d()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
 
-	self:setSpriteBit(0)	-- which bitplane to start at: 0-7
-	self:setSpriteBitDepth(8)	-- how many bits to edit at once: 1-8
+	self.spriteBit = 0	-- which bitplane to start at: 0-7
+	self.spriteBitDepth = 8	-- how many bits to edit at once: 1-8
 	self.spritesheetEditMode = 'select'
 
 	self.spriteDrawMode = 'draw'
-	self:setPaletteSelIndex(0)	-- which color we are painting
+	self.paletteSelIndex = 0	-- which color we are painting
 	self.log2PalBits = 3	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
@@ -739,29 +806,7 @@ function EditSheet:onCartLoad()
 	self.undo:clear()
 end
 
-function EditSheet:setSpriteBit(x)
-	local oldvalue = self.spriteBit
-
-	self.spriteBit = math.clamp(tonumber(x) or self.spriteBit, 0, 7)
-
-	-- only update if different
-	if self.spriteBit ~= oldvalue then
-		self.spriteBitTextField.value = tostring(self.spriteBit)
-	end
-end
-
-function EditSheet:setSpriteBitDepth(x)
-	local oldvalue = self.spriteBitDepth
-
-	-- should I not let this exceed 8 - spriteBit ?
-	-- or should I wrap around bits and be really unnecessarily clever?
-	self.spriteBitDepth = math.clamp(tonumber(x) or self.spriteBitDepth, 1, 8)
-
-	if self.spriteBitDepth ~= oldvalue then
-		self.spriteBitDepthTextField.value = tostring(self.spriteBitDepth)
-	end
-end
-
+-- read-only ... const-ness ... i don't want a getter, i want a write component function ... so i'll keep this. 
 function EditSheet:setSpriteSelDown(x, y)
 	local oldx = self.spriteSelDown.x
 	local oldy = self.spriteSelDown.y
@@ -776,17 +821,6 @@ function EditSheet:setSpriteSelDown(x, y)
 	end
 
 	self.spriteSelUp:set(self.spriteSelDown:unpack())
-end
-
-function EditSheet:setPaletteSelIndex(x)
-	local oldvalue = self.paletteSelIndex
-
-	self.paletteSelIndex = bit.band(0xff, tonumber(x) or self.paletteSelIndex)
-
-	if self.paletteSelIndex ~= oldvalue then
-		self.paletteSelIndexTextField.value = tostring(self.paletteSelIndex)
-		self:updatePaletteSelIndexColor()
-	end
 end
 
 -- on changing C, R, G, B, A, call this to update all fields
@@ -1194,7 +1228,7 @@ function EditSheet:update()
 			then
 				local c = self:getpixel(tx, ty)
 				if c then
-					self:setPaletteSelIndex(c + self.paletteOffset)
+					self.paletteSelIndex = c + self.paletteOffset
 				end
 			elseif self.spriteDrawMode == 'draw' then
 				local tx0 = tx - math.floor(self.penSize / 2)
@@ -1338,7 +1372,7 @@ function EditSheet:update()
 						)
 						self.isPaletteSwapping = false
 					end
-					self:setPaletteSelIndex(paletteIndex)
+					self.paletteSelIndex = paletteIndex
 					self.paletteSelDown = paletteIndex
 				elseif leftButtonDown then
 					if self.paletteSelDown then
