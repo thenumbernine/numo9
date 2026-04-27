@@ -45,8 +45,10 @@ function UIWidget:init(args)
 	events:
 		click = callback for triggering this button with click
 			or enter or space when tabstop-focused
-		focus = when you click (or tab to) a widget
-		blur = when you click off of (or tab away from) a widget
+		focus = when you click (or tab to) a focusable (key-enter-able) widget ... only triggers for that widget, no bubble
+		blur = when you click off of (or tab away from) a widget " " "
+		focusin = " " " but bubbles
+		focusout = " " " but bubbles
 		mouseenter = when you move mouse over a widget
 		mouseleave = when you move mouse away from a widget
 		mouseover = " " but bubbles
