@@ -837,6 +837,9 @@ end
 
 function UI:updateAndDrawNewUISceneGraph()
 	local app = self.app
+
+	app:matMenuReset()
+
 	self.uiRoot.pos.x, self.uiRoot.pos.y = app:invTransform(0, 0, 0, 0)
 	self.uiRoot.size.x, self.uiRoot.size.y = app:invTransform(app.width, app.height, 0, 0)
 	self.uiRoot.size.x = self.uiRoot.size.x - self.uiRoot.pos.x

@@ -34,8 +34,6 @@ function EditCode:init(args)
 	}
 	self:addChild(self.uiTextArea)
 
-	self:setFocusWidget(self.uiTextArea)
-
 	self:addChild(UIButton{
 		owner = self,
 		text = 'N',
@@ -67,6 +65,7 @@ end
 function EditCode:onCartLoad()
 	self:setBlobIndex(0)
 	self.uiTextArea:refreshText()
+	self:setFocusWidget(self.uiTextArea)
 end
 
 -- called internally, upon init or when the user changes the current code blob
@@ -89,6 +88,16 @@ function EditCode:update()
 
 	self.uiTextArea.size:set(self.uiTextArea.parent.size)
 	self.uiTextArea.size.y = self.uiTextArea.size.y - spriteSize.y
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if ch ~= self.uiTextArea then
+			if not ch.origPosX then ch.origPosX = ch.pos.x end
+			ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+		end
+	end
 
 	self:updateAndDrawNewUISceneGraph()
 end

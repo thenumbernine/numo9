@@ -35,12 +35,22 @@ function UIRoot:rootUpdateAndDraw()
 	for i=#self.allWidgetsInOrder,1,-1 do
 		self.allWidgetsInOrder[i] = nil
 	end
+
 	-- ui draw:
 	app:setClipRect(0, 0, clipMax, clipMax)
+
+	self.modelMatPush:copy(app.ram.modelMat)
+	app:mattrans(self.pos.x, self.pos.y, 0, 0)
+
 	for _,ch in ipairs(self.childrenInOrder) do
 		ch:drawRecurse(self)
 	end
+
+	app.ram.modelMat:copy(self.modelMatPush)
+	app:onModelMatChange()
+
 	app:setClipRect(0, 0, clipMax, clipMax)
+	app:matMenuReset()
 
 	for _,ch in ipairs(self.childrenInOrder) do
 		ch:update()
@@ -57,7 +67,7 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 			self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
 		end
 
-		local newWidgetUnderMouse 
+		local newWidgetUnderMouse
 		local mx, my = sdlEvent.motion.x, sdlEvent.motion.y
 		local mousepos = vec2d(mx, my)
 		for i=#self.allWidgetsInOrder,1,-1 do
@@ -101,7 +111,7 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	end
 
 	-- old ui system...
-	if handleUIEvent 
+	if handleUIEvent
 	and handleUIEvent(self, sdlEvent)
 	then
 		return true
@@ -128,4 +138,4 @@ function UIRoot:bubbleCallback(o, field, sdlEvent, ...)
 	end
 end
 
-return UIRoot 
+return UIRoot
