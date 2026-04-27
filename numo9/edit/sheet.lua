@@ -95,7 +95,7 @@ function EditSheet:init(args)
 	self:addChild(UIButton{
 		owner = self,
 		text = 'H',
-		pos = vec2d(0, 96),
+		pos = {0, 96},
 		tooltip = 'hflip',
 		events = {
 			click = function()
@@ -120,7 +120,7 @@ function EditSheet:init(args)
 	self:addChild(UIButton{
 		owner = self,
 		text = 'V',
-		pos = vec2d(6, 96),
+		pos = {6, 96},
 		tooltip = 'vflip',
 		events = {
 			click = function()
@@ -145,7 +145,7 @@ function EditSheet:init(args)
 	self:addChild(UIButton{
 		owner = self,
 		text = 'L',
-		pos = vec2d(0, 104),
+		pos = {0, 104},
 		tooltip = 'rot-L',
 		events = {
 			click = function()
@@ -178,7 +178,7 @@ function EditSheet:init(args)
 	self:addChild(UIButton{
 		owner = self,
 		text = 'R',
-		pos = vec2d(6, 104),
+		pos = {6, 104},
 		tooltip = 'rot-R',
 		events = {
 			click = function()
@@ -213,7 +213,7 @@ function EditSheet:init(args)
 	self:addChild(UIButton{
 		owner = self,
 		text = 'X',
-		pos = vec2d(16, 128),
+		pos = {16, 128},
 		tooltip = 'pal swap',
 		events = {
 			isset = function()
@@ -227,7 +227,7 @@ function EditSheet:init(args)
 	-- adjust palette size
 	self:addChild(UISpinner{
 		owner = self,
-		pos = vec2d(16, 200),
+		pos = {16, 200},
 		tooltip = function()
 			return 'pal bpp='..bit.lshift(1, self.log2PalBits)
 		end,
@@ -238,7 +238,7 @@ function EditSheet:init(args)
 	-- adjust palette offset
 	self:addChild(UISpinner{
 		owner = self,
-		pos = vec2d(16+24, 200),
+		pos = {16+24, 200},
 		tooltip = function()
 			return 'pal ofs='..self.paletteOffset
 		end,
@@ -249,7 +249,7 @@ function EditSheet:init(args)
 	-- adjust pen size
 	self:addChild(UISpinner{
 		owner = self,
-		pos = vec2d(16+48, 200),
+		pos = {16+48, 200},
 		tooltip = function()
 			return 'pen size='..self.penSize
 		end,
@@ -262,13 +262,13 @@ function EditSheet:init(args)
 	self:addChild(UILabel{
 		owner = self,
 		text = '#',
-		pos = vec2d(128+16+24, 12),
+		pos = {128+16+24, 12},
 		fgColorIndex = 13,
 		bgColorIndex = -1,
 	})
 	self.spriteBitTextField = UITextField{
 		owner = self,
-		pos = vec2d(128+16+24+5, 12),
+		pos = {128+16+24+5, 12},
 		width = 10,
 		events = {
 			change = function(target, e)
@@ -279,7 +279,7 @@ function EditSheet:init(args)
 	self:addChild(self.spriteBitTextField)
 	self.spriteBitSpinner = UISpinner{
 		owner = self,
-		pos = vec2d(128+16+24, 20),
+		pos = {128+16+24, 20},
 		setValue = function(dx)
 			self.spriteBit = self.spriteBit + dx
 		end,
@@ -290,13 +290,13 @@ function EditSheet:init(args)
 	self:addChild(UILabel{
 		owner = self,
 		text = '#',
-		pos = vec2d(128+16+24+32, 12),
+		pos = {128+16+24+32, 12},
 		fgColorIndex = 13,
 		bgColorIndex = -1,
 	})
 	self.spriteBitDepthTextField = UITextField{
 		owner = self,
-		pos = vec2d(128+16+24+32+5, 12),
+		pos = {128+16+24+32+5, 12},
 		width = 10,
 		events = {
 			change = function(target, e)
@@ -307,7 +307,7 @@ function EditSheet:init(args)
 	self:addChild(self.spriteBitDepthTextField)
 	self:addChild(UISpinner{
 		owner = self,
-		pos = vec2d(128+16+24+32, 20),
+		pos = {128+16+24+32, 20},
 		tooltip = function()
 			return 'bpp='..self.spriteBitDepth
 		end,
@@ -321,7 +321,7 @@ function EditSheet:init(args)
 	-- spritesheet pan vs select
 	self:addChild(UIRadio{
 		owner = self,
-		pos = vec2d(224, 12),
+		pos = {224, 12},
 		options = {'select', 'pan'},
 		getSelected = function()
 			return self.spritesheetEditMode
@@ -337,14 +337,14 @@ function EditSheet:init(args)
 	self:addChild(UILabel{
 		owner = self,
 		text = '#',
-		pos = vec2d(x + 32, y),
+		pos = {x + 32, y},
 		fgColorIndex = 0xfd,
 		bgColorIndex = -1,
 	})
 	
 	self.spriteSelIndexTextField = UITextField{
 		owner = self,
-		pos = vec2d(x + 32 + 5, y),
+		pos = {x + 32 + 5, y},
 		width = 20,
 		events = {
 			change = function(target, e)
@@ -366,7 +366,7 @@ function EditSheet:init(args)
 	local y = 96
 	self:addChild(UIRadio{
 		owner = self,
-		pos = vec2d(x, y),
+		pos = {x, y},
 		options = {'draw', 'dropper', 'fill', 'pan'},
 		getSelected = function()
 			return self.spriteDrawMode
@@ -380,13 +380,13 @@ function EditSheet:init(args)
 	self:addChild(UILabel{
 		owner = self,
 		text = '#',
-		pos = vec2d(16, 112),
+		pos = {16, 112},
 		fgColorIndex = 13,
 		bgColorIndex = -1,
 	})
 	self.paletteSelIndexTextField = UITextField{
 		owner = self,
-		pos = vec2d(16+5, 112),
+		pos = {16+5, 112},
 		width = 15,
 		events = {
 			change = function(target, e)
@@ -400,7 +400,7 @@ function EditSheet:init(args)
 	self:addChild(UILabel{
 		owner = self,
 		text = 'C=',
-		pos = vec2d(16, 216),
+		pos = {16, 216},
 		fgColorIndex = 13,
 		bgColorIndex = -1,
 	})
@@ -409,7 +409,7 @@ function EditSheet:init(args)
 	-- or on that palette index's value's change
 	self.selColorValueTextField = UITextField{
 		owner = self,
-		pos = vec2d(16+10, 216),
+		pos = {16+10, 216},
 		width = 20,
 		events = {
 			change = function(target, e)
@@ -448,13 +448,13 @@ function EditSheet:init(args)
 		self:addChild(UILabel{
 			owner = self,
 			text = info.letter..'=',
-			pos = vec2d(16, info.y),
+			pos = {16, info.y},
 			fgColorIndex = 13,
 			bgColorIndex = -1,
 		})		
 		self[info.textfield] = UITextField{
 			owner = self,
-			pos = vec2d(16+10, info.y),
+			pos = {16+10, info.y},
 			width = 20,
 			events = {
 				change = function(target, e)
@@ -483,7 +483,7 @@ function EditSheet:init(args)
 		self:addChild(self[info.textfield])
 		self:addChild(UISpinner{
 			owner = self,
-			pos = vec2d(16+32, info.y),
+			pos = {16+32, info.y},
 			setValue = function(dx)
 				self.undo:pushContinuous()
 				local selColorValue = self:getPaletteSelIndexColor()
@@ -505,7 +505,7 @@ function EditSheet:init(args)
 	
 	self:addChild(UIButton{
 		owner = self,
-		pos = vec2d(16, 224+24),
+		pos = {16, 224+24},
 		text = 'A',
 		isset = function()
 			local selColorValue = self:getPaletteSelIndexColor()
@@ -529,7 +529,7 @@ function EditSheet:init(args)
 
 	self.alphaLabel = UILabel{
 		owner = self,
-		pos = vec2d(16+16, 224+24),
+		pos = {16+16, 224+24},
 		fgColorIndex = 13,
 		bgColorIndex = -1,
 	}
@@ -537,7 +537,7 @@ function EditSheet:init(args)
 
 	self:addChild(UIButton{
 		owner = self,
-		pos = vec2d(112, 32),
+		pos = {112, 32},
 		text = 'P',
 		tooltip = function()
 			return 'Paste Keeps Pal='..tostring(self.pasteKeepsPalette)
@@ -553,7 +553,7 @@ function EditSheet:init(args)
 	})
 	self:addChild(UIButton{
 		owner = self,
-		pos = vec2d(112, 42),
+		pos = {112, 42},
 		text = 'A',
 		tooltip = function()
 			return 'Paste Transparent='..tostring(self.pasteTransparent)
@@ -576,7 +576,7 @@ function EditSheet:init(args)
 	-- [[
 	self:addChild(UITextField{
 		owner = self,
-		pos = vec2d(80, 32),
+		pos = {80, 32},
 		width = 4*8,
 		tooltip = function()
 			return 'paste target # colors='..self.pasteTargetNumColors
@@ -598,7 +598,7 @@ function EditSheet:init(args)
 
 	self.sheetBlobSelect = UIBlobSelect{
 		owner = self,
-		pos = vec2d(80, 0),
+		pos = {80, 0},
 		blobName = 'sheet',
 		valueTable = self,
 		valueKey = 'sheetBlobIndex',
@@ -611,7 +611,7 @@ function EditSheet:init(args)
 	
 	self.paletteBlobSelect = UIBlobSelect{
 		owner = self,
-		pos = vec2d(96, 0),
+		pos = {96, 0},
 		blobName = 'palette',
 		valueTable = self,
 		valueKey = 'paletteBlobIndex',
@@ -624,7 +624,7 @@ function EditSheet:init(args)
 
 	self.spriteSheetPicker = SpriteSheetPicker{
 		owner = self,
-		pos = vec2d(0,0),
+		pos = {0, 0},
 	}
 	self:addChild(self.spriteSheetPicker)
 
@@ -1128,7 +1128,6 @@ function EditSheet:update()
 		if not ch.origPosX then ch.origPosX = ch.pos.x end
 		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
 	end
-
 
 
 	local leftButtonDown = app:key'mouse_left'
