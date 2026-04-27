@@ -164,7 +164,6 @@ function UITextArea:draw()
 	local textareaX = 0	-- offset into textarea where we start drawing text
 	local textareaY = 0
 	local textareaWidth = self.size.x
-	local textareaHeight = self.size.y
 
 	if self.useLineNumbers then
 		-- clear the background incl line numbers
@@ -172,7 +171,7 @@ function UITextArea:draw()
 			textareaX,
 			textareaY,
 			textareaWidth,
-			textareaHeight,
+			self.size.y,
 			9,
 			nil,
 			nil,
@@ -208,7 +207,7 @@ function UITextArea:draw()
 		textareaX,
 		textareaY,
 		textareaWidth,
-		textareaHeight,
+		self.size.y,
 		8,
 		nil,
 		nil,

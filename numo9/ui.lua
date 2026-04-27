@@ -14,7 +14,6 @@ local vec2d = require 'vec-ffi.vec2d'
 local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
-local clipMax = numo9_rom.clipMax
 local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
@@ -831,130 +830,31 @@ end
 -- to-be-widget functionality:
 
 function UI:setupNewUISceneGraph()
-	self.children = table()
-	self.childrenInOrder = table()
-	self.allWidgetsInOrder = table()
+	self.uiRoot = require 'numo9.ui.root'{
+		owner = self,
+	}
 end
 
 function UI:updateAndDrawNewUISceneGraph()
 	local app = self.app
+	self.uiRoot.pos.x, self.uiRoot.pos.y = app:invTransform(0, 0, 0, 0)
+	self.uiRoot.size.x, self.uiRoot.size.y = app:invTransform(app.width, app.height, 0, 0)
+	self.uiRoot.size.x = self.uiRoot.size.x - self.uiRoot.pos.x
+	self.uiRoot.size.y = self.uiRoot.size.y - self.uiRoot.pos.y
 
-	app:matMenuReset()
-
-	for i,ch in ipairs(self.children) do
-		self.childrenInOrder[i] = ch
-	end
-	for i=#self.children+1,#self.childrenInOrder do
-		self.childrenInOrder[i] = nil
-	end
-	self.childrenInOrder:sort(function(a,b)
-		return a.zIndex < b.zIndex
-	end)
-	for i=#self.allWidgetsInOrder,1,-1 do
-		self.allWidgetsInOrder[i] = nil
-	end
-	-- ui draw:
-	app:setClipRect(0, 0, clipMax, clipMax)
-	for _,ch in ipairs(self.childrenInOrder) do
-		ch:drawRecurse()
-	end
-	app:setClipRect(0, 0, clipMax, clipMax)
-
-	for _,ch in ipairs(self.childrenInOrder) do
-		ch:update()
-	end
+	self.uiRoot:rootUpdateAndDraw()
 
 	self:drawTooltip()
 end
 
-local UIWidget = require 'numo9.ui.widget'
-function UI:bubbleCallback(o, field, sdlEvent, ...)
-	local event = {
-		sdl = sdlEvent,
-	}
-
-	-- TODO bubble-in first
-
-	while o ~= nil 
-	and UIWidget:isa(o)	-- TODO make editor UI's UIWidget's
-	do
-		if o[field](o, event, ...) then return true end
-		-- propagate this to parents
-		o = o.parent
-	end
-end
-
 function UI:handleEventNewUISceneGraph(sdlEvent, skipSuper)
-	self.app:matMenuReset()	-- so mouse coord transforms work
-
-	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_MOTION then
-		if self.widgetUnderMouse then
-			self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
-		end
-
-		local newWidgetUnderMouse 
-		local mx, my = sdlEvent.motion.x, sdlEvent.motion.y
-		local mousepos = vec2d(mx, my)
-		for i=#self.allWidgetsInOrder,1,-1 do
-			local ch = self.allWidgetsInOrder[i]
-			if ch.ssbbox:contains(mousepos) then
-				newWidgetUnderMouse = ch
-				break
-			end
-		end
-
-		-- mouseenter and mouseleave do not bubble
-		if newWidgetUnderMouse ~= self.widgetUnderMouse then
-			if self.widgetUnderMouse then
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOut', sdlEvent)
-
-				-- put this in onMouseLeave?
-				self.widgetUnderMouse.isHovered = nil
-				self.widgetUnderMouse:onMouseLeave{
-					sdl = sdlEvent,
-				}
-			end
-			self.widgetUnderMouse = newWidgetUnderMouse
-			if self.widgetUnderMouse then
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOver', sdlEvent)
-
-				self.widgetUnderMouse.isHovered = true
-				self.widgetUnderMouse:onMouseEnter{
-					sdl = sdlEvent,
-				}
-
-				-- extra movement into the new event
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
-			end
-		end
-	end
-
-	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
-print('clicking down with self.widgetUnderMouse', self.widgetUnderMouse)
-		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown', sdlEvent)
-	elseif sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
-print('clicking up with self.widgetUnderMouse', self.widgetUnderMouse)
-		self:bubbleCallback(self.widgetUnderMouse, 'onMouseUp', sdlEvent)
-	end
-
-	if not skipSuper
-	and UI.event(self, sdlEvent)
-	then
-		return true
-	end
-
-	-- ui events:
-	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:event(sdlEvent) then return true end
-	end
+	self.uiRoot:rootEvent(sdlEvent, not skipSuper and function()
+		return UI.event(self, sdlEvent)
+	end)
 end
 
-function UI:addChild(ch)
-	if ch.parent then
-		ch.parent.children:removeObject(ch)
-	end
-	ch.parent = self
-	self.children:insertUnique(ch)
+function UI:addChild(...)
+	self.uiRoot:addChild(...)
 end
 
 return UI

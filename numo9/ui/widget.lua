@@ -17,6 +17,8 @@ local UIWidget = class()
 UIWidget.zIndex = 0
 
 function UIWidget:init(args)
+	args = args or {}
+
 	-- this is the root-level numo9/ui.lua component
 	-- which currently holds things like tabindex
 	-- TODO turn it into the root UI component
@@ -31,7 +33,7 @@ function UIWidget:init(args)
 	self.tooltip = args.tooltip
 
 	-- menu-space pos and size
-	self.pos = vec2d((assert.index(args, 'pos')))
+	self.pos = args.pos and vec2d(args.pos) or vec2d()
 	self.size = args.size and vec2d(args.size) or vec2d()
 	-- screen-space pos and size
 	self.ssbbox = box2d()
@@ -85,13 +87,13 @@ function UIWidget:draw()
 	app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, 0xc, nil, app.paletteMenuTex)
 end
 
-function UIWidget:drawRecurse()
+function UIWidget:drawRecurse(root)
 	local owner = self.owner
 	local app = owner.app
 
 	-- track widgets in drawn order
 	-- used for mouseenter/mouseleave detection
-	owner.allWidgetsInOrder:insert(self)
+	root.allWidgetsInOrder:insert(self)
 
 	self.modelMatPush:copy(app.ram.modelMat)
 	app:mattrans(self.pos.x, self.pos.y, -1, 0)
@@ -140,7 +142,7 @@ function UIWidget:drawRecurse()
 
 	-- TODO how to get widgets with higher zIndex to draw over other widgets
 	for i,ch in ipairs(self.childrenInOrder) do
-		ch:drawRecurse()
+		ch:drawRecurse(root)
 	end
 
 	app.ram.modelMat:copy(self.modelMatPush)

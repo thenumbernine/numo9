@@ -87,13 +87,8 @@ function EditCode:update()
 
 	self:setBlobIndex(self[self.blobIndexField])
 
-
-	local app = self.app
-	self.uiTextArea.pos.x = app:invTransform(0, 0, 0, 0)
-	self.uiTextArea.size:set(
-		256 * tonumber(app.ram.screenWidth) / tonumber(app.ram.screenHeight),
-		256 - spriteSize.y
-	)
+	self.uiTextArea.size:set(self.uiTextArea.parent.size)
+	self.uiTextArea.size.y = self.uiTextArea.size.y - spriteSize.y
 
 	self:updateAndDrawNewUISceneGraph()
 end
