@@ -20,7 +20,7 @@ assert.eq((3 + sx * sy * sz) << 2, #d)
 local v = ffi.cast('Voxel*', i + 3)
 
 local keys = table{'intval', 'spriteIndex', 'orientation', 'tileXOffset', 'tileYOffset', 'mesh3DIndex', 'rotZ', 'rotY', 'rotX', 'scaleX'}
-local hists = keys:mapi |k| ({}, k)
+local hists = keys:mapi(|k| ({}, k))
 for j=0,sx*sy*sz-1 do
 	for _,k in ipairs(keys) do
 		local hk = hists[k]
