@@ -810,14 +810,25 @@ function EditSheet:init(args)
 
 				-- on self.paletteBlobIndex change...
 				self.paletteBlobSelect.textfield.value = tostring(v)
+
+				-- also refresh the tex or something
 			end,
 		},
 		sheetBlobIndex = {
 			set = function(private, self, k, v)
+				local oldvalue = private[k]
+
 				private[k] = v
 
-				-- on self.sheetBlobIndex change...
-				self.sheetBlobSelect.textfield.value = tostring(v)
+				if private[k] ~= oldvalue then
+					-- on self.sheetBlobIndex change...
+					self.sheetBlobSelect.textfield.value = tostring(v)
+
+					-- refresh palette stuff too?
+					if self.paletteBlobIndex then	-- if it's been initialized...
+						self:updatePaletteSelIndexColor()
+					end
+				end
 			end,
 		},
 		paletteSelIndex = {
@@ -865,7 +876,6 @@ end
 
 function EditSheet:onCartLoad()
 	self.sheetBlobIndex = 0
-
 	self.paletteBlobIndex = 0
 
 --[[ nah metainfo isnt defined, and this doesnt remember palettes per sheet, so nah not right now
@@ -1113,6 +1123,7 @@ function EditSheet:update()
 		app.checkerTex,
 		0, 0, 256, 256,	-- x y w h
 		0, 0, w/2, h/2)			-- tx ty tw th
+
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
 
@@ -1260,6 +1271,7 @@ function EditSheet:update()
 			x1, y1, x2-x1, y2-y1,	-- x y w h
 			0, 0, w*8, h*8)			-- tx ty tw th
 	end
+
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
 	do
