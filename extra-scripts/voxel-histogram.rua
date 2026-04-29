@@ -1,0 +1,36 @@
+#!/usr/bin/env rua
+
+local fn = ...
+local p = path(fn)
+assert(p:exists(), "failed to find "..p)
+
+local d = assert(p:read())
+assert.eq(#d & 3, 0, "the size of a voxelmap is not int32 aligned: "..#d)
+
+-- then chdir to the script's location
+path(arg[0]):getdir():cd()
+-- fails, but to include other files, I gotta tweak the path anyways
+package.path = package.path..';../?.lua'
+local BlobVoxelMap = require 'numo9.blob.voxelmap'
+local Voxel = ffi.typeof'Voxel'
+
+local i = ffi.cast('uint32_t*', d)
+local sx, sy, sz = i[0], i[1], i[2]
+assert.eq((3 + sx * sy * sz) << 2, #d)
+local v = ffi.cast('Voxel*', i + 3)
+
+local keys = table{'intval', 'spriteIndex', 'orientation', 'tileXOffset', 'tileYOffset', 'mesh3DIndex', 'rotZ', 'rotY', 'rotX', 'scaleX'}
+local hists = keys:mapi |k| ({}, k)
+for j=0,sx*sy*sz-1 do
+	for _,k in ipairs(keys) do
+		local hk = hists[k]
+		local vk = v[j][k]
+		hk[vk] = (hk[vk] or 0) + 1
+	end
+end
+print(tolua(hists, {
+	serializeForType = {
+		number = |state, x, tab, path, keyRef|
+			keyRef and ('0x%x'):format(x) or tostring(x),
+	}
+}))
