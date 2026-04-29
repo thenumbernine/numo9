@@ -1,14 +1,29 @@
 --[[
 add __index and __newindex to an object's metatable to give it C#-like get/set functionality
+
+here I give it a free 'private' object for storing true values...
+should I do C# style and make the user do that with some kind of underscore-denotation or whatever?
+ but that would ruin default implementation, unless I chose some prefix for default storage like underscore...
 --]]
 local table = require 'ext.table'
 return function(obj, getset)
 	local private = {}
+
+	-- defaults:
+	for k,gs in pairs(getset) do
+		gs.get = gs.get or function(private, obj, k)
+			return private[k]
+		end
+		gs.set = gs.set or function(private, obj, k, v)
+			private[k] = v
+		end
+	end
+
 	local mt = getmetatable(obj) or {}
 	setmetatable(obj, table.union({}, mt, {
 		__index = function(obj, k)
 			local gs = getset[k]
-			if gs then 
+			if gs then
 				local get = gs.get
 				if get then
 					return get(private, obj, k)

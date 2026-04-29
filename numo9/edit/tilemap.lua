@@ -58,7 +58,7 @@ function EditTilemap:init(args)
 			return 0 ~= ffi.C.memcmp(entry.tilemap.buffer, tilemapRAM.image.buffer, tilemapRAM.image:getBufferSize())
 		end,
 	}
-	
+
 	-- still mostly the old UI...
 	self.tileSel = TileSelect{edit=self}
 
@@ -208,7 +208,7 @@ function EditTilemap:init(args)
 	})
 
 	x, y = 200, 0
-	self:addChild(UIBlobSelect{
+	self.tilemapBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
 		blobName = 'tilemap',
@@ -218,27 +218,52 @@ function EditTilemap:init(args)
 			-- for now only one undo per tilemap at a time
 			self.undo:clear()
 		end,
-	})
+	}
+	self:addChild(self.tilemapBlobSelect)
 	x = x + 12
-	
+
 	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
-	self:addChild(UIBlobSelect{
+	self.sheetBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
 		blobName = 'sheet',
 		valueTable = self,
 		valueKey = 'sheetBlobIndex',
-	})
+	}
+	self:addChild(self.sheetBlobSelect)
 	x = x + 12
 
-	self:addChild(UIBlobSelect{
+	self.paletteBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
 		blobName = 'palette',
 		valueTable = self,
 		valueKey = 'paletteBlobIndex',
-	})
+	}
+	self:addChild(self.paletteBlobSelect)
 	-- TODO add paletteIndex to map() function
+
+	require 'numo9.ui.addgetset'(self, {
+		tilemapBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.tilemapBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		sheetBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.sheetBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		paletteBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.paletteBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+
+	})
 
 	self:onCartLoad()
 end

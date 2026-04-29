@@ -48,7 +48,7 @@ local dirs = {
 	{0,-1},
 }
 
--- TODO 
+-- TODO
 
 local SpriteSheetPicker = UIWidget:subclass()
 
@@ -335,7 +335,7 @@ function EditSheet:init(args)
 			self.spritesheetEditMode = result
 		end,
 	})
-	
+
 	-- sprite edit area
 	local x = 2
 	local y = 12
@@ -346,7 +346,7 @@ function EditSheet:init(args)
 		fgColorIndex = 0xfd,
 		bgColorIndex = -1,
 	})
-	
+
 	self.spriteSelIndexTextField = UITextField{
 		owner = self,
 		pos = {x + 32 + 5, y},
@@ -355,7 +355,7 @@ function EditSheet:init(args)
 			change = function(target, e)
 				local index = tonumber(target.value)
 				if not index then return end
-				
+
 				-- hmm might be more cohesive to store a single index
 				self:setSpriteSelDown(
 					index % spriteSheetSizeInTiles.x,
@@ -380,7 +380,7 @@ function EditSheet:init(args)
 			self.spriteDrawMode = result
 		end,
 	})
-	
+
 	-- select palette color to draw
 	self:addChild(UILabel{
 		owner = self,
@@ -400,7 +400,7 @@ function EditSheet:init(args)
 		},
 	}
 	self:addChild(self.paletteSelIndexTextField)
-	
+
 	-- edit palette entries
 	self:addChild(UILabel{
 		owner = self,
@@ -456,7 +456,7 @@ function EditSheet:init(args)
 			pos = {16, info.y},
 			fgColorIndex = 13,
 			bgColorIndex = -1,
-		})		
+		})
 		self[info.textfield] = UITextField{
 			owner = self,
 			pos = {16+10, info.y},
@@ -507,7 +507,7 @@ function EditSheet:init(args)
 			end,
 		})
 	end
-	
+
 	self:addChild(UIButton{
 		owner = self,
 		pos = {16, 224+24},
@@ -526,7 +526,7 @@ function EditSheet:init(args)
 					selColorValue = bit.band(selColorValue, 0x7fff)
 				else	-- otherwise set it
 					selColorValue = bit.bor(selColorValue, 0x8000)
-				end				
+				end
 				self:setPaletteSelIndexColor(selColorValue)
 			end,
 		},
@@ -613,7 +613,7 @@ function EditSheet:init(args)
 		end,
 	}
 	self:addChild(self.sheetBlobSelect)
-	
+
 	self.paletteBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {96, 0},
@@ -804,9 +804,6 @@ function EditSheet:init(args)
 
 	require 'numo9.ui.addgetset'(self, {
 		paletteBlobIndex = {
-			get = function(private, self, k)
-				return private[k]
-			end,
 			set = function(private, self, k, v)
 				private[k] = v
 
@@ -815,9 +812,6 @@ function EditSheet:init(args)
 			end,
 		},
 		sheetBlobIndex = {
-			get = function(private, self, k)
-				return private[k]
-			end,
 			set = function(private, self, k, v)
 				private[k] = v
 
@@ -826,9 +820,6 @@ function EditSheet:init(args)
 			end,
 		},
 		paletteSelIndex = {
-			get = function(private, self, k)
-				return private[k]
-			end,
 			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
@@ -837,13 +828,10 @@ function EditSheet:init(args)
 				if private[k] ~= oldvalue then
 					self.paletteSelIndexTextField.value = tostring(private[k])
 					self:updatePaletteSelIndexColor()
-				end		
+				end
 			end,
 		},
 		spriteBit = {
-			get = function(private, self, k)
-				return private[k]
-			end,
 			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
@@ -857,9 +845,6 @@ function EditSheet:init(args)
 			end,
 		},
 		spriteBitDepth = {
-			get = function(private, self, k)
-				return private[k]
-			end,
 			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
@@ -927,7 +912,7 @@ function EditSheet:onCartLoad()
 	self.undo:clear()
 end
 
--- read-only ... const-ness ... i don't want a getter, i want a write component function ... so i'll keep this. 
+-- read-only ... const-ness ... i don't want a getter, i want a write component function ... so i'll keep this.
 function EditSheet:setSpriteSelDown(x, y)
 	local oldx = self.spriteSelDown.x
 	local oldy = self.spriteSelDown.y
@@ -969,7 +954,7 @@ function EditSheet:getPaletteSelIndexColor()
 	local paletteRAM = paletteBlob.ramgpu
 	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
 	local selColorValue = app:peekw(selPaletteAddr)
-	return selColorValue 
+	return selColorValue
 end
 
 function EditSheet:setPaletteSelIndexColor(selColorValue)
