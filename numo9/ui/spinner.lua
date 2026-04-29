@@ -6,6 +6,7 @@ local UIButton = require 'numo9.ui.button'
 
 
 local UISpinner = UIWidget:subclass()
+UISpinner.tag = 'spinner'
 
 function UISpinner:init(args)
 	UISpinner.super.init(self, args)

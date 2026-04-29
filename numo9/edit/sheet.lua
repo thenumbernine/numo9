@@ -649,6 +649,7 @@ function EditSheet:init(args)
 		else
 			uikey = app:key'lctrl' or app:key'rctrl'
 		end
+		local shift = app:key'lshift' or app:key'rshift'
 
 		if uikey then
 			local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)

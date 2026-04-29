@@ -7,6 +7,7 @@ local UIWidget = require 'numo9.ui.widget'
 
 
 local UILabel = UIWidget:subclass()
+UILabel.tag = 'label'
 
 function UILabel:init(args)
 	UILabel.super.init(self, args)

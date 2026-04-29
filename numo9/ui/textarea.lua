@@ -37,6 +37,7 @@ local colors = {
 
 -- subclass the other widgets or nah? idk.
 local UITextArea = UIWidget:subclass()
+UITextArea.tag = 'textarea'
 
 function UITextArea:init(args)
 	UITextArea.super.init(self, args)
@@ -469,13 +470,13 @@ function UITextArea:onKeyDown(e)
 	local app = self.owner.app
 
 	-- TODO shift+arrows to select text
-	local shift = app:key'lshift' or app:key'rshift'
 	local uikey
 	if ffi.os == 'OSX' then
 		uikey = app:key'lgui' or app:key'rgui'
 	else
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
+	local shift = app:key'lshift' or app:key'rshift'
 
 	if uikey then
 		-- trap all uikey+keys here, throw out the ones we won't handle

@@ -16,6 +16,7 @@ local UIButton = require 'numo9.ui.button'
 
 
 local UIBlobSelect = UIWidget:subclass()
+UIBlobSelect.tag = 'blobselect'
 
 function UIBlobSelect:init(args)
 	UIBlobSelect.super.init(self, args)

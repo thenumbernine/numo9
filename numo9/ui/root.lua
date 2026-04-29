@@ -10,7 +10,9 @@ local clipMax = numo9_rom.clipMax
 
 local UIWidget = require 'numo9.ui.widget'
 
+
 local UIRoot = UIWidget:subclass()
+UIRoot.tag = 'root'	-- or should I call it 'body' or something more dom-like?
 
 function UIRoot:init(args)
 	UIRoot.super.init(self, args)
@@ -62,14 +64,48 @@ function UIRoot:rootUpdateAndDraw()
 	self:update()
 end
 
+--[[
+this will call all hierarchy with a member functions
+	args are (self, bubbleIn=true/bubbleOut=false, event-wrapping-sdlEvent, ...)
+--]]
+function UIRoot:bubbleCallback(o, fieldBubbleIn, fieldBubbleOut, ...)
+	local ancestry = table()
+	while o do
+		ancestry:insert(1, o)
+		o = o.parent
+	end
+
+	-- bubble-in
+	for i,o in ipairs(ancestry) do
+		local f = o[fieldBubbleIn]
+		if f then
+			-- return 'true' to stop propagation
+			if f(o, ...) then return true end
+		end
+	end
+
+	-- bubble-out
+	for i=#ancestry,1,-1 do
+		local o = ancestry[i]
+		local f = o[fieldBubbleOut]
+		if f then
+			-- return 'true' to stop propagation
+			if f(o, ...) then return true end
+		end	
+	end
+end
+
+
+
 function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	local app = self.owner.app
+	local event = {sdl=sdlEvent}
 
 	app:matMenuReset()	-- so mouse coord transforms work
 
 	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_MOTION then
 		if self.widgetUnderMouse then
-			self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
+			self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove_bubbleIn', 'onMouseMove', event)
 		end
 
 		local newWidgetUnderMouse
@@ -86,7 +122,7 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 		-- mouseenter and mouseleave do not bubble
 		if newWidgetUnderMouse ~= self.widgetUnderMouse then
 			if self.widgetUnderMouse then
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOut', sdlEvent)
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOut_bubbleIn', 'onMouseOut', event)
 
 				-- put this in onMouseLeave?
 				self.widgetUnderMouse.isHovered = nil
@@ -96,7 +132,7 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 			end
 			self.widgetUnderMouse = newWidgetUnderMouse
 			if self.widgetUnderMouse then
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOver', sdlEvent)
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseOver_bubbleIn', 'onMouseOver', event)
 
 				self.widgetUnderMouse.isHovered = true
 				self.widgetUnderMouse:onMouseEnter{
@@ -104,15 +140,34 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 				}
 
 				-- extra movement into the new event
-				self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove', sdlEvent)
+				self:bubbleCallback(self.widgetUnderMouse, 'onMouseMove_bubbleIn', 'onMouseMove', event)
 			end
 		end
 	end
 
 	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
-		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown', sdlEvent)
+		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown_bubbleIn', 'onMouseDown', event)
 	elseif sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
-		self:bubbleCallback(self.widgetUnderMouse, 'onMouseUp', sdlEvent)
+		
+		if self.widgetUnderMouse
+		and self.widgetUnderMouse.mouseDownOnThis
+		then
+			self:bubbleCallback(self.widgetUnderMouse, 'onClick_bubbleIn', 'onClick', event)
+	
+			-- focus doesn't bubble
+			self:setFocusWidget(self.widgetUnderMouse, {sdl=sdlEvent})
+		end
+
+		-- clears .mouseDownOnThis
+		self:bubbleCallback(self.widgetUnderMouse, 'onMouseUp_bubbleIn', 'onMouseUp', event)
+	end
+
+	if self.activeElement then
+		if sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN then
+			self:bubbleCallback(self.activeElement, 'onKeyDown_bubbleIn', 'onKeyDown', event)
+		elseif sdlEvent.type == sdl.SDL_EVENT_KEY_UP  then
+			self:bubbleCallback(self.activeElement, 'onKeyUp_bubbleIn', 'onKeyUp', event)
+		end
 	end
 
 	-- old ui system...
@@ -126,21 +181,6 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	return self:event(sdlEvent)
 end
 
-local UIWidget = require 'numo9.ui.widget'
-function UIRoot:bubbleCallback(o, field, sdlEvent, ...)
-	local event = {
-		sdl = sdlEvent,
-	}
-
-	-- TODO bubble-in first
-
-	while o do
-		if o[field](o, event, ...) then return true end
-		-- propagate this to parents
-		o = o.parent
-	end
-end
-
 -- works with the new UI scenegraph:
 -- should go in whatever root-level for the final ui design
 function UIRoot:setFocusWidget(widget, ...)
@@ -148,14 +188,14 @@ function UIRoot:setFocusWidget(widget, ...)
 	if self.activeElement == widget then return end
 
 	if self.activeElement then
-		self:bubbleCallback(self.activeElement, 'onFocusOut', ...)
+		self:bubbleCallback(self.activeElement, 'onFocusOut_bubbleIn', 'onFocusOut', ...)
 		self.activeElement:onBlur(...)
 	end
 
 	self.activeElement = widget
 
 	if self.activeElement then
-		self:bubbleCallback(self.activeElement, 'onFocusIn', ...)
+		self:bubbleCallback(self.activeElement, 'onFocusIn_bubbleIn', 'onFocusIn', ...)
 		self.activeElement:onFocus(...)
 	end
 end

@@ -21,6 +21,8 @@ local EditSFX = require 'numo9.ui':subclass()
 
 function EditSFX:init(args)
 	EditSFX.super.init(self, args)
+	
+	self:newUI_setup()
 
 	self.pitch = bit.lshift(1, pitchPrec)
 	self.sfxBlobIndex = 0	-- this is 0 based.  all my other BlobIndex's are 1-based.  maybe they should be 0-based too?
@@ -173,6 +175,12 @@ function EditSFX:update()
 		stop()
 		self.sfxBlobIndex = (self.sfxBlobIndex + 1) % #self.blobs.sfx
 	end
+
+	self:newUI_update()
+end
+
+function EditSFX:event(e)
+	return self:newUI_event(e)
 end
 
 return EditSFX

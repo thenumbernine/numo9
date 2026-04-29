@@ -15,6 +15,7 @@ local clipMax = numo9_rom.clipMax
 local UIWidget = class()
 
 UIWidget.zIndex = 0
+UIWidget.tag = 'widget' 
 
 function UIWidget:init(args)
 	args = args or {}
@@ -71,9 +72,11 @@ function UIWidget:init(args)
 	self.modelMatPush = matArrType()
 end
 
-function UIWidget:addEventListener(eventName, callback)
-	self.eventListeners[eventName] = self.eventListeners[eventName] or table()
-	self.eventListeners[eventName]:insert(callback)
+function UIWidget:addEventListener(eventName, callback, bubbleIn)
+	bubbleIn = not not bubbleIn
+	self.eventListeners[eventName] = self.eventListeners[eventName] or {}
+	self.eventListeners[eventName][bubbleIn] = self.eventListeners[eventName][bubbleIn] or table()
+	self.eventListeners[eventName][bubbleIn]:insert(callback)
 end
 
 -- DO NOT directly children:insert
@@ -206,59 +209,92 @@ function UIWidget:update()
 	end
 end
 
-function UIWidget:triggerEvents(eventName, ...)
+function UIWidget:triggerEvents(eventName, bubbleIn, ...)
 	local listenersForEvent = self.eventListeners[eventName]
-	if listenersForEvent then
-		for _,l in ipairs(listenersForEvent) do
-			l(self, ...)
-		end
+	if not listenersForEvent then return end
+
+	bubbleIn = not not bubbleIn
+	local listenersForBubblePhaseForEvent = listenersForEvent[bubbleIn]
+	if not listenersForBubblePhaseForEvent then return end
+
+	for _,l in ipairs(listenersForBubblePhaseForEvent) do
+		-- return-true to stop propagation
+		if l(self, ...) then return true end
 	end
 end
 
-function UIWidget:onMouseEnter(e)
-	self:triggerEvents('mouseenter', e)
+
+-- why don't I just implement these as events themselves?
+-- atm because browsers don't let you removeEventHandler the default , only on additional callbacks
+-- but this owuldn't be the first bad DOM design, 
+-- so TODO maybe I'll just replace all these with events directly...
+
+-- doesn't bubble, is called directly by root
+function UIWidget:onMouseEnter(...)
+	self:triggerEvents('mouseenter', false, ...)
 end
 
-function UIWidget:onMouseLeave(e)
-	self:triggerEvents('mouseleave', e)
+-- doesn't bubble
+function UIWidget:onMouseLeave(...)
+	self:triggerEvents('mouseleave', false, ...)
 end
 
-function UIWidget:onMouseOver(e)
+function UIWidget:onMouseOver_bubbleIn(...)
 	self.isMouseOver = true
-	self:triggerEvents('mouseover', e)
+	self:triggerEvents('mouseover', true, ...)
 end
 
-function UIWidget:onMouseOut(e)
+function UIWidget:onMouseOver(...)
+	self:triggerEvents('mouseover', false, ...)
+end
+
+function UIWidget:onMouseOut_bubbleIn(...)
 	self.isMouseOver = false
-	self:triggerEvents('mouseout', e)
+	self:triggerEvents('mouseout', true, ...)
 end
 
-function UIWidget:onMouseDown(e)
+function UIWidget:onMouseOut(...)
+	self:triggerEvents('mouseout', false, ...)
+end
+
+function UIWidget:onMouseDown_bubbleIn(...)
 	if self.isMouseOver then
 		self.mouseDownOnThis = true
 	end
-	self:triggerEvents('mousedown', e)
+	self:triggerEvents('mousedown', true, ...)
+end
+	
+function UIWidget:onMouseDown(...)
+	self:triggerEvents('mousedown', false, ...)
 end
 
-function UIWidget:onMouseUp(e)
-	self:triggerEvents('mouseup', e)
+function UIWidget:onMouseUp_bubbleIn(...)
+	self:triggerEvents('mouseup', true, ...)
+end
 
-	-- TODO because this is interleaved in onMouseUp, we can't stop propagation
-	-- if I made it separate then I'd have to interject isHovered && mouseDownOnThis tests every iteration in the bubbleCallback function
-	-- hmm.
-	if self.isMouseOver
-	and self.mouseDownOnThis
-	then
-		local stopPropagation = self:onClick(e)
-	end
-
+function UIWidget:onMouseUp(...)
+	self:triggerEvents('mouseup', false, ...)
+	-- TODO what if propagation gets stopped?  
+	-- I should clear the ancestry every time widgetUnderMouse changes...
 	self.mouseDownOnThis = nil
 end
 
-function UIWidget:onMouseMove(e)
-	self:triggerEvents('mousemove', e)
+function UIWidget:onClick_bubbleIn(...)
+	self:triggerEvents('click', true, ...)
 end
 
+function UIWidget:onClick(...)
+	self:triggerEvents('click', false, ...)
+end
+
+function UIWidget:onMouseMove_bubbleIn(...)
+	self:triggerEvents('mousemove', true, ...)
+end
+function UIWidget:onMouseMove(...)
+	self:triggerEvents('mousemove', false, ...)
+end
+
+-- doesn't bubble
 function UIWidget:onFocus(e)
 	-- if you mouse over an event thens witch to its tab index...
 	-- ... TODO only do this when you click?
@@ -267,54 +303,47 @@ function UIWidget:onFocus(e)
 	self:triggerEvents('focus', e)
 end
 
+-- doesn't bubble
 function UIWidget:onBlur(e)
 	self:triggerEvents('blur', e)
 end
 
 -- like focus/blur but does bubble
-function UIWidget:onFocusIn(...)
+function UIWidget:onFocusIn_bubbleIn(...)
 	self.selfOrChildHasFocus = true
-	self:triggerEvents('focusin', ...)
+	self:triggerEvents('focusin', true, ...)
+end
+function UIWidget:onFocusIn(...)
+	self:triggerEvents('focusin', false, ...)
+end
+
+function UIWidget:onFocusOut_bubbleIn(...)
+	self.selfOrChildHasFocus = false
+	self:triggerEvents('focusout', true, ...)
 end
 function UIWidget:onFocusOut(...)
-	self.selfOrChildHasFocus = false
-	self:triggerEvents('focusout', ...)
+	self:triggerEvents('focusout', false, ...)
 end
 
-function UIWidget:onClick(e)
-	--if not (self.isHovered and self.mouseDownOnThis) then return end
-	self.root:setFocusWidget(self, e)
-	self:triggerEvents('click', e)
+function UIWidget:onKeyDown_bubbleIn(...)
+	self:triggerEvents('keydown', true, ...)
+end
+function UIWidget:onKeyDown(...)
+	self:triggerEvents('keydown', false, ...)
 end
 
-function UIWidget:onKeyDown(e)
-	self:triggerEvents('keydown', e)
+function UIWidget:onKeyUp_bubbleIn(...)
+	self:triggerEvents('keyup', true, ...)
 end
-
-function UIWidget:onKeyUp(e)
-	self:triggerEvents('keyup', e)
+function UIWidget:onKeyUp(...)
+	self:triggerEvents('keyup', false, ...)
 end
 
 -- returns true if captured an event
 function UIWidget:event(sdlEvent)
-
 	-- ui events:
 	for _,ch in ipairs(self.childrenInOrder) do
 		if ch:event(sdlEvent) then return true end
-	end
-
-	if sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN then
-		if self.selfOrChildHasFocus then
-			self:onKeyDown{
-				sdl = sdlEvent,
-			}
-		end
-	elseif sdlEvent.type == sdl.SDL_EVENT_KEY_UP then
-		if self.selfOrChildHasFocus then
-			self:onKeyUp{
-				sdl = sdlEvent,
-			}
-		end
 	end
 end
 

@@ -242,6 +242,81 @@ function EditTilemap:init(args)
 	}
 	self:addChild(self.paletteBlobSelect)
 	-- TODO add paletteIndex to map() function
+	
+	self.uiRoot:addEventListener('keydown', function(root, e)
+		local sdlkey = e.sdl.key.key
+
+		local app = self.app
+
+		local uikey
+		if ffi.os == 'OSX' then
+			uikey = app:key'lgui' or app:key'rgui'
+		else
+			uikey = app:key'lctrl' or app:key'rctrl'
+		end
+		local shift = app:key'lshift' or app:key'rshift'
+
+		if uikey then
+			local selx = math.min(self.tileSelDown.x, self.tileSelUp.x)
+			local sely = math.min(self.tileSelDown.y, self.tileSelUp.y)
+			local selw = math.max(self.tileSelDown.x, self.tileSelUp.x) - selx + 1
+			local selh = math.max(self.tileSelDown.y, self.tileSelUp.y) - sely + 1
+			if sdlkey == sdl.SDLK_X or sdlkey == sdl.SDLK_C then
+				assert(not tilemapRAM.dirtyGPU)
+				local image = tilemapRAM.image:copy{x=selx, y=sely, width=selw, height=selh}
+				-- 1-channel uint16_t image
+				local channels = 4
+				local imageRGBA = Image(image.width, image.height, channels, uint8_t)
+				for i=0,image.width*image.height-1 do
+					imageRGBA.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
+					imageRGBA.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))
+					imageRGBA.buffer[2 + channels * i] = 0
+					imageRGBA.buffer[3 + channels * i] = 0xff
+				end
+				clip.image(imageRGBA)
+				if sdlkey == sdl.SDLK_X then
+					self.undo:push()
+					tilemapRAM.dirtyCPU = true
+					assert.eq(tilemapRAM.image.channels, 1)
+					for j=sely,sely+selh-1 do
+						for i=selx,selx+selw-1 do
+							self:edit_tset(self.tilemapBlobIndex, i, j, 0)
+						end
+					end
+				end
+			elseif sdlkey == sdl.SDLK_V then
+				-- TODO how to specify where to paste? beforehand?
+				-- or paste as overlay until you click outside the box?
+				-- or use the select rect to specify ... then only paste in select mode?
+				-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
+				assert(not tilemapRAM.dirtyGPU)
+				local image = clip.image()
+				if image then
+					self.undo:push()
+					-- 4-channel uint8_t image
+					for j=0,image.height-1 do
+						for i=0,image.width-1 do
+							local destx = i + selx
+							local desty = j + sely
+							if destx >= 0 and destx < tilemapRAM.image.width
+							and desty >= 0 and desty < tilemapRAM.image.height
+							then
+								local c = 0
+								local readChannels = math.min(image.channels, 2)	-- don't include alpha channel... heck only need R and G ...
+								for ch=readChannels-1,0,-1 do
+									c = bit.lshift(c, 8)
+									c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
+								end
+								self:edit_tset(self.tilemapBlobIndex, destx, desty, c)
+							end
+						end
+					end
+				end
+			elseif sdlkey == sdl.SDLK_Z then
+				self:popUndo(shift)
+			end
+		end
+	end)
 
 	require 'numo9.ui.addgetset'(self, {
 		tilemapBlobIndex = {
@@ -321,87 +396,7 @@ function EditTilemap:update()
 
 	EditTilemap.super.update(self)
 
-	-- title controls
-	local x = 90
-	local y = 0
-
-
-	--[[
-	self.tileSel:button(x,y)
-	--]]
-	x = x + 6
-
-	-- here, autotile-select
 	local gameEnv = app.gameEnv
-	--[[
-	local canAutoTile = gameEnv and gameEnv.numo9_autotile
-	if self:guiButton('A', x, y, self.tileOrAutotile == 'autotile',
-		canAutoTile and 'autotile'
-		or "define 'numo9_autotile' for autotiling"
-	) then
-		if canAutoTile then
-			self.autotileOpen = not self.autotileOpen
-		else
-			self.autotileOpen = false
-		end
-	end
-	--]]
-	x = x + 6
-
-	--[[
-	self:guiSpinner(x, y, function(dx)
-		self.penSize = math.max(1, self.penSize + dx)
-	end, 'penSize='..tostring(self.penSize))
-	--]]
-	x = x + 12
-
-	--[[
-	self:guiSpinner(x, y, function(dx)
-		self.autotilePreviewBorder = math.max(1, self.autotilePreviewBorder + dx)
-	end, 'autotilePreviewBorder='..tostring(self.autotilePreviewBorder))
-	--]]
-	x = x + 12
-
-	--[[
-	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
-		self.draw16Sprites = not self.draw16Sprites
-	end
-	--]]
-	x = x + 6
-
-	--[[ sprite edit method
-	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan', 'select'}, self.drawMode, function(result)
-		self.drawMode = result
-	end)
-	--]]
-	x = x + 6 * 6
-
-	--[[
-	self:guiSpinner(x, y, function(dx)
-		self.orientation = bit.band(7, self.orientation + dx)
-	end, 'orient='..tostring(self.orientation))
-	--]]
-	x = x + 16
-
-	--[[
-	self:guiSpinner(x, y, function(dx)
-		self.selPalHiOffset = bit.band(7, self.selPalHiOffset + dx)
-	end, 'palhi='..self.selPalHiOffset)
-	--]]
-	x = x + 16
-
-	--[[
-	self:guiSpinner(x, y, function(dx)
-		self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
-	end, 'grid='..self.gridSpacing)
-	--]]
-	x = x + 16
-
-	--[[
-	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
-		self.drawGrid = not self.drawGrid
-	end
-	--]]
 
 	local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 
@@ -863,91 +858,6 @@ function EditTilemap:update()
 	end
 
 	app:matMenuReset()
-
-	local uikey
-	if ffi.os == 'OSX' then
-		uikey = app:key'lgui' or app:key'rgui'
-	else
-		uikey = app:key'lctrl' or app:key'rctrl'
-	end
-	if uikey then
-		local selx = math.min(self.tileSelDown.x, self.tileSelUp.x)
-		local sely = math.min(self.tileSelDown.y, self.tileSelUp.y)
-		local selw = math.max(self.tileSelDown.x, self.tileSelUp.x) - selx + 1
-		local selh = math.max(self.tileSelDown.y, self.tileSelUp.y) - sely + 1
-		if app:keyp'x' or app:keyp'c' then
-			assert(not tilemapRAM.dirtyGPU)
-			local image = tilemapRAM.image:copy{x=selx, y=sely, width=selw, height=selh}
-			-- 1-channel uint16_t image
-			local channels = 4
-			local imageRGBA = Image(image.width, image.height, channels, uint8_t)
-			for i=0,image.width*image.height-1 do
-				imageRGBA.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
-				imageRGBA.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))
-				imageRGBA.buffer[2 + channels * i] = 0
-				imageRGBA.buffer[3 + channels * i] = 0xff
-			end
-			clip.image(imageRGBA)
-			if app:keyp'x' then
-				self.undo:push()
-				tilemapRAM.dirtyCPU = true
-				assert.eq(tilemapRAM.image.channels, 1)
-				for j=sely,sely+selh-1 do
-					for i=selx,selx+selw-1 do
-						self:edit_tset(self.tilemapBlobIndex, i, j, 0)
-					end
-				end
-			end
-		elseif app:keyp'v' then
-			-- TODO how to specify where to paste? beforehand?
-			-- or paste as overlay until you click outside the box?
-			-- or use the select rect to specify ... then only paste in select mode?
-			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
-			assert(not tilemapRAM.dirtyGPU)
-			local image = clip.image()
-			if image then
-				self.undo:push()
-				-- 4-channel uint8_t image
-				for j=0,image.height-1 do
-					for i=0,image.width-1 do
-						local destx = i + selx
-						local desty = j + sely
-						if destx >= 0 and destx < tilemapRAM.image.width
-						and desty >= 0 and desty < tilemapRAM.image.height
-						then
-							local c = 0
-							local readChannels = math.min(image.channels, 2)	-- don't include alpha channel... heck only need R and G ...
-							for ch=readChannels-1,0,-1 do
-								c = bit.lshift(c, 8)
-								c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
-							end
-							self:edit_tset(self.tilemapBlobIndex, destx, desty, c)
-						end
-					end
-				end
-			end
-		elseif app:keyp'z' then
-			self:popUndo(shift)
-		end
-	end
-
-	--[[
-	local x, y = 50, 0
-	-- draw ui menubar last so it draws over the rest of the page
-	-- TODO put this first for blocking subsequent click fallthroughs
-	--		or put it last for drawing over the display
-	-- 		or put it first + use depth buffer for both ...
-	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex', function()
-		-- for now only one undo per tilemap at a time
-		self.undo:clear()
-	end)
-
-	x = x + 12
-	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
-	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 12
-	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	--]]
 
 	self:newUI_update()
 end
