@@ -229,6 +229,7 @@ function UI:guiTextField(
 -- TODO TODO fix ui
 -- enter is captured in :event() to set execMenuTab and thats why it's not getting read here / in any ui's (but is in game)
 -- (but so does gamepad set execMenuTab  but do we want both to 'ok' the text field? maybe?)
+-- (or I guess while I'm fixing UI, this isn't true anymore?)
 	local enter
 	if onThisMenuItem then
 		enter = self.execMenuTab
@@ -258,6 +259,8 @@ function UI:guiTextField(
 					if keycode == keyCodeForName.backspace then
 						self.currentEditValue = self.currentEditValue:sub(1, self.textFieldCursorLoc - 1) .. self.currentEditValue:sub(self.textFieldCursorLoc+1)
 						self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
+					elseif keycode == keyCodeForName['return'] then
+						enter = true
 					elseif ch then
 						self.currentEditValue = self.currentEditValue:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. self.currentEditValue:sub(self.textFieldCursorLoc+1)
 						self.textFieldCursorLoc = math.min(#self.currentEditValue, self.textFieldCursorLoc + 1)

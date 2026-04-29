@@ -289,8 +289,8 @@ function EditMesh3D:update()
 					else
 						-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
 						v.u, v.v = orig.u, orig.v
-						if usedx then v.u = tonumber(v.u) - math.round(self.totalTranslation.x / 256) end
-						if usedy then v.v = tonumber(v.v) - math.round(self.totalTranslation.y / 256) end
+						if usedx then v.u = tonumber(v.u) + self.totalTranslation.x end
+						if usedy then v.v = tonumber(v.v) + self.totalTranslation.y end
 					end
 				elseif self.meshEditMode == 'scale' then
 					if not self.editTexCoords then
@@ -866,8 +866,8 @@ function EditMesh3D:update()
 						self.totalTranslation.y = self.totalTranslation.y + dy
 						self.totalTranslation.z = self.totalTranslation.z + dz
 					else
-						self.totalTranslation.x = self.totalTranslation.x + mouseULX - lastMouseULX
-						self.totalTranslation.y = self.totalTranslation.y + mouseULY - lastMouseULY
+						self.totalTranslation.x = self.totalTranslation.x - tonumber(mouseULX - lastMouseULX) / 256
+						self.totalTranslation.y = self.totalTranslation.y - tonumber(mouseULY - lastMouseULY) / 256
 					end
 				elseif self.meshEditMode == 'scale' then
 					self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
