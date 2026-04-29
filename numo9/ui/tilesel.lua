@@ -9,6 +9,7 @@ and I can also embed it in the mesh3d for UV-editing ...
 --]]
 local assert = require 'ext.assert'
 local class = require 'ext.class'
+local table = require 'ext.table'
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
@@ -40,6 +41,10 @@ function TileSelect:init(args)
 	self.onSetTile = args.onSetTile
 	self.getMeshIndex = args.getMeshIndex	-- optional, for mesh overlay
 
+	self:onCartLoad()
+end
+
+function TileSelect:onCartLoad()
 	self.pickOpen = false		-- if this is open or not
 	self.posDown = vec2d()		-- mouseX/mouseY upon mouse left press, in tiles
 	self.posUp = vec2d()		-- mouseX/mouseY while dragging / waiting for a mouse left release, in tiles
@@ -59,6 +64,26 @@ function TileSelect:button(x, y)
 		self.pickOpen = not self.pickOpen
 		return true
 	end
+end
+
+-- make a new-UI button:
+function TileSelect:makeButton(args)
+	local UIButton = require 'numo9.ui.button'
+	return UIButton(table.union({
+		text = 'T',
+		isset = function()
+			return self.pickOpen
+		end,
+		tooltip = function()
+			local tileIndex = bit.bor(self.pos.x, bit.lshift(self.pos.y, 5))
+			return 'tile='..tileIndex
+		end,
+		events = {
+			click = function()
+				self.pickOpen = not self.pickOpen
+			end,
+		},
+	}, args))
 end
 
 -- returns true if handled ui, false if otherwise

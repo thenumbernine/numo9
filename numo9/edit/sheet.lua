@@ -48,6 +48,8 @@ local dirs = {
 	{0,-1},
 }
 
+-- TODO 
+
 local SpriteSheetPicker = UIWidget:subclass()
 
 function SpriteSheetPicker:init(args)
@@ -61,6 +63,9 @@ end
 function SpriteSheetPicker:update(args)
 	SpriteSheetPicker.super.update(self, args)
 end
+
+
+-- TODO also a widget for sprite paint region
 
 
 local EditSheet = require 'numo9.ui':subclass()
@@ -215,10 +220,10 @@ function EditSheet:init(args)
 		text = 'X',
 		pos = {16, 128},
 		tooltip = 'pal swap',
+		isset = function()
+			return self.isPaletteSwapping
+		end,
 		events = {
-			isset = function()
-				return self.isPaletteSwapping
-			end,
 			click = function()
 				self.isPaletteSwapping = not self.isPaletteSwapping
 			end,
@@ -797,13 +802,12 @@ function EditSheet:init(args)
 
 	end)
 
-	local private = {}
-	local getset = {
+	require 'numo9.ui.addgetset'(self, {
 		paletteBlobIndex = {
-			get = function(self, k)
+			get = function(private, self, k)
 				return private[k]
 			end,
-			set = function(self, k, v)
+			set = function(private, self, k, v)
 				private[k] = v
 
 				-- on self.paletteBlobIndex change...
@@ -811,10 +815,10 @@ function EditSheet:init(args)
 			end,
 		},
 		sheetBlobIndex = {
-			get = function(self, k)
+			get = function(private, self, k)
 				return private[k]
 			end,
-			set = function(self, k, v)
+			set = function(private, self, k, v)
 				private[k] = v
 
 				-- on self.sheetBlobIndex change...
@@ -822,10 +826,10 @@ function EditSheet:init(args)
 			end,
 		},
 		paletteSelIndex = {
-			get = function(self, k)
+			get = function(private, self, k)
 				return private[k]
 			end,
-			set = function(self, k, v)
+			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
 				private[k] = bit.band(0xff, tonumber(v) or private[k])
@@ -837,10 +841,10 @@ function EditSheet:init(args)
 			end,
 		},
 		spriteBit = {
-			get = function(self, k)
+			get = function(private, self, k)
 				return private[k]
 			end,
-			set = function(self, k, v)
+			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
 				private[k] = math.clamp(tonumber(v) or private[k], 0, 7)
@@ -853,10 +857,10 @@ function EditSheet:init(args)
 			end,
 		},
 		spriteBitDepth = {
-			get = function(self, k)
+			get = function(private, self, k)
 				return private[k]
 			end,
-			set = function(self, k, v)
+			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
 				-- should I not let this exceed 8 - spriteBit ?
@@ -868,59 +872,7 @@ function EditSheet:init(args)
 				end
 			end,
 		},
-	}
-	local mt = getmetatable(self)
-	setmetatable(self, table.union({}, mt, {
-		__index = function(self, k)
-			local gs = getset[k]
-			if gs then 
-				local get = gs.get
-				if get then
-					return get(self, k)
-				end
-			end
-
-			local index = mt.__index
-			if index then
-				if type(index) == 'function' then
-					return index(self, k, v)
-				elseif type(index) == 'table' then
-					local v = index[k]
-					if v ~= nil then return v end
-				elseif type(index) == 'nil' then
-					-- fall through to return nil
-				else
-					error("unknown index type "..type(index))
-				end
-			end
-
-			return nil
-		end,
-		__newindex = function(self, k, v)
-			local gs = getset[k]
-			if gs then
-				local set = gs.set
-				if set then
-					return set(self, k, v)
-				end
-			end
-
-			local newindex = mt.__newindex
-			if newindex  then
-				if type(newindex) == 'function' then
-					return newindex(self, k, v)
-				elseif type(newindex) == 'table' then
-					-- still fall through to rawset, right?
-				elseif type(newindex) == 'nil' then
-					-- fall through
-				else
-					error("unknown newindex type "..type(newindex))
-				end
-			end
-
-			rawset(self, k, v)
-		end
-	}))
+	})
 
 	self:onCartLoad()
 end
@@ -1596,7 +1548,6 @@ function EditSheet:update()
 			end
 		end
 	end
-
 
 	self:newUI_update()
 end

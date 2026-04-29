@@ -78,13 +78,16 @@ end
 
 -- DO NOT directly children:insert
 -- instead use this
-function UIWidget:addChild(ch)
-	if ch.parent then
-		ch.parent.children:removeObject(ch)
+function UIWidget:addChild(...)
+	for i=1,select('#', ...) do
+		local ch = select(i, ...)
+		if ch.parent then
+			ch.parent.children:removeObject(ch)
+		end
+		ch.parent = self
+		ch.root = self.root
+		self.children:insertUnique(ch)
 	end
-	ch.parent = self
-	ch.root = self.root
-	self.children:insertUnique(ch)
 end
 
 function UIWidget:event(e) end

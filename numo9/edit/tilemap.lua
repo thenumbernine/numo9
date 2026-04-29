@@ -8,6 +8,11 @@ require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
 
 local clip = require 'numo9.clipboard'
+
+local UIButton = require 'numo9.ui.button'
+local UISpinner = require 'numo9.ui.spinner'
+local UIRadio = require 'numo9.ui.radio'
+local UIBlobSelect = require 'numo9.ui.blobselect'
 local Undo = require 'numo9.ui.undo'
 local TileSelect = require 'numo9.ui.tilesel'
 
@@ -37,23 +42,203 @@ local EditTilemap = require 'numo9.ui':subclass()
 
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
+	local app = self.app
 
 	self.undo = Undo{
 		get = function()
 			-- for now I'll just have one undo buffer for the current sheet
 			-- TODO palette too
-			local app = self.app
 			local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 			return {
 				tilemap = tilemapRAM.image:clone(),
 			}
 		end,
 		changed = function(entry)
-			local app = self.app
 			local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 			return 0 ~= ffi.C.memcmp(entry.tilemap.buffer, tilemapRAM.image.buffer, tilemapRAM.image:getBufferSize())
 		end,
 	}
+	
+	-- still mostly the old UI...
+	self.tileSel = TileSelect{edit=self}
+
+	self:newUI_setup()
+
+	local x = 90
+	local y = 0
+	self:addChild(self.tileSel:makeButton{
+		owner = self,
+		pos = {x, y},
+	})
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		text = 'A',
+		pos = {x, y},
+		isset = function()
+			return self.tileOrAutotile == 'autotile'
+		end,
+		tooltip = function()
+			local gameEnv = app.gameEnv
+			local canAutoTile = gameEnv and gameEnv.numo9_autotile
+			return canAutoTile
+				and 'autotile'
+				or "define 'numo9_autotile' for autotiling"
+		end,
+		events = {
+			click = function()
+				local gameEnv = app.gameEnv
+				local canAutoTile = gameEnv and gameEnv.numo9_autotile
+				if canAutoTile then
+					self.autotileOpen = not self.autotileOpen
+				else
+					self.autotileOpen = false
+				end
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		tooltip = function()
+			return 'penSize='..tostring(self.penSize)
+		end,
+		setValue = function(dx)
+			self.penSize = math.max(1, self.penSize + dx)
+		end,
+	})
+	x = x + 12
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		setValue = function(dx)
+			self.autotilePreviewBorder = math.max(1, self.autotilePreviewBorder + dx)
+		end,
+		tooltip = function()
+			return 'autotilePreviewBorder='..tostring(self.autotilePreviewBorder)
+		end,
+	})
+	x = x + 12
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'X',
+		isset = function()
+			return self.draw16Sprites
+		end,
+		tooltip = function()
+			return self.draw16Sprites and '16x16' or '8x8'
+		end,
+		events = {
+			click = function()
+				self.draw16Sprites = not self.draw16Sprites
+			end,
+		},
+	})
+	x = x + 6
+
+	-- sprite edit method
+	self:addChild(UIRadio{
+		owner = self,
+		pos = {x, y},
+		options = {'draw', 'fill', 'dropper', 'pan', 'select'},
+		getSelected = function()
+			return self.drawMode
+		end,
+		setSelected = function(result)
+			self.drawMode = result
+		end,
+	})
+	x = x + 6 * 6
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		setValue = function(dx)
+			self.orientation = bit.band(7, self.orientation + dx)
+		end,
+		tooltip = function()
+			return 'orient='..tostring(self.orientation)
+		end,
+	})
+	x = x + 16
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		setValue = function(dx)
+			self.selPalHiOffset = bit.band(7, self.selPalHiOffset + dx)
+		end,
+		tooltip = function()
+			return 'palhi='..self.selPalHiOffset
+		end,
+	})
+	x = x + 16
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		setValue = function(dx)
+			self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
+		end,
+		tooltip = function()
+			return 'grid='..self.gridSpacing
+		end,
+	})
+	x = x + 16
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'G',
+		isset = function()
+			return self.drawGrid
+		end,
+		tooltip = 'grid',
+		events = {
+			click = function()
+				self.drawGrid = not self.drawGrid
+			end,
+		},
+	})
+
+	x, y = 200, 0
+	self:addChild(UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'tilemap',
+		valueTable = self,
+		valueKey = 'tilemapBlobIndex',
+		setValue = function(value)
+			-- for now only one undo per tilemap at a time
+			self.undo:clear()
+		end,
+	})
+	x = x + 12
+	
+	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
+	self:addChild(UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'sheet',
+		valueTable = self,
+		valueKey = 'sheetBlobIndex',
+	})
+	x = x + 12
+
+	self:addChild(UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'palette',
+		valueTable = self,
+		valueKey = 'paletteBlobIndex',
+	})
+	-- TODO add paletteIndex to map() function
 
 	self:onCartLoad()
 end
@@ -63,7 +248,7 @@ function EditTilemap:onCartLoad()
 	self.tilemapBlobIndex = 0
 	self.paletteBlobIndex = 0	-- TODO :drawTileMap() allow specifying palette #
 
-	self.tileSel = TileSelect{edit=self}
+	self.tileSel:onCartLoad()
 	self.autotileOpen = false
 	self.autotilePreviewBorder = 1
 
@@ -116,11 +301,14 @@ function EditTilemap:update()
 	local y = 0
 
 
+	--[[
 	self.tileSel:button(x,y)
+	--]]
 	x = x + 6
 
 	-- here, autotile-select
 	local gameEnv = app.gameEnv
+	--[[
 	local canAutoTile = gameEnv and gameEnv.numo9_autotile
 	if self:guiButton('A', x, y, self.tileOrAutotile == 'autotile',
 		canAutoTile and 'autotile'
@@ -132,47 +320,63 @@ function EditTilemap:update()
 			self.autotileOpen = false
 		end
 	end
+	--]]
 	x = x + 6
 
+	--[[
 	self:guiSpinner(x, y, function(dx)
 		self.penSize = math.max(1, self.penSize + dx)
 	end, 'penSize='..tostring(self.penSize))
+	--]]
 	x = x + 12
 
+	--[[
 	self:guiSpinner(x, y, function(dx)
 		self.autotilePreviewBorder = math.max(1, self.autotilePreviewBorder + dx)
 	end, 'autotilePreviewBorder='..tostring(self.autotilePreviewBorder))
+	--]]
 	x = x + 12
 
+	--[[
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
 		self.draw16Sprites = not self.draw16Sprites
 	end
+	--]]
 	x = x + 6
 
-	-- sprite edit method
+	--[[ sprite edit method
 	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan', 'select'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
+	--]]
 	x = x + 6 * 6
 
+	--[[
 	self:guiSpinner(x, y, function(dx)
 		self.orientation = bit.band(7, self.orientation + dx)
 	end, 'orient='..tostring(self.orientation))
+	--]]
 	x = x + 16
 
+	--[[
 	self:guiSpinner(x, y, function(dx)
 		self.selPalHiOffset = bit.band(7, self.selPalHiOffset + dx)
 	end, 'palhi='..self.selPalHiOffset)
+	--]]
 	x = x + 16
 
+	--[[
 	self:guiSpinner(x, y, function(dx)
 		self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
 	end, 'grid='..self.gridSpacing)
+	--]]
 	x = x + 16
 
+	--[[
 	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
 		self.drawGrid = not self.drawGrid
 	end
+	--]]
 
 	local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 
@@ -702,8 +906,8 @@ function EditTilemap:update()
 		end
 	end
 
+	--[[
 	local x, y = 50, 0
-
 	-- draw ui menubar last so it draws over the rest of the page
 	-- TODO put this first for blocking subsequent click fallthroughs
 	--		or put it last for drawing over the display
@@ -718,10 +922,9 @@ function EditTilemap:update()
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
 	x = x + 12
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	-- TODO palette spinner, and use selected palette for tilemap render
-	-- and TODO add paletteIndex to map() function
+	--]]
 
-	self:drawTooltip()
+	self:newUI_update()
 end
 
 function EditTilemap:popUndo(redo)
@@ -737,5 +940,8 @@ function EditTilemap:popUndo(redo)
 	end
 end
 
+function EditTilemap:event(e)
+	return self:newUI_event(e)
+end
 
 return EditTilemap
