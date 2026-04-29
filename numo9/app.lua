@@ -936,6 +936,8 @@ function App:initGL()
 		ipairs = ipairs,
 		getmetatable = getmetatable,
 		setmetatable = setmetatable,
+		rawget = rawget,
+		rawset = rawset,
 		traceback = debug.traceback,	-- useful for threads
 		pcall = pcall,
 		xpcall = xpcall,
