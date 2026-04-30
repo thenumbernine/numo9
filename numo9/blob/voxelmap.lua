@@ -5,6 +5,7 @@ local class = require 'ext.class'
 local table = require 'ext.table'
 local vector = require 'stl.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
+local vec3f = require 'vec-ffi.vec3f'
 local vec4us = require 'vec-ffi.vec4us'
 local vec4x4fcol = require 'numo9.vec4x4fcol'
 local gl = require 'gl'
@@ -40,6 +41,17 @@ local function vec3to3(m, x, y, z)
 		m[0] * x + m[4] * y + m[ 8] * z + m[12],
 		m[1] * x + m[5] * y + m[ 9] * z + m[13],
 		m[2] * x + m[6] * y + m[10] * z + m[14]
+end
+
+-- same but with w=0
+local function vecdir3to3(m, x, y, z)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z)
+	return
+		m[0] * x + m[4] * y + m[ 8] * z,
+		m[1] * x + m[5] * y + m[ 9] * z,
+		m[2] * x + m[6] * y + m[10] * z
 end
 
 -- orientation rotations for the upper 6 rotation bits of the voxel
@@ -300,6 +312,8 @@ function Chunk:rebuildMesh(app)
 	local voxels = assert(self.voxelmap:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
 	local occludedCount = 0
 
+	local normal = vec3f()
+
 	local ci, cj, ck = self.chunkPos:unpack()
 --DEBUG:print('chunk', ci, cj, ck)
 
@@ -481,34 +495,42 @@ function Chunk:rebuildMesh(app)
 												va, vc = vc, va
 											end
 
+											--[[ this needs to be oriented
 											local normal = mesh.normalList.v[ti]
+											--]]
+											-- [[ so I can either multiply by mp with w=0, then re-normalize (or track the scaling and undo it)
+											local srcNormal = mesh.normalList.v[ti]
+											normal.x, normal.y, normal.z = vecdir3to3(mp, srcNormal.x, srcNormal.y, srcNormal.z)
+											--]]
+											-- or I can re-calc the normal from the voxelmap vertex coords, which honestyl is probably just as fast? except the extra normalization...
+
 
 											local srcv = va
-											local dstVtx = vertexBufCPU:emplace_back()
-											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
-											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-											dstVtx.normal = normal
-											dstVtx.extra = extra
-											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
+											local dstVtx1 = vertexBufCPU:emplace_back()
+											dstVtx1.vertex.x, dstVtx1.vertex.y, dstVtx1.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
+											dstVtx1.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+											dstVtx1.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx1.normal = normal
+											dstVtx1.extra = extra
+											dstVtx1.box.x, dstVtx1.box.y, dstVtx1.box.z, dstVtx1.box.w = 0, 0, 1, 1
 
 											local srcv = vb
-											local dstVtx = vertexBufCPU:emplace_back()
-											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
-											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-											dstVtx.normal = normal
-											dstVtx.extra = extra
-											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
+											local dstVtx2 = vertexBufCPU:emplace_back()
+											dstVtx2.vertex.x, dstVtx2.vertex.y, dstVtx2.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
+											dstVtx2.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+											dstVtx2.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx2.normal = normal
+											dstVtx2.extra = extra
+											dstVtx2.box.x, dstVtx2.box.y, dstVtx2.box.z, dstVtx2.box.w = 0, 0, 1, 1
 
 											local srcv = vc
-											local dstVtx = vertexBufCPU:emplace_back()
-											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
-											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-											dstVtx.normal = normal
-											dstVtx.extra = extra
-											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
+											local dstVtx3 = vertexBufCPU:emplace_back()
+											dstVtx3.vertex.x, dstVtx3.vertex.y, dstVtx3.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
+											dstVtx3.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+											dstVtx3.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx3.normal = normal
+											dstVtx3.extra = extra
+											dstVtx3.box.x, dstVtx3.box.y, dstVtx3.box.z, dstVtx3.box.w = 0, 0, 1, 1
 										end
 									end
 								end

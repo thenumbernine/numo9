@@ -3655,6 +3655,7 @@ end
 
 function App:toggleConsole()
 	if self.activeMenu ~= self.con then		-- main menu goes to conosle
+		self.con.cmdbuf = ''
 		self:setMenu(self.con)
 		self.isPaused = false
 		if self.runFocus and not self.server then

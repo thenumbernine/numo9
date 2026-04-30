@@ -121,7 +121,7 @@ typedef struct calcLightBlit_fragUni_t {
 	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 	int32_t numLights;
-	int debugShow;
+	int debugDraw;
 	int padding;
 
 } calcLightBlit_fragUni_t;
@@ -449,7 +449,7 @@ layout(std140, binding=0) uniform fragBlock {
 	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 	int numLights;
 	
-	int debugShow;
+	int debugDraw;
 	int padding;
 };	// fragBlock
 
@@ -480,7 +480,7 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = vec3[ssaoNumSamples](
 
 void main() {
 
-if (debugShow == 1) {	// debug - show the lightmap
+if (debugDraw == 1) {	// debug - show the lightmap
 	float l = texture(lightDepthTex, tcv).x;
 	fragColor = vec4(l, l * 10., 1. - l * 100., .0);	// tell debug compositer to use this color here.
 	return;
@@ -496,12 +496,12 @@ if (debugShow == 1) {	// debug - show the lightmap
 
 	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 
-if (debugShow == 2) {
+if (debugDraw == 2) {
 	//normals remapped from [-1,1] to [0,1]
 	fragColor = vec4(normalizedWorldNormal * .5 + .5, 0.);	// w=0 is debugging and means 'show the lightmap at this point'
 	return;
 }
-if (debugShow == 3) {
+if (debugDraw == 3) {
 	//normals abs'd from [-1,1] to [0,1]
 	fragColor = vec4(abs(normalizedWorldNormal), 0.);
 	return;
@@ -547,15 +547,15 @@ if (debugShow == 3) {
 				//const float lightDepthTestEpsilon = 0.0001;	// not enough
 				const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
-if (debugShow == 4) {	// debug show the light buffer
+if (debugDraw == 4) {	// debug show the light buffer
 	fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
 	return;
 }
-if (debugShow == 5) {	// debug show the light clip depth
+if (debugDraw == 5) {	// debug show the light clip depth
 	fragColor = vec4(lightND01Coord.z, .5, 1. - lightND01Coord.z, 0.);	// tell debug compositer to use this color here.
 	return;
 }
-if (debugShow == 6) {	// debug show the light clip depth
+if (debugDraw == 6) {	// debug show the light clip depth
 	float delta = lightND01Coord.z - (lightBufferDepth + lightDepthTestEpsilon);
 	fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
 	return;
