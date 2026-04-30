@@ -492,7 +492,7 @@ return;
 	}
 
 	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
-#if 0 // debugging: show normalmap:
+#if 1 // debugging: show normalmap:
 fragColor = vec4(normalizedWorldNormal * .5 + .5, 0.);	// w=0 is debugging and means 'show the lightmap at this point'
 return;
 #endif

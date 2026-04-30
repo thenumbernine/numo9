@@ -94,6 +94,7 @@ do
 	-- for now this will overwrite any dir lights (or vice versa)
 	Lights.makeSunLight = |:,stagesize|do
 		local lightAddr, lx, ly, lw, lh = Lights:new(self.lightmapWidthInSubRegions, self.lightmapHeightInSubRegions)
+		if not lightAddr then return end
 
 		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
 		matpush(projMatrixIndex)
@@ -178,46 +179,48 @@ do
 		-- TODO lightmap block allocation system ...
 		for lightIndex=0,self.numSides-1 do
 			local lightAddr, lx, ly, lw, lh = Lights:new()
-			-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
+			if lightAddr then
+				-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
 
-			poke(lightAddr + Lights.lightEnabledOffset, 0xff)
-			-- subimage/viewport on the lightmap
-			pokew(lightAddr + Lights.lightRegionOffset, lx)
-			pokew(lightAddr + Lights.lightRegionOffset+2, ly)
-			pokew(lightAddr + Lights.lightRegionOffset+4, lw)
-			pokew(lightAddr + Lights.lightRegionOffset+6, lh)
+				poke(lightAddr + Lights.lightEnabledOffset, 0xff)
+				-- subimage/viewport on the lightmap
+				pokew(lightAddr + Lights.lightRegionOffset, lx)
+				pokew(lightAddr + Lights.lightRegionOffset+2, ly)
+				pokew(lightAddr + Lights.lightRegionOffset+4, lw)
+				pokew(lightAddr + Lights.lightRegionOffset+6, lh)
 
-			matident(projMatrixIndex)
-			matfrustum(
-				-tanHalfFOV * znear,
-				tanHalfFOV * znear,
-				-tanHalfFOV * znear,
-				tanHalfFOV * znear,
-				znear,
-				zfar)	-- matfrustum sets projMatrixIndex by default
+				matident(projMatrixIndex)
+				matfrustum(
+					-tanHalfFOV * znear,
+					tanHalfFOV * znear,
+					-tanHalfFOV * znear,
+					tanHalfFOV * znear,
+					znear,
+					zfar)	-- matfrustum sets projMatrixIndex by default
 
-			matident(viewMatrixIndex)
-			self:sideTransform(lightIndex)
-			mattrans(-x, -y, -z, viewMatrixIndex)
+				matident(viewMatrixIndex)
+				self:sideTransform(lightIndex)
+				mattrans(-x, -y, -z, viewMatrixIndex)
 
-			memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
-			memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
+				memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
+				memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
 
-			pokef(lightAddr + Lights.lightAmbientColorOffset, self.ambient.x)
-			pokef(lightAddr + Lights.lightAmbientColorOffset+4, self.ambient.y)
-			pokef(lightAddr + Lights.lightAmbientColorOffset+8, self.ambient.z)
-			pokef(lightAddr + Lights.lightDiffuseColorOffset, self.diffuse.x)
-			pokef(lightAddr + Lights.lightDiffuseColorOffset+4, self.diffuse.y)
-			pokef(lightAddr + Lights.lightDiffuseColorOffset+8, self.diffuse.z)
-			pokef(lightAddr + Lights.lightSpecularColorOffset, self.specular.x)
-			pokef(lightAddr + Lights.lightSpecularColorOffset+4, self.specular.y)
-			pokef(lightAddr + Lights.lightSpecularColorOffset+8, self.specular.z)
-			pokef(lightAddr + Lights.lightSpecularColorOffset+12, self.shininess)
-			pokef(lightAddr + Lights.lightDistAttenOffset, self.distAtten.x)
-			pokef(lightAddr + Lights.lightDistAttenOffset+4, self.distAtten.y)
-			pokef(lightAddr + Lights.lightDistAttenOffset+8, self.distAtten.z)
-			pokef(lightAddr + Lights.lightCosAngleRangeOffset, self.cosAngleRange.x)
-			pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, self.cosAngleRange.y)
+				pokef(lightAddr + Lights.lightAmbientColorOffset, self.ambient.x)
+				pokef(lightAddr + Lights.lightAmbientColorOffset+4, self.ambient.y)
+				pokef(lightAddr + Lights.lightAmbientColorOffset+8, self.ambient.z)
+				pokef(lightAddr + Lights.lightDiffuseColorOffset, self.diffuse.x)
+				pokef(lightAddr + Lights.lightDiffuseColorOffset+4, self.diffuse.y)
+				pokef(lightAddr + Lights.lightDiffuseColorOffset+8, self.diffuse.z)
+				pokef(lightAddr + Lights.lightSpecularColorOffset, self.specular.x)
+				pokef(lightAddr + Lights.lightSpecularColorOffset+4, self.specular.y)
+				pokef(lightAddr + Lights.lightSpecularColorOffset+8, self.specular.z)
+				pokef(lightAddr + Lights.lightSpecularColorOffset+12, self.shininess)
+				pokef(lightAddr + Lights.lightDistAttenOffset, self.distAtten.x)
+				pokef(lightAddr + Lights.lightDistAttenOffset+4, self.distAtten.y)
+				pokef(lightAddr + Lights.lightDistAttenOffset+8, self.distAtten.z)
+				pokef(lightAddr + Lights.lightCosAngleRangeOffset, self.cosAngleRange.x)
+				pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, self.cosAngleRange.y)
+			end
 		end
 		matpop(viewMatrixIndex)	-- pop view mat
 		matpop(projMatrixIndex)	-- pop proj mat
@@ -280,6 +283,7 @@ do
 		-- set up a torch point light at the player
 		-- TODO lightmap block allocation system ...
 		local lightAddr, lx, ly, lw, lh = Lights:new()
+		if not lightAddr then return end
 
 		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
 		matpush(projMatrixIndex)

@@ -43,8 +43,10 @@ local view = {
 	-- 0 degrees = y+ is forward, x+ is right
 	yaw = 90,
 	destYaw = 90,
-	tiltUpAngle = -20,
+	--tiltUpAngle = -20,
+	tiltUpAngle = 0,
 	followDist = 7,
+	followAlt = 2,
 	pos = vec3(),
 }
 view.update = |:, width, height, player|do
@@ -74,7 +76,7 @@ view.update = |:, width, height, player|do
 	matrotcs(self.cosYaw, self.sinYaw, 0, 0, -1, 1)	-- view yaw = inverse-rotate negative-z-axis
 	self.pos.x = player.pos.x - self.followDist * sinPitch * -self.sinYaw
 	self.pos.y = player.pos.y - self.followDist * sinPitch * self.cosYaw
-	self.pos.z = player.pos.z + self.followDist * cosPitch
+	self.pos.z = player.pos.z + self.followDist * cosPitch + self.followAlt
 	mattrans(-self.pos.x, -self.pos.y, -self.pos.z, 1)	-- view = inverse-translate
 
 	matident()
