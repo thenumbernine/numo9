@@ -14,7 +14,7 @@ mode(0xff)	-- NativexRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
 --HD2DFlags = 0xff
-HD2DFlags = 1|8
+HD2DFlags = 1|2|8|0x10|0x20
 
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
@@ -455,7 +455,7 @@ update=||do
 	poke(ramaddr'HD2DFlags', 0)
 	cls(33)
 
-	-- draw skyl
+	-- draw sky
 	-- assume we are still in ortho matrix setup from the end of last frame
 	local width, height = getScreenSize()
 	spr(
@@ -486,19 +486,21 @@ update=||do
 		if objs[i].remove then objs:remove(i) end
 	end
 
--- [[ use default for now.
+	local lightPos = vec3(player.pos.x, player.pos.y + 3, player.pos.z + 3)
+
+--[[ use default for now.
 	pokew(ramaddr'numLights', 1)
 --]]
---[[
+-- [[
 	Lights.MakeLight.znear = 1
 	Lights.MakeLight.zfar = 100
-	Lights.MakeLight.diffuse:set(2,2,2)
-	Lights.MakeLight.specular:set(2,2,2)
-	Lights.MakeLight.shininess = 1
-	Lights.MakeLight.distAtten:set(1,0,0)
+	Lights.MakeLight.diffuse:set(1,1,1)
+	Lights.MakeLight.specular:set(1,1,1)
+	Lights.MakeLight.shininess = 10
+	Lights.MakeLight.distAtten:set(1,0,.05)
 	Lights:beginFrame()
 	-- now come this is only shining down?  where are my 6 transform sides?
-	Lights.makePointLight(view.pos:unpack())
+	Lights.makePointLight(lightPos:unpack())
 	Lights:endFrame()
 --]]
 
