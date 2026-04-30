@@ -3623,7 +3623,6 @@ print()
 		fragUniLight.cosAngleRange.x = light.cosAngleRange[0]
 		fragUniLight.cosAngleRange.y = 1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
 
-
 		fragUniLight.viewProjMat:mul4x4(light.projMat, light.viewMat)
 		self.lightViewInvMat:inv4x4(light.viewMat)
 

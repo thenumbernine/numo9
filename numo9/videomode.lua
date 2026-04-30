@@ -500,8 +500,7 @@ if (debugDraw == 2) {
 	//normals remapped from [-1,1] to [0,1]
 	fragColor = vec4(normalizedWorldNormal * .5 + .5, 0.);	// w=0 is debugging and means 'show the lightmap at this point'
 	return;
-}
-if (debugDraw == 3) {
+} else if (debugDraw == 3) {
 	//normals abs'd from [-1,1] to [0,1]
 	fragColor = vec4(abs(normalizedWorldNormal), 0.);
 	return;
@@ -547,15 +546,13 @@ if (debugDraw == 3) {
 				//const float lightDepthTestEpsilon = 0.0001;	// not enough
 				const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
-if (debugDraw == 4) {	// debug show the light buffer
+if (debugDraw == 4) {	// debug show the first light buffer
 	fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
 	return;
-}
-if (debugDraw == 5) {	// debug show the light clip depth
+} else if (debugDraw == 5) {	// debug show the first light clip depth
 	fragColor = vec4(lightND01Coord.z, .5, 1. - lightND01Coord.z, 0.);	// tell debug compositer to use this color here.
 	return;
-}
-if (debugDraw == 6) {	// debug show the light clip depth
+} else if (debugDraw == 6) {	// debug show the first light clip depth
 	float delta = lightND01Coord.z - (lightBufferDepth + lightDepthTestEpsilon);
 	fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
 	return;
