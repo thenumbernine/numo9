@@ -3473,6 +3473,8 @@ function AppVideo:drawVoxelMap(
 	end
 end
 
+AppVideo.lightDebugShow = 0
+
 function AppVideo:updateHD2DPass()
 	assert(not self.inUpdateCallback)
 
@@ -3597,6 +3599,7 @@ print()
 	ffi.copy(fragUniCPU.drawProjMat.s, self.drawProjMatForLighting, ffi.sizeof(vec4x4fcol))
 
 	fragUniCPU.numLights = ram.numLights
+	fragUniCPU.debugShow = self.lightDebugShow	-- new debug var
 
 	ffi.copy(fragUniCPU.lightAmbientColor.s, ram.lightAmbientColor, ffi.sizeof(vec3f))
 

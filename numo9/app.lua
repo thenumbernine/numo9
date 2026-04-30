@@ -1975,6 +1975,11 @@ print('run thread dead')
 			-- (TODO maybe make clearScreen() flags for clearing light buffer?)
 			self:clearScreen()
 
+			self.ram.HD2DFlags = 0
+			if self.ram.HD2DFlags ~= pushHD2DFlags then
+				self:onHD2DFlagsChange()
+			end
+
 			-- [=[
 			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
 			-- (... what?)
