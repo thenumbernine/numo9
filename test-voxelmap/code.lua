@@ -13,7 +13,8 @@ mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
-HD2DFlags = 0xff
+--HD2DFlags = 0xff
+HD2DFlags = 1|8
 
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
@@ -39,7 +40,7 @@ local epsilon = 1e-7
 local grav = -dt
 local maxFallVel = -.8
 
-local view = {
+view = {
 	-- 0 degrees = y+ is forward, x+ is right
 	yaw = 90,
 	destYaw = 90,
