@@ -61,7 +61,12 @@ function EditTilemap:init(args)
 	}
 
 	-- still mostly the old UI...
-	self.tileSel = TileSelect{edit=self}
+	self.tileSel = TileSelect{
+		edit = self,
+		onSetTile = function(tileSel)
+			self:refreshTileSel()
+		end,
+	}
 
 	self:newUI_setup()
 
@@ -247,10 +252,10 @@ function EditTilemap:init(args)
 	self.tileSelPosTextField = UITextField{
 		owner = self,
 		pos = {202, 0},
-		width = 20*8,
+		width = 20,
 		events = {
 			focus = function(target, e)
-				self:updateTileSel()
+				self:refreshTileSel()
 			end,
 			change = function(target, e)
 				local result = target.value
@@ -364,15 +369,25 @@ function EditTilemap:init(args)
 
 	})
 
+	-- start these off before initializing them....
+	-- make sure the value is not the initial so we trigger a change.
+	self.orientation = 1
+	self.selPalHiOffset = 1
+
 	require 'numo9.ui.addgetset'(self, {
 		selPalHiOffset = {
 			set = function(private, self, k, v)
-				local oldvalue = private[k]
+				if v == private[k] then return end
 				private[k] = v
-				if private[k] ~= oldvalue then
-					self:refreshTileSel()
-				end
+				self:refreshTileSel()
 			end,
+		},
+		orientation = {
+			set = function(private, self, k, v)
+				if v == private[k] then return end
+				private[k] = v
+				self:refreshTileSel()
+			end
 		},
 	})
 
@@ -396,8 +411,10 @@ function EditTilemap:onCartLoad()
 	self.tileSelUpFrac = vec2d()
 	self.tileSelDown = vec2i()
 	self.tileSelUp = vec2i()
+
 	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
 	self.selPalHiOffset = 0
+
 	self.drawMode = 'draw'
 	self.gridSpacing = 1
 	self.penSize = 1
