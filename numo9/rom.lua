@@ -60,6 +60,28 @@ local updateIntervalInSeconds = 1 / updateHz
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
+--[[ TODO hmm i gotta work the kinks out of struct ...
+local RGBA5551 = struct{
+	ctypeOnly = true,
+	union = true,
+	fields = {
+		{name='u', type=ffi.typeof'uint16_t', no_iter=true},
+		{
+			type = struct{
+				anonymous = true,
+				fields = {
+					{name='r', type'uint16_t:5'},
+					{name='g', type'uint16_t:5'},
+					{name='b', type'uint16_t:5'},
+					{name='a', type'uint16_t:1'},
+				},
+			},
+		},
+	},
+}
+assert.eq(ffi.sizeof(RGBA5551), 2)
+--]]
+
 -- this is only here because both numo9/video and numo9/blob/palette uses it, as to not create circular dependencies
 local paletteSize = 256
 local paletteType = uint16_t	-- really rgba 5551 ...
@@ -598,6 +620,7 @@ return {
 	updateHz = updateHz,
 	updateIntervalInSeconds = updateIntervalInSeconds,
 
+	RGBA5551 = RGBA5551,
 	paletteSize = paletteSize,
 	paletteType = paletteType,
 	palettePtrType = palettePtrType,	-- TODO dont need to save this

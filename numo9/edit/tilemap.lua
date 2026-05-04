@@ -13,6 +13,7 @@ local UIButton = require 'numo9.ui.button'
 local UISpinner = require 'numo9.ui.spinner'
 local UIRadio = require 'numo9.ui.radio'
 local UIBlobSelect = require 'numo9.ui.blobselect'
+local UITextField = require 'numo9.ui.textfield'
 local Undo = require 'numo9.ui.undo'
 local TileSelect = require 'numo9.ui.tilesel'
 
@@ -242,7 +243,30 @@ function EditTilemap:init(args)
 	}
 	self:addChild(self.paletteBlobSelect)
 	-- TODO add paletteIndex to map() function
-	
+
+	self.tileSelPosTextField = UITextField{
+		owner = self,
+		pos = {202, 0},
+		width = 20*8,
+		events = {
+			focus = function(target, e)
+				self:updateTileSel()
+			end,
+			change = function(target, e)
+				local result = target.value
+				result = tonumber(result, 16)
+				if result then
+					-- TODO why don't I have a struct for this?
+					self.tileSel.pos.x = result % spriteSheetSizeInTiles.x
+					self.tileSel.pos.y = (result - self.tileSel.pos.x) / spriteSheetSizeInTiles.x
+					self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
+					self.orientation = bit.band(7, bit.rshift(result, 13))
+				end
+			end,
+		},
+	}
+	self:addChild(self.tileSelPosTextField)
+
 	self.uiRoot:addEventListener('keydown', function(root, e)
 		local sdlkey = e.sdl.key.key
 
@@ -340,6 +364,18 @@ function EditTilemap:init(args)
 
 	})
 
+	require 'numo9.ui.addgetset'(self, {
+		selPalHiOffset = {
+			set = function(private, self, k, v)
+				local oldvalue = private[k]
+				private[k] = v
+				if private[k] ~= oldvalue then
+					self:refreshTileSel()
+				end
+			end,
+		},
+	})
+
 	self:onCartLoad()
 end
 
@@ -360,8 +396,8 @@ function EditTilemap:onCartLoad()
 	self.tileSelUpFrac = vec2d()
 	self.tileSelDown = vec2i()
 	self.tileSelUp = vec2i()
-	self.selPalHiOffset = 0
 	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
+	self.selPalHiOffset = 0
 	self.drawMode = 'draw'
 	self.gridSpacing = 1
 	self.penSize = 1
@@ -375,6 +411,18 @@ function EditTilemap:onCartLoad()
 
 	self.undo:clear()
 end
+
+function EditTilemap:refreshTileSel()
+	-- on any of tileSel.pos, selPalHiOffset, orientation ....
+	local tileSelIndex = bit.bor(
+		self.tileSel.pos.x
+		+ spriteSheetSizeInTiles.x * self.tileSel.pos.y,
+		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
+		bit.lshift(bit.band(7, self.orientation), 13)
+	)
+	self.tileSelPosTextField.value = ('%04X'):format(tileSelIndex)
+end
+
 
 function EditTilemap:update()
 	local app = self.app
@@ -418,9 +466,9 @@ function EditTilemap:update()
 		self.tilemapPanOffset.y = self.tilemapPanOffset.y + dy
 	end
 
+--[[
 	local tileSelIndex = bit.bor(
-		self.tileSel.pos.x
-		+ spriteSheetSizeInTiles.x * self.tileSel.pos.y,
+		self.tileSel.pos.x + spriteSheetSizeInTiles.x * self.tileSel.pos.y,
 		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 		bit.lshift(bit.band(7, self.orientation), 13)
 	)
@@ -437,6 +485,7 @@ function EditTilemap:update()
 			end
 		end
 	)
+--]]
 
 	--self:guiSetClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
 	self:guiSetClipRect(-1000, mapY, 3000, mapSizeInPixels.y-1)

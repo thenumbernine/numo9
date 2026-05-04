@@ -66,8 +66,8 @@ local ident4x4 = vec4x4fcol():setIdent()
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
 -- in case it's missing, just use single-channel R16 and do the swizzles manually
 local internalFormat5551 = gl.GL_R16UI
-local format5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].format
-local type5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].types[1]   -- gl.GL_UNSIGNED_SHORT
+local glformat5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].format
+local gltype5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].types[1]   -- gl.GL_UNSIGNED_SHORT
 
 -- r,g,b,a is 8bpp
 -- result is 5551 16bpp
@@ -527,8 +527,8 @@ function AppVideo:initVideo()
 			width = paletteSize,
 			height = 1,
 			internalFormat = internalFormat5551,
-			format = format5551,
-			type = type5551,
+			format = glformat5551,
+			type = gltype5551,
 			wrap = {
 				s = gl.GL_CLAMP_TO_EDGE,
 				t = gl.GL_CLAMP_TO_EDGE,
@@ -3806,8 +3806,6 @@ end
 
 return {
 	internalFormat5551 = internalFormat5551,
-	format5551 = format5551,
-	type5551 = type5551,
 	argb8888revto5551 = argb8888revto5551,
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgb888_3ch = rgb565rev_to_rgb888_3ch,
