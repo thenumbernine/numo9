@@ -294,14 +294,60 @@ print('creating default sfx '..i..' blob')
 		--resetPalette(bank)
 	end
 
+	-- ok I am getting tired of my transpile load time
+	-- so I came up with a fix
+	-- optional save transpiled code or save bytecode
+	-- maybe I shouldn't let the normies save bytecode, or they will do it to try to "protect their intellectual property"
+	local metainfo = getMetaInfoFromBlobs(blobs)
+	if metainfo.codeSaveMethod then
+		if metainfo.codeSaveMethod == 'transpiled-lua' then
+			require 'ext.timer'('caching transpiled code', function()
+				-- TODO this is duplicated in numo9/app.lua:
+				local codeBlob = blobs.code[1]
+				local code = codeBlob:toBinStr()
+
+				local loadenv = setmetatable({
+					package = {
+						searchpath = package.searchpath,
+						searchers = table(package.searchers or package.loaders):setmetatable(nil),
+						path = package.path,
+						cpath = package.cpath,
+						loaded = {},
+					},
+					require = function(...)
+						error"require not implemented"
+					end,
+				}, {
+					__index = _G,
+				})
+				local langfixState = require 'langfix.env'(loadenv)
+				local langfix = loadenv.langfix
+				code = langfix.luaToFixed(code)
+
+				-- re-append the meta-info for the next read:
+				local metakv = table()
+				for k,v in pairs(metainfo) do
+					metakv:insert('-- '..k..' = '..v)
+				end
+				code = metakv:concat'\n'..'\n\n'..code
+
+				codeBlob.vec:resize(#code)
+				ffi.copy(codeBlob.vec.v, code, #code)
+			end)
+		--elseif metainfo.codeSaveMethod == 'bytecode' then
+		else
+			error("I got codeSaveMethod but it was an unknown value: "..tostring(metainfo.codeSaveMethod))
+		end
+	end
+
 	local labelImage
 	pcall(function()
 		labelImage = Image(basepath'label.png'.path)
 	end)
 
-print'saving cart...'
+	print'saving cart...'
 	assert(path(fn):write(blobsToCartImage(blobs, labelImage)))
-print'...done saving cart'
+	print'...done saving cart'
 
 	if cmd == 'r' then
 		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))

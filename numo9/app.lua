@@ -3290,7 +3290,14 @@ function App:resetCart()
 end
 
 -- returns the function to run the code
-function App:loadCmd(cmd, source, env)
+function App:loadCmd(cmd, source, env, dontUseLangFix)
+	-- allow meta-info to pre-transpile and offload the langfix-transpile step
+	if dontUseLangFix then
+
+return select(2, require 'ext.timer'('App:loadCmd with dontUseLangFix', function()
+		return load(cmd, source, 't', env or self.gameEnv or self.env)
+end))
+	end
 -- langfix is slow... esp for big scripts...
 return select(2, require 'ext.timer'('App:loadCmd', function()
 	-- Lua is wrapping [string "  "] around my source always ...
@@ -3426,12 +3433,14 @@ function App:runCart()
 		self.metainfo['archive.paletteForSheet'] = paletteForSheet
 	end
 
+	local dontUseLangFix = self.metainfo.codeSaveMethod == 'transpiled-lua'
+
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
 		self.ram.romUpdateCounter = 0
 
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
-		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env)
+		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, dontUseLangFix)
 		if not f then
 			--print(msg)
 			self.con:print(msg)
