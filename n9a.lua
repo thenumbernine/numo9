@@ -322,7 +322,7 @@ print('creating default sfx '..i..' blob')
 				})
 				local langfixState = require 'langfix.env'(loadenv)
 				local langfix = loadenv.langfix
-				code = langfix.luaToFixed(code)
+				code = assert(langfix.luaToFixed(code))
 
 				-- re-append the meta-info for the next read:
 				local metakv = table()

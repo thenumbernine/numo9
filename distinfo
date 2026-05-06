@@ -154,5 +154,8 @@ deps = {
 	"template",
 	"threadmanager",
 	"vec-ffi",
-	"sha2",		-- external, in dist/release/
+
+	-- external, in dist/release/
+	"sha2",
+	"socket",
 }

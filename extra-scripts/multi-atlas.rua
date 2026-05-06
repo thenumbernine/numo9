@@ -21,10 +21,9 @@ for f in srcdir:dir() do
 		srcfs:insert(f)
 	end
 end
-srcfs:sort(|a,b| a.path < b.path)
-for _,f in ipairs(srcfs) do
+for _,f in ipairs(srcfs:sort()) do
 	print('reading ', f)
-	local img = Image(srcdir(f).path)
+	local img = Image(srcdir/f)
 	-- TODO store Image size as vec2i?  there would be a lot of dependent repos to change ...
 	local size = vec2i(img.width, img.height)
 	local sizeInTiles = vec2i(
@@ -57,8 +56,14 @@ elseif sort == 'volumeMax' then
 	srcs:sort(|a,b| a.volume > b.volume)
 elseif sort == 'volumeMin' then
 	srcs:sort(|a,b| a.volume < b.volume)
+elseif sort == 'widthMax' then
+	srcs:sort(|a,b| a.img.width > b.img.width)
 elseif sort == 'widthMin' then
 	srcs:sort(|a,b| a.img.width < b.img.width)
+elseif sort == 'heightMax' then
+	srcs:sort(|a,b| a.img.height > b.img.height)
+elseif sort == 'heightMin' then
+	srcs:sort(|a,b| a.img.height < b.img.height)
 else
 	error("I don't know how to sort by", sort)
 end
@@ -114,6 +119,8 @@ for _,src in ipairs(srcs) do
 	findDst(src)
 end
 
+local startIndex = cmdline.startIndex or 0
+
 local dstdir = srcdir / 'atlas'
 dstdir:mkdir()
 for dstIndex,dst in ipairs(dsts) do
@@ -135,13 +142,20 @@ for dstIndex,dst in ipairs(dsts) do
 			dstimg = dstimg:toIndexed()
 		end
 
-		dstimg:save(dstdir('sheet'..(dstIndex==1 and '' or dstIndex-1)..'.png').path)
+		local sheetIndex = dstIndex - 1 + startIndex
+		dstimg:save(dstdir('sheet'..(sheetIndex==0 and '' or sheetIndex)..'.png'))
 	else
 		-- [[ using palette
 		local dstimg = Image(sheetSize, sheetSize, srcChannels, srcFormat)
 		ffi.fill(dstimg.buffer, dstimg:getBufferSize())
 		for _,src in ipairs(dst.placed) do
-			dstimg.palette = src.img.palette
+			-- if the last overwritten palette is smaller than any previous image's index range (and palette)
+			--  then libpng will abort on save.
+			if not dstimg.palette
+			or (src.img.palette and #dstimg.palette < #src.img.palette)
+			then
+				dstimg.palette = src.img.palette
+			end
 			dstimg:pasteInto{
 				image = src.img,
 				x = src.placePos.x * tileSize,
@@ -149,7 +163,8 @@ for dstIndex,dst in ipairs(dsts) do
 			}
 		end
 		--]]
-		dstimg:save(dstdir('sheet'..(dstIndex==1 and '' or dstIndex-1)..'.png').path)
+		local sheetIndex = dstIndex - 1 + startIndex
+		dstimg:save(dstdir('sheet'..(sheetIndex==0 and '' or sheetIndex)..'.png'))
 	end
 end
 
