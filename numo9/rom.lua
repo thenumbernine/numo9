@@ -9,7 +9,7 @@ local string = require 'ext.string'
 local struct = require 'struct'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
-local vec4x4fcol = require 'numo9.vec4x4fcol'
+local vec4x4fcol = require 'vec-ffi.vec4x4fcol'
 
 
 local int8_t = ffi.typeof'int8_t'

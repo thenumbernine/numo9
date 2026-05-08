@@ -6,8 +6,7 @@ local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local vec3f = require 'vec-ffi.vec3f'
 local vec4f = require 'vec-ffi.vec4f'
---local vec4x4f = require 'vec-ffi.vec4x4f'
-local vec4x4fcol = require 'numo9.vec4x4fcol'
+local vec4x4fcol = require 'vec-ffi.vec4x4fcol'
 local vector = require 'stl.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
@@ -52,7 +51,7 @@ local GLuint_4 = ffi.typeof'GLuint[4]'
 local vec4x4fcol_p = ffi.typeof'vec4x4fcol*'
 
 
-assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms, and the vec4x4f in this file")
+assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms, and the vec4x4fcol in this file")
 
 --local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
 --local dirLightMapSize = vec2i(512, 512)

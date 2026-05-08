@@ -13,7 +13,7 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
-local vec4x4fcol = require 'numo9.vec4x4fcol'
+local vec4x4fcol = require 'vec-ffi.vec4x4fcol'
 local gl = require 'gl'
 
 local BlobMesh3D = require 'numo9.blob.mesh3d'

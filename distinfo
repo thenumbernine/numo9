@@ -109,7 +109,6 @@ files = {
 	"numo9/ui/tilesel.lua",
 	"numo9/ui/undo.lua",
 	"numo9/ui/widget.lua",
-	"numo9/vec4x4fcol.lua",
 	"numo9/video.lua",
 	"numo9/videomode.lua",
 	"numo9/view.lua",
