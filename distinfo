@@ -3,6 +3,7 @@
 --------------------------------------------
 
 name = "numo9"
+git = "https://github.com/thenumbernine/numo9"
 icon = 'docpics/numo9 icon.png'
 iconOSX = 'docpics/numo9 icon.icns'
 startDir = 'numo9'
@@ -23,6 +24,7 @@ files = {
 	"docpics/numo9 icon.png",
 	"docpics/numo9_demo.gif",
 	"docpics/splash.gif",
+	"docpics/test-voxelmap.png",
 	"dungeon.n9",
 	"elemental.n9",
 	"extra-scripts/2d-rot-isometry.rua",
@@ -32,6 +34,7 @@ files = {
 	"extra-scripts/multi-atlas.rua",
 	"extra-scripts/regen-all-carts.rua",
 	"extra-scripts/savepal.rua",
+	"extra-scripts/voxel-histogram.rua",
 	"font.png",
 	"hello.n9",
 	"include/README.md",
@@ -39,6 +42,7 @@ files = {
 	"include/ext/range.lua",
 	"include/ext/threads.lua",
 	"include/numo9/autotile.lua",
+	"include/numo9/lights.lua",
 	"include/numo9/matstack.lua",
 	"include/numo9/screen.lua",
 	"include/obj/sys.lua",
@@ -146,8 +150,10 @@ deps = {
 	"gl",
 	"image",
 	"langfix",
+	"matrix",
 	"mesh",
 	"sdl",
+	"simplexnoise",
 	"stl",
 	"struct",
 	"template",
