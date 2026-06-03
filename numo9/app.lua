@@ -32,13 +32,12 @@ local gl = require 'gl'
 local GLApp = require 'gl.app'
 local View = require 'numo9.view'
 local ThreadManager = require 'threadmanager'
+local sha2 = require 'sha2'
 
 local numo9_archive = require 'numo9.archive'
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
 local blobStrToCartImage = numo9_archive.blobStrToCartImage
 local blobsToCartImage = numo9_archive.blobsToCartImage
-local getCodeFromBlobs = numo9_archive.getCodeFromBlobs
-local getMetaInfoFromCode = numo9_archive.getMetaInfoFromCode
 
 local numo9_net = require 'numo9.net'
 local Server = numo9_net.Server
@@ -78,6 +77,7 @@ local buttonCodeForName = numo9_keys.buttonCodeForName
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local blobClassNameForType = numo9_blobs.blobClassNameForType
+local blobsToStr = numo9_blobs.blobsToStr
 
 local numo9_video = require 'numo9.video'
 local resetLogoOnSheet = numo9_video.resetLogoOnSheet
@@ -1039,9 +1039,6 @@ self.env = setmetatable({
 			cpath = package.cpath,
 			loaded = {},
 		},
-		require = function(...)
-			error"require not implemented"
-		end,
 	}, {
 		--[[ don't do this, the game API self.env.load messes with our Lua load() override
 		__index = self.env,
@@ -3289,11 +3286,11 @@ function App:resetCart()
 end
 
 -- returns the function to run the code
-function App:loadCmd(cmd, source, env, dontUseLangFix)
+function App:loadCmd(cmd, source, env, alreadyTranspiledToLua)
 	-- allow meta-info to pre-transpile and offload the langfix-transpile step
-	if dontUseLangFix then
+	if alreadyTranspiledToLua then
 
-return select(2, require 'ext.timer'('App:loadCmd with dontUseLangFix', function()
+return select(2, require 'ext.timer'('App:loadCmd with alreadyTranspiledToLua', function()
 		return load(cmd, source, 't', env or self.gameEnv or self.env)
 end))
 	end
@@ -3366,10 +3363,12 @@ function App:runCart()
 		__index = self.env,
 	})
 
-
-	local code = numo9_archive.getCodeFromBlobs(self.blobs)
-
-	self.metainfo = numo9_archive.getMetaInfoFromCode(code, self.blobs)
+	-- store the main code blob metainfo, i.e. blobs.code[1].metainfo, as app.metainfo
+	self.metainfo = self.blobs.code[1]:getMetaInfo()
+	-- if first code blob doesn't have a saveid then use the md5 of all code blobs
+	if not self.metainfo.saveid then
+		self.metainfo.saveid = sha2.md5(blobsToStr(self.blobs))
+	end
 
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
 	local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
@@ -3432,14 +3431,17 @@ function App:runCart()
 		self.metainfo['archive.paletteForSheet'] = paletteForSheet
 	end
 
-	local dontUseLangFix = self.metainfo.codeSaveMethod == 'transpiled-lua'
+	local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
 		self.ram.romUpdateCounter = 0
 
+		-- load just the first code blob, let it require() any others that it wants
+		local code = self.blobs.code[1]:toBinStr()
+
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
-		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, dontUseLangFix)
+		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, alreadyTranspiledToLua)
 		if not f then
 			--print(msg)
 			self.con:print(msg)

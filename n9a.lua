@@ -31,7 +31,6 @@ local blobStrWithSigToCartImage = numo9_archive.blobStrWithSigToCartImage
 local cartImageToBlobStrWithSig = numo9_archive.cartImageToBlobStrWithSig
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
 local blobsToCartImage = numo9_archive.blobsToCartImage
-local getMetaInfoFromBlobs = numo9_archive.getMetaInfoFromBlobs
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -133,7 +132,8 @@ elseif cmd == 'x' then
 	assert.type(blobs, 'table')
 
 	-- allow metainfo to say what sheet gets what palette
-	local metainfo = getMetaInfoFromBlobs(blobs)
+	local metainfo = blobs.code[1]:getMetaInfo()
+
 	local paletteForSheet = metainfo['archive.paletteForSheet']
 	if paletteForSheet then
 		paletteForSheet = op.land(pcall(fromlua, paletteForSheet))
@@ -176,7 +176,7 @@ elseif cmd == 'a' or cmd == 'r' then
 	for _,blobClassName in ipairs(table.keys(blobClassForName):sort()) do
 		local blobClass = blobClassForName[blobClassName]
 		for blobIndex=0,math.huge do
-			local filepath = basepath(blobClass:getFileName(blobIndex))
+			local filepath = basepath/blobClass:getFileName(blobIndex)
 			if not filepath:exists() then break end
 --DEBUG:print('loading blob #'..blobIndex..' type='..blobClassName..' from file="'..filepath..'"')
 			assert(xpcall(function()
@@ -184,6 +184,112 @@ elseif cmd == 'a' or cmd == 'r' then
 			end, function(err)
 				return filepath..':\n'..err..'\n'..debug.traceback()
 			end))
+		end
+	end
+
+	-- also add src/*.lua files
+	local srcdir = basepath/'src'
+	if srcdir:exists() then
+		for f in srcdir:rdir() do
+			local basefn, ext = f:getext()
+			if ext == 'lua' or ext == 'rua' then	-- I'm switching to .rua since it's technically not .lua language ...
+				local code = assert(f:read())
+				code = '-- filename = '..f..'\n'..code
+				local codeBlob = BlobCode(code)
+				blobs.code:insert(codeBlob)
+			end
+		end
+	end
+
+	-- now search for require()'s with literal strings, verify that the require doesn't pull from the cart dir, and check if it pulls from numo9/include/* instead ...
+	do
+		local requireSet = {}
+		-- cache meta-info per-blob
+		-- hmm TODO this always?
+		for _,codeBlob in ipairs(blobs.code) do
+			-- refresh the .metainfo
+			-- build a lookup of codeBlob.metainfo.filename -> codeBlob for the require() function
+			local metainfo = codeBlob:getMetaInfo()
+			if metainfo.filename then
+				requireSet[metainfo.filename] = codeBlob
+			end
+		end
+
+		-- copied from dist/build-distinfo.rua
+		local builtinReqs = {
+			--ffi = true,
+			--jit = true,
+			--debug = true,
+			--utf8 = true,
+			coroutine = true,
+			io = true,
+			math = true,
+			os = true,
+			string = true,
+			table = true,
+		}
+		local cpath = table.concat({
+			(basepath/'src/?.lua').path,
+			(basepath/'src/?.rua').path,
+			'include/?.lua',
+			'include/?.rua',
+		}, ';')
+
+		-- recursive search parse tree for require()'s
+		local function search(x)
+			for k,v in pairs(x) do
+				if type(v) == 'table'
+				and k ~= 'parent'	-- TODO need a list of child keys
+				and k ~= 'parser'
+				then
+					if v.type == 'call'
+					and v.func.type == 'var'
+					and v.func.name == 'require'
+					and v.args[1].type == 'string'
+					then
+						-- TODO maybe if the require is inside a `pcall(require, somewhere)` then mark it as optional...
+						local req = v.args[1].value
+						if not builtinReqs[req] then
+--DEBUG:print('searching for require', req)
+							-- search require
+							-- see if it's in the cart archive path or the include path
+							local fn = package.searchpath(req, cpath)
+							if not fn then
+								error("found require "..req.." but didn't find the file it went with")
+							end
+							if fn:match'^include'
+							and not requireSet[fn]
+							then
+								-- if it's an include file then now we have to package this include file extra
+								requireSet[fn] = true
+
+								local code = path(fn):read() or error("adding code blob for require'd include/ file "..fn.." and I failed to read it")
+								code = '-- filename = '..fn..'\n'..code
+								blobs.code:insert(BlobCode(code))
+							end
+						end
+					end
+					search(v)
+				end
+			end
+		end
+
+		local LuaFixedParser = require 'langfix.parser'
+		local parser = LuaFixedParser()
+
+		local i = 1
+		while i <= #blobs.code do
+			local codeBlob = blobs.code[i]
+			local code = codeBlob:toBinStr()
+			local success, msg = parser:setData(code)
+			if not success then
+				io.stderr:write('WARNING - failed to parse '..f..': '..msg..'\n')
+			else
+				local tree = parser.tree
+				search(tree, true)
+			end
+
+			i = i + 1
 		end
 	end
 
@@ -257,7 +363,6 @@ elseif cmd == 'a' or cmd == 'r' then
 			phaserwave,
 		}
 
-
 		for i,f in ipairs(wavefuncs) do
 			if not blobs.sfx[i] then
 print('creating default sfx '..i..' blob')
@@ -298,41 +403,40 @@ print('creating default sfx '..i..' blob')
 	-- so I came up with a fix
 	-- optional save transpiled code or save bytecode
 	-- maybe I shouldn't let the normies save bytecode, or they will do it to try to "protect their intellectual property"
-	local metainfo = getMetaInfoFromBlobs(blobs)
+	local metainfo = blobs.code[1]:getMetaInfo()
 	if metainfo.codeSaveMethod then
 		if metainfo.codeSaveMethod == 'transpiled-lua' then
 			require 'ext.timer'('caching transpiled code', function()
 				-- TODO this is duplicated in numo9/app.lua:
-				local codeBlob = blobs.code[1]
-				local code = codeBlob:toBinStr()
+				for _,codeBlob in ipairs(blobs.code) do
+					local code = codeBlob:toBinStr()
 
-				local loadenv = setmetatable({
-					package = {
-						searchpath = package.searchpath,
-						searchers = table(package.searchers or package.loaders):setmetatable(nil),
-						path = package.path,
-						cpath = package.cpath,
-						loaded = {},
-					},
-					require = function(...)
-						error"require not implemented"
-					end,
-				}, {
-					__index = _G,
-				})
-				local langfixState = require 'langfix.env'(loadenv)
-				local langfix = loadenv.langfix
-				code = assert(langfix.luaToFixed(code))
+					local loadenv = setmetatable({
+						package = {
+							searchpath = package.searchpath,
+							searchers = table(package.searchers or package.loaders):setmetatable(nil),
+							path = package.path,
+							cpath = package.cpath,
+							loaded = {},
+						},
+						--require = require,
+					}, {
+						__index = _G,
+					})
+					local langfixState = require 'langfix.env'(loadenv)
+					local langfix = loadenv.langfix
+					code = assert(langfix.luaToFixed(code))
 
-				-- re-append the meta-info for the next read:
-				local metakv = table()
-				for k,v in pairs(metainfo) do
-					metakv:insert('-- '..k..' = '..v)
+					-- re-append the meta-info for the next read:
+					local metakv = table()
+					for k,v in pairs(metainfo) do
+						metakv:insert('-- '..k..' = '..v)
+					end
+					code = metakv:concat'\n'..'\n\n'..code
+
+					codeBlob.vec:resize(#code)
+					ffi.copy(codeBlob.vec.v, code, #code)
 				end
-				code = metakv:concat'\n'..'\n\n'..code
-
-				codeBlob.vec:resize(#code)
-				ffi.copy(codeBlob.vec.v, code, #code)
 			end)
 		--elseif metainfo.codeSaveMethod == 'bytecode' then
 		else

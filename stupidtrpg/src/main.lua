@@ -5,10 +5,10 @@ end
 
 math.randomseed(tstamp())
 
---#include ext/class.lua
---#include vec/vec2.lua
---#include vec/box2.lua
---#include numo9/screen.lua
+require 'ext.class'
+require 'vec.vec2'
+require 'vec.box2'
+require 'numo9.screen'
 
 mode(42)	-- 16:9 480x270x8bpp-indexed
 
@@ -112,19 +112,19 @@ con={
 	end,
 }
 
---#include log.lua
---#include map.lua
---#include battle.lua
---#include entity.lua
---#include army.lua
---#include unit.lua
---#include player.lua
---#include treasure.lua
---#include items.lua
---#include monster.lua
---#include ui.lua
---#include view.lua
---#include client.lua
+require 'log'
+require 'map'
+require 'battle'
+require 'entity'
+require 'army'
+require 'unit'
+require 'player'
+require 'treasure'
+require 'items'
+require 'monster'
+require 'ui'
+require 'view'
+require 'client'
 
 game = {
 	time = 0,

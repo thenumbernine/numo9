@@ -9,4 +9,4 @@
 -- editMesh3D.sheetBlobIndex = 1
 -- editVoxelmap.sheetBlobIndex = 1
 
---#include main.lua
+require 'main'

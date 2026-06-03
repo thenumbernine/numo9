@@ -55,4 +55,28 @@ function BlobCode:loadFile(filepath, basepath, blobIndex)
 	return BlobCode(code)
 end
 
+-- deduces and stores the .metainfo metadata from this code blob
+-- the first code blob has all the master metadata
+-- but subsequent codeblobs can have filename metadata
+function BlobCode:getMetaInfo()
+	-- TODO searching a char* would be more efficient...
+	local code = self:toBinStr()
+
+	-- reload the metadata while we're here
+	self.metainfo = {}
+	do
+		local i = 1
+		repeat
+			local from, to, line, term = code:find('^([^\r\n]*)(\r?\n)', i)
+			if not line then break end -- I guess no single-line meta tags with no code afterwards ...
+			local k, v = line:match'^%-%-%s*([^%s=]+)%s*=%s*(.-)%s*$'
+			if not k then break end
+--DEBUG:print('setting metainfo', k, v)
+			self.metainfo[k] = v
+			i = to + #term
+		until false
+	end
+	return self.metainfo
+end
+
 return BlobCode

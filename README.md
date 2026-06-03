@@ -104,20 +104,20 @@ When archiving, multiple blobs of any type can be added to the cart via the arch
 
 Archiver filenames per blobs as as follows:
 
-| blob type | filename      | unarchived file format                       |
-|-----------|---------------|----------------------------------------------|
-| sheet     | sheet.png     | 256 x 256 x 8bpp-indexed                     |
-| tilemap   | tilemap.png   | 256 x 256 x RGB 8bpp (only 16bpp used)       |
-| font      | font.png      | 256 x 4 x 1bpp-indexed                       |
-| sfx       | sfx.wav       | 32khz int16 mono                             |
-| music     | music.bin     | 16bpp delta-compresesd custom tracker format |
-| code      | code.lua      | code                                         |
-| data      | data.bin      | binary blob                                  |
-| persist   | persist.bin   | binary blob                                  |
-| brushmap  | brushmap.bin  | custom format                                |
-| mesh3d    | mesh3d.obj    | wavefront .obj                               |
-| voxelmap  | voxelmap.vox  | custom format                                |
-| animsheet | animsheet.png | 1024 x 1 x RGB 8bpp (only 16bpp used)        |
+| blob type | filename        | unarchived file format                       |
+|-----------|-----------------|----------------------------------------------|
+| sheet     | sheet.png       | 256 x 256 x 8bpp-indexed                     |
+| tilemap   | tilemap.png     | 256 x 256 x RGB 8bpp (only 16bpp used)       |
+| font      | font.png        | 256 x 4 x 1bpp-indexed                       |
+| sfx       | sfx.wav         | 32khz int16 mono                             |
+| music     | music.bin       | 16bpp delta-compresesd custom tracker format |
+| code      | code.lua & src/ | code                                         |
+| data      | data.bin        | binary blob                                  |
+| persist   | persist.bin     | binary blob                                  |
+| brushmap  | brushmap.bin    | custom format                                |
+| mesh3d    | mesh3d.obj      | wavefront .obj                               |
+| voxelmap  | voxelmap.vox    | custom format                                |
+| animsheet | animsheet.png   | 1024 x 1 x RGB 8bpp (only 16bpp used)        |
 
 ## Blob Types:
 
@@ -173,7 +173,16 @@ For more on this, and some helper functions and classes, see `include/numo9/auto
 
 ### code
 
-This holds a copy of the code in RAM.  Idk why.  if you poke it, nothing happens. Maybe I'll change that in the future but idk why I would, other than "for lulz".
+This holds a copy of the code in RAM.  Idk why.  if you poke it, nothing happens. Maybe I'll change that in the future but idk why I would.  Code is loaded and ran at cart load time.
+
+Enumerated code blobs are concatenated all together.
+
+Also any `*.lua` files found in the `src/` subdirectory are also added as code blob, in arbitrary order.
+These have their filename relative to the `src/` folder automatically prepended in a comment with `-- filename = $filename` in the first line.
+
+From there, the `require` function will search for blobs to include based on path name in the first line.
+
+The `require` function can also search for files in the `numo9/include/` folder, however only as `require` called with a string literal.  This is so static analysis can determine which `numo9/include/` files should be added to the apk.
 
 ### data
 
