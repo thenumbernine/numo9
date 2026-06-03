@@ -1,5 +1,5 @@
---#include ext/class.lua
---#include vec/vec3.lua
+require 'ext.class'
+require 'vec.vec3'
 
 box3_getminvalue=|x|do
 	if x.min then return x.min end

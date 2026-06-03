@@ -1,4 +1,4 @@
---#include ext/class.lua
+require 'ext.class'
 
 -- autotile will vary per sheet
 -- I could pass the current sheet as an extra arg ... or make the sheet a table key ...

@@ -1,5 +1,5 @@
---#include ext/class.lua
---#include vec/vec3.lua
+require 'ext.class'
+require 'vec.vec3'
 
 local quat = class()
 quat.init=|:,...|do

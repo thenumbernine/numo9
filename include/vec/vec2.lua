@@ -1,4 +1,5 @@
---#include ext/class.lua
+require 'ext.class'
+
 vec2_add=|ax,ay,bx,by|(ax+bx, ay+by)
 vec2_sub=|ax,ay,bx,by|(ax-bx, ay-by)
 vec2_lenSq=|x,y|x^2+y^2

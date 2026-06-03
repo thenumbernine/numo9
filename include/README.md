@@ -4,7 +4,6 @@ Didn't you read the root level README?  There's no compiler required.  That mean
 
 Nope.
 
-This folder is for code snippets that are preprocess-included into the carts upon archive.  Similar to pico-8's `#include`.
+It can be used for either `#include` preprocessor for directly injecting code, or for `require()` file-scope code blocks/modules.
 
-I don't like this feature honestly.  I'd rather add support for multiple files, virtual-filesystem mount-points, and a proper `require` function within the fantasy console virtual filesystem.
-Maybe some day. I guess tic80's multi-file-projects do this too, idk?
+Static analysis at archive time will determine what additional `include/` files need to be packaged.

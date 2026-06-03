@@ -1,7 +1,7 @@
 objs=table()
 
---#include ext/class.lua
---#include vec/vec2.lua
+require 'ext.class'
+require 'vec.vec2'
 
 Object=class()
 Object.spriteSize = vec2(1,1)	-- tile size, override for 16x16

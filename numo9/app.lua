@@ -1001,6 +1001,14 @@ function App:initGL()
 			return self:loadCmd(cmd, ...)
 			--return self:loadCmd(cmd, source, self.gameEnv)  -- should it use the game's env, or the app's default env? or should it be an arg?
 		end,
+
+		require = function(req)
+			-- search only the code blobs based on their filename metainfo
+			local fn = req:gsub('%.', '/')
+			local blob = self.codeBlobForFilename[fn..'.lua'] or self.codeBlobForFilename[fn..'.rua']
+			if not blob then error("module '"..req.."' not found") end
+			return assert(load(blob:toBinStr()))
+		end,
 	}
 
 --[[ debugging - trace all calls
@@ -3368,6 +3376,14 @@ function App:runCart()
 	-- if first code blob doesn't have a saveid then use the md5 of all code blobs
 	if not self.metainfo.saveid then
 		self.metainfo.saveid = sha2.md5(blobsToStr(self.blobs))
+	end
+
+	self.codeBlobForFilename = {}
+	for _,codeBlob in ipairs(self.blobs.code) do
+		local metainfo = codeBlob:getMetaInfo()
+		if metainfo.filename then
+			self.codeBlobForFilename[metainfo.filename] = codeBlob
+		end
 	end
 
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...

@@ -1,4 +1,4 @@
---#include ext/class.lua
+require 'ext.class'
 
 -- component-based
 vec3_add=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az+bz)

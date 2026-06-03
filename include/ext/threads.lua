@@ -1,4 +1,4 @@
---#include ext/class.lua
+require 'ext.class'
 
 local Threads = class()
 Threads.init = |:|do

@@ -1,7 +1,7 @@
---#include ext/class.lua
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include numo9/matstack.lua	-- modelMatrixIndex etc
+require 'ext.class'
+require 'vec.vec2'
+require 'vec.vec3'
+require 'numo9.matstack'	-- modelMatrixIndex etc
 
 
 -- light system object

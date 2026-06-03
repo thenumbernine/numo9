@@ -45,6 +45,10 @@ local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local BlobSet = numo9_blobs.BlobSet
+local BlobCode = blobClassForName.code
+local BlobPalette = blobClassForName.palette
+local BlobFont = blobClassForName.font
+local BlobSFX = blobClassForName.sfx
 
 -- special hack for n9a, tell the blob classes to skip GPU resource allocation
 -- why?  no problem in Linux or OSX, but in Windows it will poop itself if you try to touch OpenGL before GL context initialization
@@ -190,12 +194,17 @@ elseif cmd == 'a' or cmd == 'r' then
 	-- also add src/*.lua files
 	local srcdir = basepath/'src'
 	if srcdir:exists() then
-		for f in srcdir:rdir() do
-			local basefn, ext = f:getext()
+		for fn in srcdir:rdir() do
+			-- TODO that a:rel(b) path function...
+			assert.eq(fn.path:sub(1,#srcdir.path+1), srcdir.path..'/')
+			local relfn = path(fn.path:sub(#srcdir.path+2))
+
+			local basefn, ext = relfn:getext()
 			if ext == 'lua' or ext == 'rua' then	-- I'm switching to .rua since it's technically not .lua language ...
-				local code = assert(f:read())
-				code = '-- filename = '..f..'\n'..code
+				local code = assert(fn:read())
+				code = '-- filename = '..relfn..'\n'..code
 				local codeBlob = BlobCode(code)
+--DEBUG:print('adding src/ file', fn, 'rel', relfn)
 				blobs.code:insert(codeBlob)
 			end
 		end
@@ -215,19 +224,7 @@ elseif cmd == 'a' or cmd == 'r' then
 			end
 		end
 
-		-- copied from dist/build-distinfo.rua
-		local builtinReqs = {
-			--ffi = true,
-			--jit = true,
-			--debug = true,
-			--utf8 = true,
-			coroutine = true,
-			io = true,
-			math = true,
-			os = true,
-			string = true,
-			table = true,
-		}
+		-- loosely based on dist/build-distinfo.rua
 		local cpath = table.concat({
 			(basepath/'src/?.lua').path,
 			(basepath/'src/?.rua').path,
@@ -249,7 +246,7 @@ elseif cmd == 'a' or cmd == 'r' then
 					then
 						-- TODO maybe if the require is inside a `pcall(require, somewhere)` then mark it as optional...
 						local req = v.args[1].value
-						if not builtinReqs[req] then
+						do -- if not builtinReqs[req] then
 --DEBUG:print('searching for require', req)
 							-- search require
 							-- see if it's in the cart archive path or the include path
@@ -257,15 +254,18 @@ elseif cmd == 'a' or cmd == 'r' then
 							if not fn then
 								error("found require "..req.." but didn't find the file it went with")
 							end
-							if fn:match'^include'
-							and not requireSet[fn]
-							then
-								-- if it's an include file then now we have to package this include file extra
-								requireSet[fn] = true
+							local include = 'include/'
+							if fn:sub(1,#include) == include then
+								local relfn = fn:sub(#include+1)
+								if not requireSet[relfn] then
+--DEBUG:print('adding required', req, 'full fn', fn, 'relfn', relfn)
+									-- if it's an include file then now we have to package this include file extra
+									requireSet[relfn] = true
 
-								local code = path(fn):read() or error("adding code blob for require'd include/ file "..fn.." and I failed to read it")
-								code = '-- filename = '..fn..'\n'..code
-								blobs.code:insert(BlobCode(code))
+									local code = path(fn):read() or error("adding code blob for require'd "..req.." include/ file "..fn.." and I failed to read it")
+									code = '-- filename = '..relfn..'\n'..code
+									blobs.code:insert(BlobCode(code))
+								end
 							end
 						end
 					end
@@ -296,12 +296,12 @@ elseif cmd == 'a' or cmd == 'r' then
 	if #blobs.palette == 0 then
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if palette.png doens't exist then load the default at least
-		local blob = blobClassForName.palette()
+		local blob = BlobPalette()
 		resetPalette(blob:getPtr())
 		blobs.palette:insert(blob)
 	end
 	if #blobs.font == 0 then
-		local blob = blobClassForName.font()
+		local blob = BlobFont()
 		resetFont(blob:getPtr())
 		blobs.font:insert(blob)
 	end
@@ -378,7 +378,7 @@ print('creating default sfx '..i..' blob')
 				assert.eq(p, data + len)
 				-- build a AudioWAV here
 				local datastr = ffi.string(data, ffi.sizeof(audioSampleType) * len)
-				blobs.sfx[i] = blobClassForName.sfx:loadWav{
+				blobs.sfx[i] = BlobSFX:loadWav{
 					ctype = audioSampleType,
 					channels = 1,
 					data = datastr,
