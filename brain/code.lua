@@ -52,7 +52,7 @@ for k,v in pairs(mapTypes) do
 end
 mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
---#include ext/class.lua
+local class = require 'ext.class'
 
 objs=table()
 

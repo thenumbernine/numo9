@@ -3,9 +3,8 @@
 --mode'480x270x8bppIndex'
 mode'Native_RGB565'
 
---#include numo9/matstack.lua
---#include vec/vec3.lua
---#include vec/quat.lua
+local vec3 = require 'vec.vec3'
+local quat = require 'vec.quat'
 
 local angle = quat()
 local lmx, lmy = 128, 128
@@ -42,8 +41,8 @@ update=||do
 	lmx, lmy = mx, my
 	if key'mouse_left' then
 		if dx ~= 0 or dy ~= 0 then
-			local x,y,z,w = quat_fromAngleAxis(th*math.sqrt(dx^2+dy^2), dy, dx, 0)
-			angle:set(quat_mul(x,y,z,w, angle:unpack()))
+			local x,y,z,w = quat.quat_fromAngleAxis(th*math.sqrt(dx^2+dy^2), dy, dx, 0)
+			angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 		end
 	end
 	if keyp'mouse_right' then
@@ -51,17 +50,17 @@ update=||do
 		meshIndex &= 1
 	end
 	if btn'up' then
-		local x,y,z,w = quat_fromAngleAxis(-th, 1, 0, 0)
-		angle:set(quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxis(-th, 1, 0, 0)
+		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 	elseif btn'down' then
-		local x,y,z,w = quat_fromAngleAxis(th, 1, 0, 0)
-		angle:set(quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxis(th, 1, 0, 0)
+		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 	elseif btn'left' then
-		local x,y,z,w = quat_fromAngleAxis(-th, 0, 1, 0)
-		angle:set(quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxis(-th, 0, 1, 0)
+		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 	elseif btn'right' then
-		local x,y,z,w = quat_fromAngleAxis(th, 0, 1, 0)
-		angle:set(quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxis(th, 0, 1, 0)
+		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 	end
 	if btnp(4) or btnp(5) or btnp(6) or btnp(7) then
 		wireframe = not wireframe
@@ -70,7 +69,7 @@ update=||do
 	-- TODO should I change my quat class to accept w,x,y,z?
 	-- that'd make passing quat->matrot easier ...
 	do
-		local x,y,z,th = quat_toAngleAxis(angle:unpack())
+		local x,y,z,th = quat.quat_toAngleAxis(angle:unpack())
 		matrot(th,x,y,z)
 	end
 

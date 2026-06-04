@@ -1,5 +1,6 @@
 local class = require 'ext.class'
 local vec3 = require 'vec.vec3'
+local vec3_unit = vec3.vec3_unit
 
 local quat = class()
 quat.init=|:,...|do
