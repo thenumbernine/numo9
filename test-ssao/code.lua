@@ -1,5 +1,6 @@
---#include ext/range.lua
---#include numo9/matstack.lua
+local range = require 'ext.range'
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
 
 poke(ramaddr'HD2DFlags', 1|4)	-- 1 = turn on light calcs, 4 = ssao calcs
 pokef(ramaddr'ssaoSampleRadius', .1)
