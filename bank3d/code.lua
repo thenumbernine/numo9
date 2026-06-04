@@ -11,12 +11,18 @@
 -- editMesh3D.sheetBlobIndex = 1
 -- editVoxelmap.sheetBlobIndex = 1
 
---#include ext/range.lua
---#include ext/class.lua
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include numo9/matstack.lua
---#include numo9/screen.lua
+local range = require 'ext.range'
+local class = require 'ext.class'
+
+local vec2 = require 'vec.vec2'
+local dirForName = vec2.dirForName
+local dirvecs = vec2.dirvecs
+
+local vec3 = require 'vec.vec3'
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+local getAspectRatio = require 'numo9.screen'.getAspectRatio
+local getScreenSize = require 'numo9.screen'.getScreenSize
 
 --videoMode='256x256xRGB565'
 --videoMode='480x270x8bppIndex'
