@@ -1,7 +1,10 @@
+local _M = {}
+
 local objs=table()
 
 local class = require 'ext.class'
 local vec2 = require 'vec.vec2'
+local dirForName = vec2.dirForName
 
 Object=class()
 Object.spriteSize = vec2(1,1)	-- tile size, override for 16x16
@@ -59,8 +62,8 @@ Object.update=|:|do
 			local pxmax = nx + self.bbox.max.x
 			local pymax = ny + self.bbox.max.y
 			local hit
-			for bymin=math.clamp(math.floor(pymin), 0, mapheight-1), math.clamp(math.ceil(pymax), 0, mapheight-1) do
-				for bxmin=math.clamp(math.floor(pxmin), 0, mapwidth-1), math.clamp(math.ceil(pxmax), 0, mapwidth-1) do
+			for bymin=math.clamp(math.floor(pymin), 0, _M.mapheight-1), math.clamp(math.ceil(pymax), 0, _M.mapheight-1) do
+				for bxmin=math.clamp(math.floor(pxmin), 0, _M.mapwidth-1), math.clamp(math.ceil(pxmax), 0, _M.mapwidth-1) do
 					local bxmax, bymax = bxmin + 1, bymin + 1
 					local ti = tget(0, bxmin, bymin)
 					local t = mapTypes[ti]
@@ -92,15 +95,15 @@ Object.update=|:|do
 
 							-- do world hit
 							local hitThis = true
-							if t.touch 
-							and t:touch(self, bxmin, bymin, side) == false 
-							then 
-								hitThis = false 
+							if t.touch
+							and t:touch(self, bxmin, bymin, side) == false
+							then
+								hitThis = false
 							end
-							if self.touchMap 
-							and self:touchMap(bxmin, bymin, t, ti) == false 
-							then 
-								hitThis = false 
+							if self.touchMap
+							and self:touchMap(bxmin, bymin, t, ti) == false
+							then
+								hitThis = false
 							end
 							-- so block solid is based on solid flag and touch result ...
 
@@ -135,11 +138,11 @@ Object.update=|:|do
 						-- if not solid then
 						-- TODO side solid flags like with map blocks, so we can have things like moving platforms
 						local hitThis = true
-						if self.touch and self:touch(o) == false then 
-							hitThis = false 
+						if self.touch and self:touch(o) == false then
+							hitThis = false
 						end
-						if o.touch and o:touch(self) == false then 
-							hitThis = false 
+						if o.touch and o:touch(self) == false then
+							hitThis = false
 						end
 						hit = hit or hitThis
 					end
@@ -174,7 +177,6 @@ Object.update=|:|do
 	end
 end
 
-return {
-	Object = Object,
-	objs = objs,
-}
+_M.Object = Object
+_M.objs = objs
+return _M

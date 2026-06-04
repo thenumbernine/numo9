@@ -6,11 +6,15 @@
 how well can numo9 handle a voxelmap based digging strategy sims game...
 --]]
 
---#include ext/class.lua
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include numo9/matstack.lua
---#include numo9/screen.lua
+local class = require 'ext.class'
+local vec2 = require 'vec.vec2'
+local vec3 = require 'vec.vec3'
+
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+
+local getScreenSize = require 'numo9.screen'.getScreenSize
+
 
 mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565

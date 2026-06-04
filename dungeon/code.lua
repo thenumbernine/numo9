@@ -5,11 +5,10 @@
 -- editTilemap.draw16Sprites = true
 -- editTilemap.sheetBlobIndex = 1
 
---#include vec/vec2.lua
---#include vec/box2.lua
---#include ext/class.lua
---#include ext/range.lua
---#include ext/class.lua
+local vec2 = require 'vec.vec2'
+local box2 = require 'vec.box2'
+local class = require 'ext.class'
+local range = require 'ext.range'
 
 math.randomseed(tstamp())
 
@@ -112,8 +111,11 @@ end
 -- tilemap size in tiles
 local mapwidth = 256
 local mapheight = 256
+require 'obj.sys'.mapwidth = mapwidth
+require 'obj.sys'.mapheight = mapheight
+local objs = require 'obj.sys'.objs
+local Object = require 'obj.sys'.Object
 
---#include obj/sys.lua
 Object.tileSize = vec2(2,2)	-- for 16x16
 
 
