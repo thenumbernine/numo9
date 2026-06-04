@@ -1,5 +1,5 @@
 math.randomseed(tstamp())
---#include ext/class.lua
+local class = require 'ext.class'
 
 local mapw,maph=32,32
 local maxPlayers=64

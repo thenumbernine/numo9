@@ -1,4 +1,4 @@
---#include ext/class.lua
+local class = require 'ext.class'
 
 vec2=class{
 	set=|:,x,y|do

@@ -1,6 +1,6 @@
---#include ext/class.lua
---#include ext/range.lua
---#include vec/vec2.lua
+local class = require 'ext.class'
+local range = require 'ext.range'
+local vec2 = require 'vec.vec2'
 
 local Card = class()
 Card.suits = {'$', '#', '%', '&'}
