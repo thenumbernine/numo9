@@ -95,7 +95,7 @@ dirs = {
 	[3] = {1,0},
 }
 
---#include ext/range.lua
+local range = require 'ext.range'
 
 table.equals = |a,b|do
 	local ka = table.keys(a)
