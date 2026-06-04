@@ -1,4 +1,4 @@
---#include ext/range.lua
+local range = require 'ext.range'
 
 local m = 0
 local modes = range(0,49):append{255}
