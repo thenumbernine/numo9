@@ -51,7 +51,7 @@ function UITextArea:init(args)
 	self.scrollX = 0
 	self.scrollY = 0
 	self.useLineNumbers = true
-		
+
 
 	self.undo = Undo{
 		get = function()
@@ -196,7 +196,7 @@ function UITextArea:draw()
 			))
 		end
 		textareaX = textareaX + 2
-	
+
 		self.lineNumbersWidth = textareaX
 	else
 		self.lineNumbersWidth = 0
@@ -532,7 +532,7 @@ function UITextArea:onKeyDown(e)
 		end
 	else
 		for cmpsdlkey,keycode in pairs(sdlSymToKeyCode) do
-			if sdlkey == cmpsdlkey then 
+			if sdlkey == cmpsdlkey then
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if keycode == keyCodeForName.tab then
 					self.undo:pushContinuous()

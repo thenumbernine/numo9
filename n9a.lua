@@ -169,6 +169,18 @@ elseif cmd == 'x' then
 		end
 	end
 
+	-- now if any blobs had a filename, move their file into the filename location
+	for iPlus1,codeBlob in ipairs(blobs.code) do
+		local metainfo = codeBlob:getMetaInfo()
+		if metainfo.filename then
+			local i = iPlus1-1
+			local srcpath = basepath/('code'..(i==0 and '' or i)..'.lua')
+			local dstpath = basepath/'src'/metainfo.filename
+			dstpath:getdir():mkdir(true)
+			srcpath:move(dstpath)
+		end
+	end
+
 elseif cmd == 'a' or cmd == 'r' then
 
 	local n9path = path(fn)
@@ -194,17 +206,18 @@ elseif cmd == 'a' or cmd == 'r' then
 	-- also add src/*.lua files
 	local srcdir = basepath/'src'
 	if srcdir:exists() then
+		local srcdirwithslash = srcdir.path..'/'
 		for fn in srcdir:rdir() do
 			-- TODO that a:rel(b) path function...
-			assert.eq(fn.path:sub(1,#srcdir.path+1), srcdir.path..'/')
-			local relfn = path(fn.path:sub(#srcdir.path+2))
+			assert.eq(fn.path:sub(1,#srcdirwithslash), srcdirwithslash)
+			local relfn = path((fn.path:sub(#srcdirwithslash+1)))
 
 			local basefn, ext = relfn:getext()
 			if ext == 'lua' or ext == 'rua' then	-- I'm switching to .rua since it's technically not .lua language ...
 				local code = assert(fn:read())
 				code = '-- filename = '..relfn..'\n'..code
 				local codeBlob = BlobCode(code)
---DEBUG:print('adding src/ file', fn, 'rel', relfn)
+print('adding src/ file', fn, 'rel', relfn)
 				blobs.code:insert(codeBlob)
 			end
 		end
@@ -226,8 +239,10 @@ elseif cmd == 'a' or cmd == 'r' then
 
 		-- loosely based on dist/build-distinfo.rua
 		local cpath = table.concat({
+			-- search cart dir first
 			(basepath/'src/?.lua').path,
 			(basepath/'src/?.rua').path,
+			-- search include next
 			'include/?.lua',
 			'include/?.rua',
 		}, ';')
@@ -258,7 +273,7 @@ elseif cmd == 'a' or cmd == 'r' then
 							if fn:sub(1,#include) == include then
 								local relfn = fn:sub(#include+1)
 								if not requireSet[relfn] then
---DEBUG:print('adding required', req, 'full fn', fn, 'relfn', relfn)
+print('adding required', req, 'full fn', fn, 'relfn', relfn)
 									-- if it's an include file then now we have to package this include file extra
 									requireSet[relfn] = true
 

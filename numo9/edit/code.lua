@@ -77,6 +77,7 @@ function EditCode:setBlobIndex(i)
 	-- update textarea underlying vec as well ...
 	-- TODO more proper way would be to memcpy back and forth and keep the two buffers separate ....
 	self.uiTextArea.vec = self[self.blobField].vec
+	self.uiTextArea:refreshText()
 end
 
 function EditCode:update()
