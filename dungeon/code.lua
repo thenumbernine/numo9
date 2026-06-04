@@ -618,7 +618,7 @@ init=||do
 	player = Player{pos=map.playerStart + .5}
 	--]]
 	--[[
-	objs=table()
+	for _,k in table.keys(objs) do objs[k] = nil end
 	player = nil
 	for y=0,255 do
 		for x=0,255 do

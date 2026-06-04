@@ -1,6 +1,7 @@
 local _M = {}
 
-local objs=table()
+_M.objs = table()
+_M.dt = 1/60
 
 local class = require 'ext.class'
 local vec2 = require 'vec.vec2'
@@ -19,7 +20,7 @@ Object.init=|:,args|do
 	self.vel = self.vel:clone()
 	self.health = self.maxHealth
 	self.hitSides = 0	-- bitflags of dirvecs
-	objs:insert(self)
+	_M.objs:insert(self)
 end
 Object.draw=|:|do
 	spr(
@@ -128,7 +129,7 @@ Object.update=|:|do
 					end
 				end
 			end
-			for _,o in ipairs(objs) do
+			for _,o in ipairs(_M.objs) do
 				if o ~= self then
 					local bxmin, bymin = o.pos.x + o.bbox.min.x, o.pos.y + o.bbox.min.y
 					local bxmax, bymax = o.pos.x + o.bbox.max.x, o.pos.y + o.bbox.max.y
@@ -172,11 +173,10 @@ Object.update=|:|do
 	end
 
 	if self.useGravity then
-		self.vel.x += dt * self.gravity.x
-		self.vel.y += dt * self.gravity.y
+		self.vel.x += _M.dt * self.gravity.x
+		self.vel.y += _M.dt * self.gravity.y
 	end
 end
 
 _M.Object = Object
-_M.objs = objs
 return _M

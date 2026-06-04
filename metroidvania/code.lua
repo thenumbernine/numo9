@@ -3,11 +3,11 @@
 -- author = Chris Moore
 -- editTilemap.sheetBlobIndex = 1
 
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include vec/box2.lua
---#include ext/class.lua
---#include ext/range.lua
+local vec2 = require 'vec.vec2'
+local vec3 = require 'vec.vec3'
+local box2 = require 'vec.box2'
+local class = require 'ext.class'
+local range = require 'ext.range'
 
 -- TODO move this into ext.table?
 table.pickWeighted = |t|do
@@ -43,17 +43,9 @@ local wait = |delay, fn| do
 	end)
 end
 
--- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
--- tempting to do right left down up, i.e. x+ x- y+ y-, because that extends dimensions better
--- but as it is this way, we are 1:1 with the exponential-map, so there.
-local dirvecs = table{
-	[0] = vec2(1,0),
-	[1] = vec2(0,1),
-	[2] = vec2(-1,0),
-	[3] = vec2(0,-1),
-}
-local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
-local dirForName = {right=0, down=1, left=2, up=3}
+local dirvecs = vec2.dirvecs
+local opposite = vec2.opposite
+local dirForName = vec2.dirForName
 
 --local blockSize = vec2(32,32)
 local blockSize = vec2(16,16)
@@ -162,8 +154,6 @@ for k,v in pairs(mapTypes) do
 end
 mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
---#include ext/class.lua
-
 local mapwidth = 256
 local mapheight = 256
 
@@ -205,9 +195,10 @@ drawKeyColor=|keyIndex,x,y|do
 	)
 end
 
-local dt = 1/60
-
---#include obj/sys.lua
+local objsys = require 'obj.sys'
+objsys.mapwidth = mapwidth
+objsys.mapheight = mapheight
+local Object = objsys.Object
 
 Health = Object:subclass()
 Health.sprite = 32
@@ -751,7 +742,7 @@ end
 init=||do
 	reset()	-- reset rom
 
-	objs=table()
+	objsys.objs = table()
 	player = nil
 
 	-- decide the number of colors up front ... no more dynamic colors
@@ -839,9 +830,9 @@ update=||do
 
 				if lastRoom then
 					-- unspawn old
-					for i=#objs,1,-1 do
-						if not Player:isa(objs[i]) then
-							objs[i].removeMe = true
+					for i=#objsys.objs,1,-1 do
+						if not Player:isa(objsys.objs[i]) then
+							objsys.objs[i].removeMe = true
 						end
 					end
 
@@ -912,7 +903,7 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 		0, false, 1
 	)
 
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(objsys.objs) do
 		o:draw()
 	end
 
@@ -936,7 +927,7 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	end
 	blend(-1)
 
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(objsys.objs) do
 		o:update()
 	end
 
@@ -947,8 +938,8 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	end
 
 	-- remove dead
-	for i=#objs,1,-1 do
-		if objs[i].removeMe then objs:remove(i) end
+	for i=#objsys.objs,1,-1 do
+		if objsys.objs[i].removeMe then objsys.objs:remove(i) end
 	end
 
 
