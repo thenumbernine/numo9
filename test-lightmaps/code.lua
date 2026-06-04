@@ -1,9 +1,13 @@
 -- TODO better test with multiple lights or something
 -- move the uber-lightmap-region allocator over to include/ and have this make use of it too
 
---#include ext/range.lua
---#include numo9/matstack.lua
---#include numo9/lights.lua
+local range = require 'ext.range'
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+local modelMatrixIndex = require 'numo9.matstack'.modelMatrixIndex
+local viewMatrixIndex = require 'numo9.matstack'.viewMatrixIndex
+local projMatrixIndex = require 'numo9.matstack'.projMatrixIndex
+local Lights = require 'numo9.lights'
 
 poke(ramaddr'HD2DFlags', 0xff & ~4)	-- lightmaps without ssao
 pokef(ramaddr'ssaoSampleRadius', .1)

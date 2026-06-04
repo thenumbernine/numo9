@@ -16,7 +16,7 @@ update=||do
     if btnp('left',0,60,6) then x-=10 end
 	if btnp('up',0,60,6) then y-=10 end
 	--]]
-	
+
 	if btnp(4) then color = 2 end
 	if btnp(5) then color = 4 end
 	if btnp(6) then color = 6 end

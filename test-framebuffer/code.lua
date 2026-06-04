@@ -1,4 +1,4 @@
---#include ext/range.lua
+local range = require 'ext.range'
 elli(0,0,256,256,12)
 for y=0,255 do
 	trace(

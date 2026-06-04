@@ -1,8 +1,9 @@
 -- custom megaman mario kart sprite from : https://www.spriters-resource.com/fullview/23197/
 
---#include numo9/matstack.lua
---#include numo9/screen.lua
---#include ext/range.lua
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+local getScreenSize = require 'numo9.screen'.getScreenSize
+local range = require 'ext.range'
 
 local zn, zf = 1, 100
 local zo = 10
