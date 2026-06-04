@@ -10,10 +10,10 @@
 --[[
 TODO somehow dialogs don't show up anymore, probably due to transparency issues
 --]]
---#include ext/class.lua
---#include ext/range.lua
---#include vec/vec2.lua
---#include vec/box2.lua
+local class = require 'ext.class'
+local range = require 'ext.range'
+local vec2 = require 'vec.vec2'
+local box2 = require 'vec.box2'
 
 math.randomseed(tstamp())
 blendColorMem=ramaddr'blendColor'
