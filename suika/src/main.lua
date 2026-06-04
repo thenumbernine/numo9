@@ -1,6 +1,11 @@
---#include ext/class.lua
---#include ext/range.lua
---#include vec/vec2.lua
+local class = require 'ext.class'
+local range = require 'ext.range'
+local vec2 = require 'vec.vec2'
+vec2_sub = vec2.vec2_sub
+vec2_lenSq = vec2.vec2_lenSq
+vec2_dot = vec2.vec2_dot
+vec2_scale = vec2.vec2_scale
+vec2_unit = vec2.vec2_unit
 
 math.randomseed(tstamp())
 
@@ -280,11 +285,11 @@ update=||do
 						--[[
 						local cx = .5 * (a.pos.x + b.pos.x)
 						local cy = .5 * (a.pos.y + b.pos.y)
-						
+
 						local invDist = 1 / math.sqrt(distSq)
 						local nx = dposx * invDist
 						local ny = dposy * invDist
-						
+
 						a.index -= 1
 						b.index -= 1
 						--]]

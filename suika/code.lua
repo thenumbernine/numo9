@@ -2,4 +2,4 @@
 -- saveid = suika
 -- author = Chris Moore
 
---#include main.lua
+require 'main'
