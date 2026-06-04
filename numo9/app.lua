@@ -1007,7 +1007,11 @@ function App:initGL()
 			local fn = req:gsub('%.', '/')
 			local blob = self.codeBlobForFilename[fn..'.lua'] or self.codeBlobForFilename[fn..'.rua']
 			if not blob then error("module '"..req.."' not found") end
-			return assert(load(blob:toBinStr()))
+			local code = blob:toBinStr()
+			local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
+			local f, msg = self:loadCmd(code, req, self.gameEnv or self.env, alreadyTranspiledToLua)
+			return assert(f, msg)
+			--return (assert(load(code)))
 		end,
 	}
 
@@ -3293,7 +3297,7 @@ function App:resetCart()
 	return true
 end
 
--- returns the function to run the code
+-- returns the function to run code
 function App:loadCmd(cmd, source, env, alreadyTranspiledToLua)
 	-- allow meta-info to pre-transpile and offload the langfix-transpile step
 	if alreadyTranspiledToLua then
@@ -3378,6 +3382,7 @@ function App:runCart()
 		self.metainfo.saveid = sha2.md5(blobsToStr(self.blobs))
 	end
 
+	-- build this table for the cart's require() function
 	self.codeBlobForFilename = {}
 	for _,codeBlob in ipairs(self.blobs.code) do
 		local metainfo = codeBlob:getMetaInfo()
@@ -3447,8 +3452,6 @@ function App:runCart()
 		self.metainfo['archive.paletteForSheet'] = paletteForSheet
 	end
 
-	local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
-
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
 		self.ram.romUpdateCounter = 0
@@ -3457,6 +3460,7 @@ function App:runCart()
 		local code = self.blobs.code[1]:toBinStr()
 
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
+		local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
 		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, alreadyTranspiledToLua)
 		if not f then
 			--print(msg)
