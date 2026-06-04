@@ -2,11 +2,15 @@
 -- saveid = metroidvania_procedural
 -- author = Chris Moore
 -- editTilemap.sheetBlobIndex = 1
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include vec/box2.lua
---#include ext/class.lua
---#include ext/range.lua
+
+local vec2 = require 'vec.vec2'
+local vec3 = require 'vec.vec3'
+local box2 = require 'vec.box2'
+local class = require 'ext.class'
+local range = require 'ext.range'
+
+local dirForName = vec2.dirForName
+local dirvecs = vec2.dirvecs
 
 -- TODO move this into ext.table?
 table.pickWeighted = |t|do
@@ -42,16 +46,16 @@ local wait = |delay, fn| do
 	end)
 end
 
---local blockSize = vec2(32,32)
-local blockSize = vec2(16,16)
---local blockSize = vec2(12,12)
---local blockSize = vec2(8,8)
+--blockSize = vec2(32,32)
+blockSize = vec2(16,16)
+--blockSize = vec2(12,12)
+--blockSize = vec2(8,8)
 
-local worldSize = vec2(256,256)	-- full game
---local worldSize = vec2(64, 64)	-- 2x2 screens
---local worldSize = vec2(32, 32)	-- 1 screen
+worldSize = vec2(256,256)	-- full game
+--worldSize = vec2(64, 64)	-- 2x2 screens
+--worldSize = vec2(32, 32)	-- 1 screen
 
-local worldSizeInBlocks = (worldSize / blockSize):floor()
+worldSizeInBlocks = (worldSize / blockSize):floor()
 worldSize = worldSizeInBlocks * blockSize
 
 --[[
@@ -146,8 +150,6 @@ for k,v in pairs(mapTypes) do
 end
 mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
---#include ext/class.lua
-
 local mapwidth = 256
 local mapheight = 256
 
@@ -189,9 +191,10 @@ drawKeyColor=|keyIndex,x,y|do
 	)
 end
 
-local dt = 1/60
-
---#include obj/sys.lua
+local objsys = require 'obj.sys'
+objsys.mapwidth = mapwidth
+objsys.mapheight = mapheight
+Object = objsys.Object
 
 Health = Object:subclass()
 Health.sprite = 32
@@ -720,10 +723,10 @@ Shooter.touch = touchDealsDamage
 --]]
 
 
-local pickRandomColor = ||
+pickRandomColor = ||
 	vec3(math.random(), math.random(), math.random()):unit()
 
-local advanceColor = |v| do
+advanceColor = |v| do
 	v = v:clone()
 	v.x += .2 * (math.random() * 2 - 1)
 	v.y += .2 * (math.random() * 2 - 1)
@@ -732,12 +735,12 @@ local advanceColor = |v| do
 	return v
 end
 
---#include mapgen.lua
+require 'mapgen'
 
 init=||do
 	reset()	-- reset rom
 
-	objs=table()
+	objsys.objs=table()
 	player = nil
 
 	-- decide the number of colors up front ... no more dynamic colors
@@ -761,7 +764,7 @@ init=||do
 		end
 	end
 
-	world = generateWorld()
+	world = generateWorld(keyColorIndexes)
 end
 
 local viewPos = vec2()
@@ -792,9 +795,9 @@ update=||do
 
 				if lastRoom then
 					-- unspawn old
-					for i=#objs,1,-1 do
-						if not Player:isa(objs[i]) then
-							objs[i].removeMe = true
+					for i=#objsys.objs,1,-1 do
+						if not Player:isa(objsys.objs[i]) then
+							objsys.objs[i].removeMe = true
 						end
 					end
 
@@ -867,7 +870,7 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 		1
 	)
 
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(objsys.objs) do
 		o:draw()
 	end
 
@@ -891,7 +894,7 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	end
 	blend(-1)
 
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(objsys.objs) do
 		o:update()
 	end
 
@@ -902,8 +905,8 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	end
 
 	-- remove dead
-	for i=#objs,1,-1 do
-		if objs[i].removeMe then objs:remove(i) end
+	for i=#objsys.objs,1,-1 do
+		if objsys.objs[i].removeMe then objsys.objs:remove(i) end
 	end
 
 

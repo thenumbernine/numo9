@@ -1,6 +1,11 @@
---#include ext/range.lua
---#include vec/vec2.lua
---#include simplexnoise/2d.lua
+local range = require 'ext.range'
+local simplexNoise2D = require 'simplexnoise.2d'
+
+local vec2 = require 'vec.vec2'
+local dirvecs = vec2.dirvecs
+local opposite = vec2.opposite
+local dirForName = vec2.dirForName
+
 --[[ procedural level
 reads:
 	dirvecs, opposite
@@ -13,7 +18,7 @@ writes:
 	...the tilemap
 --]]
 -- [====[ old system, guarantees every block is filled, but not so good at what goes where...
-generateWorld=||do
+generateWorld=|keyColorIndexes|do
 	for y=0,255 do
 		for x=0,255 do
 			tset(0,x,y,1)	-- solid
