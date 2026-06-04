@@ -5,10 +5,11 @@ end
 
 math.randomseed(tstamp())
 
-local class = require 'ext.class'
-local vec2 = require 'vec.vec2'
-local box2 = require 'vec.box2'
-require 'numo9.screen'
+class = require 'ext.class'
+vec2 = require 'vec.vec2'
+box2 = require 'vec.box2'
+getScreenSize = require 'numo9.screen'.getScreenSize
+getAspectRatio = require 'numo9.screen'.getAspectRatio
 
 mode(42)	-- 16:9 480x270x8bpp-indexed
 
