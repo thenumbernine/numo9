@@ -3,10 +3,10 @@
 -- author = Chris Moore
 -- description = turn based strategy game of competing orthogonal fields
 
---#include ext/class.lua
---#include ext/range.lua
---#include vec/vec2.lua
---#include numo9/autotile.lua
+local class = require 'ext.class'
+local range = require 'ext.range'
+local vec2 = require 'vec.vec2'
+local Autotile = require 'numo9.autotile'
 
 rot=0x4000
 sprites={
@@ -70,7 +70,7 @@ boardSize = vec2(8,8)
 
 -- autotile is 1-based
 numo9_autotile=range(0,maxPlayers-1):mapi(|playerIndex|
-	AutotileSides4bit{
+	Autotile.AutotileSides4bit{
 		t = table.map(autotile_sheet9_branch_sides4bit, |v,k|
 			v | (playerIndex << 10)
 		),
@@ -168,7 +168,7 @@ newGame=||do
 	nextTurn()
 end
 
-local dirNames = table.map(dirForName, |i,name| (name,i))
+local dirNames = table.map(vec2.dirForName, |i,name| (name,i))
 
 inSplash=true
 update=||do
@@ -205,7 +205,7 @@ update=||do
 		if turnState=='moving' then
 			for dirIndex,dirName in pairs(dirNames) do
 				if btnp(dirName, playerIndex, 20, 5) then
-					player.cursor+=dirvecs[dirIndex]
+					player.cursor+=vec2.dirvecs[dirIndex]
 					player.cursor%=boardSize
 					goto inputHandled
 				end
@@ -243,7 +243,7 @@ update=||do
 		local crossingOver
 		local moveVert=moveDir&1==1
 		local moveHorz=not moveVert
-		local dir=dirvecs[moveDir]
+		local dir=vec2.dirvecs[moveDir]
 		local newpos=(player.cursor+dir)%boardSize
 		local tile=tget(0,newpos:unpack())
 		local tileTeam=(tile>>10)&7

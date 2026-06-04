@@ -299,7 +299,7 @@ print('adding required', req, 'full fn', fn, 'relfn', relfn)
 			local code = codeBlob:toBinStr()
 			local success, msg = parser:setData(code)
 			if not success then
-				io.stderr:write('WARNING - failed to parse '..f..': '..msg..'\n')
+				io.stderr:write('WARNING - failed to parse '..tostring(codeBlob:getMetaInfo().filename)..': '..msg..'\n')
 			else
 				local tree = parser.tree
 				search(tree, true)

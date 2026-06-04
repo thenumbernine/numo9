@@ -4,17 +4,17 @@
 -- description = try to jump to the top
 -- editTilemap.sheetBlobIndex = 1
 
---#include vec/vec2.lua
---#include vec/box2.lua
---#include ext/class.lua
---#include ext/range.lua
+local vec2 = require 'vec.vec2'
+local box2 = require 'vec.box2'
+local class = require 'ext.class'
+local range = require 'ext.range'
 
 math.randomseed(tstamp())
 
 local sprites = {
 	player = 0,
 	enemy = 1,
-	heart = 32, 
+	heart = 32,
 	hearthalf = 33,
 	key = 34,
 }
@@ -54,8 +54,8 @@ mapTypes=table{
 		name='locked_door',
 		flags=flags.solid,
 		touch = |:, o, x, y|do
-			if o == player 
-			and o.keys > 0 
+			if o == player
+			and o.keys > 0
 			then
 				o.keys -= 1
 				tset(0,x,y,mapTypeForName.door.index)
@@ -65,15 +65,13 @@ mapTypes=table{
 	[32]={name='spawn_player'},
 	[33]={name='spawn_enemy'},
 }
-for k,v in pairs(mapTypes) do 
-	v.index = k 
-	v.flags ??= 0 
+for k,v in pairs(mapTypes) do
+	v.index = k
+	v.flags ??= 0
 end
 mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
 mainloops=table()
-
---#include ext/class.lua
 
 local mapwidth = 256
 local mapheight = 256
@@ -162,7 +160,7 @@ Object.update=|:|do
 						self.hitXP = true
 					else
 						self.hitXN = true
-					end				
+					end
 					self.vel.x = 0
 				end
 			end
@@ -208,12 +206,12 @@ Player.update=|:|do
 		-- move in air? or nah, castlevania nes jumping. or nah, but constrain acceleration ...
 		local maxAirSpeed = speed
 		local speed = .05
-		if btn'left' then 
-			self.vel.x -= speed 
+		if btn'left' then
+			self.vel.x -= speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
-		if btn'right' then 
-			self.vel.x += speed 
+		if btn'right' then
+			self.vel.x += speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
 	end
@@ -346,7 +344,7 @@ update=||do
 	if player then
 		viewPos:set(player.pos)
 	end
-	
+
 	matident()
 	mattrans(128-viewPos.x*8, 128-viewPos.y*8)
 
