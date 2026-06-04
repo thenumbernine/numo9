@@ -180,7 +180,7 @@ Enumerated code blobs are concatenated all together.
 Also any `*.lua` files found in the `src/` subdirectory are also added as code blob, in arbitrary order.
 These have their filename relative to the `src/` folder automatically prepended in a comment with `-- filename = $filename` in the first line.
 
-From there, the `require` function will search for blobs to include based on path name in the first line.
+From there, the `require` function will search for blobs to include based on path name in the `filename` metainfo.
 
 The `require` function can also search for files in the `numo9/include/` folder, however only as `require` called with a string literal.  This is so static analysis can determine which `numo9/include/` files should be added to the apk.
 
@@ -500,7 +500,9 @@ If the following functions are defined then they will be called from the virtual
 
 - `time()` = soon to be cartridge run time, currently poor mans implementation
 
-- `#include <code-to-insert>` = Ok reluctantly I'm adding an `#include` preprocessor.  It is only applied upon `n9a.lua` archiving carts, if you extract the cartridge then you will see the code already inserted. I'll replace it with multi-file storage and a proper `require` someday.
+- `require([module])` = require a module.  Modules are retrieved based on searching all code blobs' `filename` metainfo.
+
+- `#include <code-to-insert>` = Ok reluctantly I'm adding an `#include` preprocessor.  It is only applied upon `n9a.lua` archiving carts, if you extract the cartridge then you will see the code already inserted.
 
 ## memory
 
@@ -1090,15 +1092,6 @@ voxelmap editor fixes:
 		- paste with transparency still glitches/fails
 		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
 		- why not just port the clip library to luajit ... because it is both large (esp linux), multithreaded, and in the case of osx it requires .m compilation anyways so a pure luajit / C API support might be tough... or impossible idk how well obj c works as C API.
-
-- think about redoing script format.
-	- for the sake of preserving names, you either have to:
-		- 1) flag every source file you use (annoying)
-		- 2) put all your source in a separate folder (less annoying)
-		- but the include/ folder would either need to fully go inside each cart, or with the F.C. (version issues with carts...), or it'd need to be searched and flagged which files are #include/require()'d ...
-	- I think I'll go route #2 and make every game include a source folder `src/`
-	- and then do a package loader that can look inside it
-	- and then I'll be inches away from using .zip instead of zlib format
 
 - should `strcpy` which copies RAM to Lua strings also check for `\0`'s?  the name implies yes but all I'm really using this for is a RAM-to-string i.e. `ffi.string` replacement.
 	- maybe I should rename it.

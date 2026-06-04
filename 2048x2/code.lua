@@ -1,11 +1,11 @@
 -- title = 2048x2
 -- saveid = 2048x2
 -- author = Chris Moore
--- description = 2048 but double the grid size 
+-- description = 2048 but double the grid size
 
---#include ext/range.lua
---#include vec/vec2.lua
---#include vec/vec3.lua
+local range = require 'ext.range'
+local vec2 = require 'vec.vec2'
+local vec3 = require 'vec.vec3'
 math.randomseed(tstamp())
 
 --[[
