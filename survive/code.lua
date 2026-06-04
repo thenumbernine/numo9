@@ -3,10 +3,9 @@
 -- author = Chris Moore
 -- description = try to survive in a post-apocalyptic hellscape
 
---#include ext/range.lua
---#include vec/vec2.lua
-
-local dt = 1/60
+local range = require 'ext.range'
+local vec2 = require 'vec.vec2'
+local dirForName = vec2.dirForName
 
 math.randomseed(tstamp())
 
@@ -123,7 +122,11 @@ for k,v in pairs(mapTypes) do
 end
 mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
---#include obj/sys.lua
+local objsys = require 'obj.sys'
+objsys.mapwidth = mapwidth
+objsys.mapheight = mapheight
+local dt = objsys.dt
+local Object = objsys.Object
 
 Object.useGravity = true	-- default everything uses gravity
 
@@ -460,13 +463,13 @@ Vegetable.update = |:| do
 --]===]
 end
 
---#include simplexnoise/2d.lua
+local simplexNoise2D = require 'simplexnoise.2d'
 
 local skyHeight = table()	-- height of tallest block
 init = || do
 	reset()	-- reset rom
 
-	objs=table()
+	objsys.objs=table()
 
 --[[ random everything
 	player = Player{
@@ -616,11 +619,11 @@ update = || do
 	local msy = my * 8
 	tilemap(mx, my, mw, mh, msx, msy, 0, false, 1)
 
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(objsys.objs) do
 		o:draw()
 	end
 
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(objsys.objs) do
 		o:update()
 	end
 
@@ -679,8 +682,8 @@ update = || do
 	end
 
 	-- remove dead
-	for i=#objs,1,-1 do
-		if objs[i].removeMe then objs:remove(i) end
+	for i=#objsys.objs,1,-1 do
+		if objsys.objs[i].removeMe then objsys.objs:remove(i) end
 	end
 
 -- [[ gui
