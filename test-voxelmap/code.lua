@@ -2,12 +2,19 @@
 -- saveid = test-voxelmap
 -- author = Chris Moore
 
---#include ext/class.lua
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include numo9/matstack.lua
---#include numo9/lights.lua
---#include numo9/screen.lua
+local class = require 'ext.class'
+
+local vec2 = require 'vec.vec2'
+local vec2_scale = vec2.vec2_scale
+local vec2_unit = vec2.vec2_unit
+
+local vec3 = require 'vec.vec3'
+local vec3_lenSq = vec3.vec3_lenSq
+
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+local Lights = require 'numo9.lights'
+local getScreenSize = require 'numo9.screen'.getScreenSize
 
 mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
@@ -44,8 +51,8 @@ view = {
 	-- 0 degrees = y+ is forward, x+ is right
 	yaw = 90,
 	destYaw = 90,
-	--tiltUpAngle = -20,
-	tiltUpAngle = 0,
+	tiltUpAngle = -20,
+	--tiltUpAngle = 0,
 	followDist = 7,
 	followAlt = 2,
 	pos = vec3(),
@@ -246,7 +253,7 @@ Beetle.update = |:, ...| do
 end
 Beetle.jumpedOn = |:,other| do
 	if not Player:isa(other) then return end
-	
+
 	if self.voxelCode == voxelTypeBeetle + 4 then
 		-- jumped on while in shell ...
 		if not self.kicked then
@@ -465,10 +472,10 @@ update=||do
 		0,								-- orientation2D
 		textwidth/256, textheight/256	-- scaleX, scaleY
 	)
-	
+
 	-- you gotta set HD2DFlags with lighting first
 	-- before clearing the depth buffer next....
-	poke(ramaddr'HD2DFlags', HD2DFlags)	
+	poke(ramaddr'HD2DFlags', HD2DFlags)
 
 	-- clear depth.
 	-- make sure lighting flags are set.
