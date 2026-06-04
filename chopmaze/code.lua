@@ -7,7 +7,7 @@
 -- editBrushmap.draw16Sprites = true
 -- editBrushmap.sheetBlobIndex = 1
 
---#include ext/range.lua
+local range = require 'ext.range'
 
 mget16=|i,j|do
 	local m = tget(0,i,j)
