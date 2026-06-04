@@ -3,11 +3,37 @@
 -- author = Chris Moore
 -- description = classic "Asteroids" but with proper spherical universes, and interconnections with neighboring universes.
 
---#include ext/range.lua
---#include numo9/matstack.lua
---#include vec/vec2.lua
---#include vec/vec3.lua
---#include vec/quat.lua
+local class = require 'ext.class'
+local range = require 'ext.range'
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+
+local vec2 = require 'vec.vec2'
+local vec2_lenSq = vec2.vec2_lenSq
+local vec2_unit = vec2.vec2_unit
+
+local vec3 = require 'vec.vec3'
+local vec3_dot = vec3.vec3_dot
+local vec3_cross = vec3.vec3_cross
+local vec3_unit = vec3.vec3_unit
+local vec3_len = vec3.vec3_len
+local vec3_scale = vec3.vec3_scale
+local vec3_neg = vec3.vec3_neg
+local vec3_add = vec3.vec3_add
+
+local quat = require 'vec.quat'
+local quat_fromAngleAxisUnit = quat.quat_fromAngleAxisUnit
+local quat_mul = quat.quat_mul
+local quat_scale = quat.quat_scale
+local quat_lenSq = quat.quat_lenSq
+local quat_xAxis = quat.quat_xAxis
+local quat_yAxis = quat.quat_yAxis
+local quat_zAxis = quat.quat_zAxis
+local quat_rotate = quat.quat_rotate
+local quat_vectorRotateUnit = quat.quat_vectorRotateUnit
+local quatRotX = quat.quatRotX
+local quatRotZ = quat.quatRotZ
+local quatRotZX = quat.quatRotZX
 
 math.randomseed(tstamp())
 local sqrt_1_2 = math.sqrt(.5)
