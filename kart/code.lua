@@ -31,7 +31,9 @@ https://www.spriters-resource.com/submitter/NICKtendoDS/
 https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
 
---#include numo9/matstack.lua
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
+
 local userAddr = blobaddr'data'
 assert.ge(blobsize'data', 512)
 local palAddr = blobaddr'palette'
@@ -136,7 +138,7 @@ local function applyprojmat()
 end
 --]]
 
---#include ext/class.lua
+local class = require 'ext.class'
 
 local getvalue=|x, dim|do
 	if type(x)=='number' then return x end
