@@ -1003,15 +1003,24 @@ function App:initGL()
 		end,
 
 		require = function(req)
+			-- NOTICE if no game is running then it'll fall back on self.env's package.loaded and then you'll get different results for require() than when a game is running
+			if not self.gameEnv then
+				print'!!! WARNING !!! using require() from outside gameEnv'
+			end
+			local env = self.gameEnv or self.env
+			local loaded = env.package.loaded
+			local result = loaded[req]
+			if result ~= nil then return result end
 			-- search only the code blobs based on their filename metainfo
 			local fn = req:gsub('%.', '/')
 			local blob = self.codeBlobForFilename[fn..'.lua'] or self.codeBlobForFilename[fn..'.rua']
 			if not blob then error("module '"..req.."' not found") end
 			local code = blob:toBinStr()
 			local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
-			local f, msg = self:loadCmd(code, req, self.gameEnv or self.env, alreadyTranspiledToLua)
-			return assert(f, msg)
-			--return (assert(load(code)))
+			local f = assert(self:loadCmd(code, req, env, alreadyTranspiledToLua))
+			local result = f() or true
+			loaded[req] = result
+			return result
 		end,
 	}
 
@@ -1042,14 +1051,12 @@ self.env = setmetatable({
 	-- but also without exposing load() to the game api ... then again why not?
 	self.loadenv = setmetatable({
 		-- it is going to modify `package`, so lets give it a dummy copy
-		-- in fact TODO all this needs to be replaced for virtual filesystem stuff or not at all ...
 		package = {
 			searchpath = package.searchpath,
 			-- replace this or else langfix.env will modify the original require()
 			searchers = table(package.searchers or package.loaders):setmetatable(nil),
 			path = package.path,
 			cpath = package.cpath,
-			loaded = {},
 		},
 	}, {
 		--[[ don't do this, the game API self.env.load messes with our Lua load() override
@@ -3371,7 +3378,12 @@ function App:runCart()
 	self:setMenu(nil)
 
 	-- TODO setfenv instead?
-	local env = setmetatable({}, {
+	local env = setmetatable({
+		-- make a new package.loaded for our cart's require()'s
+		package = {
+			loaded = {},
+		},
+	}, {
 		__index = self.env,
 	})
 
