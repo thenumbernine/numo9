@@ -448,7 +448,7 @@ layout(std140, binding=0) uniform fragBlock {
 	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 	int numLights;
-	
+
 	int debugDraw;
 	int padding;
 };	// fragBlock

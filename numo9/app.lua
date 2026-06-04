@@ -2287,6 +2287,9 @@ print('run thread dead')
 			sceneObj = videoModeObj.blitScreenHD2DObj
 		else
 			sceneObj = videoModeObj.blitScreenObj
+-- TODO why do I have to reassign this again?  why does it go to nil?  why does test-8bppindex show a black screen now (versus crash before I added this?)
+sceneObj.texs[2] = videoModeObj.framebufferPosTex
+sceneObj.texs[3] = videoModeObj.calcLightTex:cur()
 		end
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 		local pushTex = sceneObj.texs[1]
