@@ -3386,6 +3386,8 @@ function App:runCart()
 	}, {
 		__index = self.env,
 	})
+	-- necessary?
+	env._G = env
 
 	-- store the main code blob metainfo, i.e. blobs.code[1].metainfo, as app.metainfo
 	self.metainfo = self.blobs.code[1]:getMetaInfo()

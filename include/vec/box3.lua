@@ -1,18 +1,19 @@
-require 'ext.class'
-require 'vec.vec3'
+local class = require 'ext.class'
+local vec3 = require 'vec.vec3'
 
-box3_getminvalue=|x|do
+local box3_getminvalue=|x|do
 	if x.min then return x.min end
 	assert(x ~= nil, "box3_getminvalue got nil value")
 	return x
 end
 
-box3_getmaxvalue=|x|do
+local box3_getmaxvalue=|x|do
 	if x.max then return x.max end
 	assert(x ~= nil, "box3_getmaxvalue got nil value")
 	return x
 end
 
+local box3
 box3=class{
 	init=|:,a,b|do
 		if type(a) == 'table' and a.min and a.max then
@@ -75,3 +76,5 @@ box3=class{
 	__tostring=|b| '{'..b.min..','..b.max..'}',
 	__concat=|a,b|tostring(a)..tostring(b),
 }
+
+return box3

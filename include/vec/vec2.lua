@@ -1,20 +1,20 @@
-require 'ext.class'
+local class = require 'ext.class'
 
-vec2_add=|ax,ay,bx,by|(ax+bx, ay+by)
-vec2_sub=|ax,ay,bx,by|(ax-bx, ay-by)
-vec2_lenSq=|x,y|x^2+y^2
-vec2_len=|x,y|math.sqrt(x^2+y^2)
-vec2_unit=|x,y|do
+local vec2_add=|ax,ay,bx,by|(ax+bx, ay+by)
+local vec2_sub=|ax,ay,bx,by|(ax-bx, ay-by)
+local vec2_lenSq=|x,y|x^2+y^2
+local vec2_len=|x,y|math.sqrt(x^2+y^2)
+local vec2_unit=|x,y|do
 	local l = vec2_len(x,y)
 	local s = 1 / math.max(1e-15, l)
 	return x*s, y*s, l
 end
-vec2_scale=|s,x,y|(s*x, s*y)
-vec2_dot=|ax,ay,bx,by| ax*bx + ay*by
+local vec2_scale=|s,x,y|(s*x, s*y)
+local vec2_dot=|ax,ay,bx,by| ax*bx + ay*by
 -- cplx exp ... TODO replace vec2.exp with this
-vec2_exp=|r,theta|(r*math.cos(theta),r*math.sin(theta))
+local vec2_exp=|r,theta|(r*math.cos(theta),r*math.sin(theta))
 -- cplx log
-vec2_log=|x,y|do
+local vec2_log=|x,y|do
 	local logr = math.log((vec2_len(x,y)))
 	return logr, math.atan2(y,x)
 end
@@ -133,3 +133,21 @@ local dirvecs = table{
 }
 local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
 local dirForName = {right=0, down=1, left=2, up=3}
+
+-- hmmmmm how to expose the non-object methods ...
+-- I'm too lazy to sort out which can double as object methods
+-- so for now I'll just mash everything into the quat class namespace
+vec2.vec2_add = vec2_add
+vec2.vec2_sub = vec2_sub
+vec2.vec2_lenSq = vec2_lenSq
+vec2.vec2_len = vec2_len
+vec2.vec2_unit = vec2_unit
+vec2.vec2_scale = vec2_scale
+vec2.vec2_dot = vec2_dot
+vec2.vec2_exp = vec2_exp
+vec2.vec2_log = vec2_log
+vec2.dirvecs = dirvecs
+vec2.opposite = opposite
+vec2.dirForName = dirForName
+
+return vec2

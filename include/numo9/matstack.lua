@@ -11,9 +11,9 @@ local projMatAddr = ramaddr'projMat'
 assert.eq(modelMatAddr + ramsize'modelMat', viewMatAddr)
 assert.eq(viewMatAddr + ramsize'viewMat', projMatAddr)
 
-modelMatrixIndex = 0
-viewMatrixIndex = 1
-projMatrixIndex = 2
+local modelMatrixIndex = 0
+local viewMatrixIndex = 1
+local projMatrixIndex = 2
 
 local matstack=table()
 local matpush=|matrixIndex|do
@@ -33,3 +33,12 @@ local matpop=|matrixIndex|do
 		pokef(modelMatAddr + (i << 2 | matrixIndex << 6), t[i+1])
 	end
 end
+
+return {
+	stack = matstack,
+	push = matpush,
+	pop = matpop,
+	modelMatrixIndex = modelMatrixIndex,
+	viewMatrixIndex = viewMatrixIndex,
+	projMatrixIndex = projMatrixIndex,
+}

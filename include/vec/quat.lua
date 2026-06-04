@@ -1,5 +1,5 @@
-require 'ext.class'
-require 'vec.vec3'
+local class = require 'ext.class'
+local vec3 = require 'vec.vec3'
 
 local quat = class()
 quat.init=|:,...|do
@@ -34,8 +34,8 @@ quat.__sub = |q,r,res| do
 	return res:set(q.x - r.x, q.y - r.y, q.z - r.z, q.w - r.w)
 end
 
-quat_scale=|s, x,y,z,w|(x*s, y*s, z*s, w*s)	-- scale comes first
-quat_mul=|qx,qy,qz,qw, rx,ry,rz,rw|do
+local quat_scale=|s, x,y,z,w|(x*s, y*s, z*s, w*s)	-- scale comes first
+local quat_mul=|qx,qy,qz,qw, rx,ry,rz,rw|do
 	local a = (qw + qx) * (rw + rx)
 	local b = (qz - qy) * (ry - rz)
 	local c = (qx - qw) * (ry + rz)
@@ -65,7 +65,7 @@ quat.__mul = quat.mul
 quat.__div = |a,b| a * b:conj() / b:lenSq()
 
 quat.epsilon = 1e-15
-quat_toAngleAxis = |x,y,z,w| do
+local quat_toAngleAxis = |x,y,z,w| do
 	local cosangle = math.clamp(w, -1, 1)
 	local halfangle = math.acos(cosangle)
 	local s = math.sin(halfangle)
@@ -96,13 +96,13 @@ end
 -- assumes |x,y,z|=1
 -- assumes theta in [0,2*pi)
 -- put theta first so I can use stack-based vec3 operations
-quat_fromAngleAxisUnit=|theta,x,y,z|do
+local quat_fromAngleAxisUnit=|theta,x,y,z|do
 	local cosHalfTheta = math.cos(.5 * theta)
 	local sinHalfTheta = math.sin(.5 * theta)
 	return x * sinHalfTheta, y * sinHalfTheta, z * sinHalfTheta, cosHalfTheta
 end
 
-quat_fromAngleAxis=|theta,x,y,z|do
+local quat_fromAngleAxis=|theta,x,y,z|do
 	return quat_fromAngleAxisUnit(theta,vec3_unit(x,y,z))
 end
 
@@ -116,7 +116,7 @@ quat.fromAngleAxis = |:, res| do
 	return (res or quat()):set(x * vscale, y * vscale, z * vscale, costh)
 end
 
-quat_xAxis=|x,y,z,w|(
+local quat_xAxis=|x,y,z,w|(
 	1 - 2 * (y * y + z * z),
 	2 * (x * y + z * w),
 	2 * (x * z - w * y)
@@ -125,7 +125,7 @@ quat.xAxis = |q, res| res
 	and res:set(quat_xAxis(q:unpack()))
 	or vec3(quat_xAxis(q:unpack()))
 
-quat_yAxis=|x,y,z,w|(
+local quat_yAxis=|x,y,z,w|(
 	2 * (x * y - w * z),
 	1 - 2 * (x * x + z * z),
 	2 * (y * z + w * x)
@@ -134,7 +134,7 @@ quat.yAxis = |q, res| res
 	and res:set(quat_yAxis(q:unpack()))
 	or vec3(quat_yAxis(q:unpack()))
 
-quat_zAxis=|x,y,z,w|(
+local quat_zAxis=|x,y,z,w|(
 	2 * (x * z + w * y),
 	2 * (y * z - w * x),
 	1 - 2 * (x * x + y * y)
@@ -147,7 +147,7 @@ quat.axis = |q, res| res
 	and res:set(q.x, q.y, q.z)
 	or vec3(q.x, q.y, q.z)
 
-quat_rotate=|x, y, z, qx, qy, qz, qw|
+local quat_rotate=|x, y, z, qx, qy, qz, qw|
 	quat_mul(
 		qx, qy, qz, qw,
 		quat_mul(
@@ -162,8 +162,8 @@ quat.rotate = |:, v, res|res
 quat.conj = |:, res|
 	((res or quat()):set(-self.x, -self.y, -self.z, self.w))
 
-quat_lenSq=|x,y,z,w|x^2 + y^2 + z^2 + w^2
-quat_len=|x,y,z,w|math.sqrt(x^2 + y^2 + z^2 + w^2)
+local quat_lenSq=|x,y,z,w|x^2 + y^2 + z^2 + w^2
+local quat_len=|x,y,z,w|math.sqrt(x^2 + y^2 + z^2 + w^2)
 
 quat.dot = |a,b| a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
 quat.normSq = |q| quat.dot(q,q)
@@ -187,7 +187,7 @@ quat.__concat=string.concat
 
 -- make a rotation from v1 to v2
 -- assume both axii are unit already
-quat_vectorRotateUnit=|ax,ay,az,bx,by,bz|do
+local quat_vectorRotateUnit=|ax,ay,az,bx,by,bz|do
 	local cosTheta = ax*bx + ay*by + az*bz
 	if math.abs(cosTheta) > 1 - 1e-9 then
 		return 0,0,0,1
@@ -221,7 +221,7 @@ quat.vectorRotate=|v1,v2|do
 	return quat(x,y,z,th):fromAngleAxis()
 end
 
-quat_matrot=|x,y,z,w|do
+local quat_matrot=|x,y,z,w|do
 	local coshalfangle = w	-- [-1,1] <-> cos(theta) for theta in [0, pi]
 	local sinhalfangle = math.sqrt(1 - coshalfangle^2)	-- [0,1]
 	if sinhalfangle <= 1e-20 then return end
@@ -232,24 +232,24 @@ quat_matrot=|x,y,z,w|do
 end
 quat.matrot=|q| quat_matrot(q:unpack())
 
-quatRotX=|th|do
+local quatRotX=|th|do
 	local cos_halfth = math.cos(.5 * th)
 	local sin_halfth = math.sin(.5 * th)
 	return sin_halfth, 0, 0, cos_halfth
 end
-quatRotY=|th|do
+local quatRotY=|th|do
 	local cos_halfth = math.cos(.5 * th)
 	local sin_halfth = math.sin(.5 * th)
 	return 0, sin_halfth, 0, cos_halfth
 end
-quatRotZ=|th|do
+local quatRotZ=|th|do
 	local cos_halfth = math.cos(.5 * th)
 	local sin_halfth = math.sin(.5 * th)
 	return 0, 0, sin_halfth, cos_halfth
 end
 -- returns a quat of a z-rotation times an x-rotation
 -- I did this often enough that I put it in its own method
-quatRotZX=|thz,thx|do
+local quatRotZX=|thz,thx|do
 	local cos_halfthz = math.cos(.5 * thz)
 	local sin_halfthz = math.sin(.5 * thz)
 	local cos_halfthx = math.cos(.5 * thx)
@@ -260,3 +260,26 @@ quatRotZX=|thz,thx|do
 		sin_halfthz * cos_halfthx,
 		cos_halfthz * cos_halfthx
 end
+
+-- hmmmmm how to expose the non-object methods ...
+-- I'm too lazy to sort out which can double as object methods
+-- so for now I'll just mash everything into the quat class namespace
+quat.quat_scale = quat_scale
+quat.quat_mul = quat_mul
+quat.quat_toAngleAxis = quat_toAngleAxis
+quat.quat_fromAngleAxisUnit = quat_fromAngleAxisUnit
+quat.quat_fromAngleAxis = quat_fromAngleAxis
+quat.quat_xAxis = quat_xAxis
+quat.quat_yAxis = quat_yAxis
+quat.quat_zAxis = quat_zAxis
+quat.quat_rotate = quat_rotate
+quat.quat_lenSq = quat_lenSq
+quat.quat_len = quat_len
+quat.quat_vectorRotateUnit = quat_vectorRotateUnit
+quat.quat_matrot = quat_matrot
+quat.quatRotX = quatRotX
+quat.quatRotY = quatRotY
+quat.quatRotZ = quatRotZ
+quat.quatRotZX = quatRotZX
+
+return quat

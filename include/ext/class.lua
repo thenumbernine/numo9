@@ -19,3 +19,4 @@ class=|...|do
 	setmetatable(t,classmeta)
 	return t
 end
+return class

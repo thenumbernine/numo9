@@ -1,11 +1,16 @@
-require 'ext.class'
-require 'vec.vec2'
-require 'vec.vec3'
-require 'numo9.matstack'	-- modelMatrixIndex etc
+local class = require 'ext.class'
+local vec2 = require 'vec.vec2'
+local vec3 = require 'vec.vec3'
+
+-- modelMatrixIndex etc
+local viewMatrixIndex = require 'numo9.matstack'.viewMatrixIndex
+local projMatrixIndex = require 'numo9.matstack'.projMatrixIndex
+local matpush = require 'numo9.matstack'.push
+local matpop = require 'numo9.matstack'.pop
 
 
 -- light system object
-Lights = {}
+local Lights = {}
 do
 	-- how many lights to use
 	-- must be less than max lights,
@@ -348,3 +353,5 @@ do
 		pokew(self.numLightsAddr, self.count)
 	end
 end
+
+return Lights

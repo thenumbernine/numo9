@@ -1,4 +1,4 @@
-require 'ext.class'
+local class = require 'ext.class'
 
 -- autotile will vary per sheet
 -- I could pass the current sheet as an extra arg ... or make the sheet a table key ...
@@ -54,6 +54,7 @@ Autotile.paint = |:, tilemapIndex, x, y| do
 end
 
 local AutotileSides4bit = Autotile:subclass()
+Autotile.AutotileSides4bit = AutotileSides4bit
 -- I could merge 4bit corners and 4bit sides into 8bit ... hmm ... and prioritize by bit counts i.e. number of tiles valid ... but for now only one or the other is used ...
 AutotileSides4bit.change = |:, tilemapIndex, x, y| do
 	local t = self.t
@@ -81,6 +82,7 @@ AutotileSides4bit.change = |:, tilemapIndex, x, y| do
 end
 
 local AutotileCorners4bit = Autotile:subclass()
+Autotile.AutotileCorners4bit = AutotileCorners4bit
 AutotileCorners4bit.change = |:, tilemapIndex, x, y| do
 	local t = self.t
 	local tinv = self.tinv
@@ -119,3 +121,5 @@ AutotileCorners4bit.change = |:, tilemapIndex, x, y| do
 		| (corners[1][1] << 3)	-- lower-right
 	return self:choose(cornerFlags)	-- can be nil in the case that we dont have a replacing autotile
 end
+
+return Autotile

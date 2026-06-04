@@ -1,7 +1,7 @@
-objs=table()
+local objs=table()
 
-require 'ext.class'
-require 'vec.vec2'
+local class = require 'ext.class'
+local vec2 = require 'vec.vec2'
 
 Object=class()
 Object.spriteSize = vec2(1,1)	-- tile size, override for 16x16
@@ -173,3 +173,8 @@ Object.update=|:|do
 		self.vel.y += dt * self.gravity.y
 	end
 end
+
+return {
+	Object = Object,
+	objs = objs,
+}

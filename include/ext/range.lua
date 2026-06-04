@@ -9,3 +9,4 @@ local range=|a,b,c|do
 	end
 	return t
 end
+return range

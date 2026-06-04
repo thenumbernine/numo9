@@ -1,30 +1,30 @@
-require 'ext.class'
+local class = require 'ext.class'
 
 -- component-based
-vec3_add=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az+bz)
-vec3_sub=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az-bz)
-vec3_neg=|x,y,z|(-x,-y,-z)
-vec3_scale=|s,x,y,z|(s*x, s*y, s*z)
-vec3_dot=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
-vec3_cross=|ax,ay,az, bx,by,bz| (
+local vec3_add=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az+bz)
+local vec3_sub=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az-bz)
+local vec3_neg=|x,y,z|(-x,-y,-z)
+local vec3_scale=|s,x,y,z|(s*x, s*y, s*z)
+local vec3_dot=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
+local vec3_cross=|ax,ay,az, bx,by,bz| (
 	ay*bz - az*by,
 	az*bx - ax*bz,
 	ax*by - ay*bx
 )
-vec3_lenSq=|x,y,z|x^2+y^2+z^2
-vec3_len=|x,y,z|math.sqrt(x^2+y^2+z^2)
-vec3_unit=|x,y,z|do
+local vec3_lenSq=|x,y,z|x^2+y^2+z^2
+local vec3_len=|x,y,z|math.sqrt(x^2+y^2+z^2)
+local vec3_unit=|x,y,z|do
 	local l = vec3_len(x,y,z)
 	local s = 1 / math.max(1e-15, l)
 	return x*s, y*s, z*s, l
 end
-vec3_toSpherical=|x,y,z|do
+local vec3_toSpherical=|x,y,z|do
 	local r = vec3_len(x,y,z)
 	local theta = math.acos(z / r)
 	local phi = math.atan2(y, x)
 	return r,theta,phi
 end
-vec3_fromSpherical=|r,theta,phi|do
+local vec3_fromSpherical=|r,theta,phi|do
 	local sinTheta, cosTheta = math.sin(theta), math.cos(theta)
 	local sinPhi, cosPhi = math.sin(phi), math.cos(phi)
 	local x = r * cosPhi * sinTheta
@@ -136,3 +136,20 @@ vec3=class{
 		and res:set(vec3_fromSpherical(v:unpack()))
 		or vec3(vec3_fromSpherical(v:unpack())),
 }
+
+-- hmmmmm how to expose the non-object methods ...
+-- I'm too lazy to sort out which can double as object methods
+-- so for now I'll just mash everything into the quat class namespace
+vec3.vec3_add = vec3_add
+vec3.vec3_sub = vec3_sub
+vec3.vec3_neg = vec3_neg
+vec3.vec3_scale = vec3_scale
+vec3.vec3_dot = vec3_dot
+vec3.vec3_cross = vec3_cross
+vec3.vec3_lenSq = vec3_lenSq
+vec3.vec3_len = vec3_len
+vec3.vec3_unit = vec3_unit
+vec3.vec3_toSpherical = vec3_toSpherical
+vec3.vec3_fromSpherical = vec3_fromSpherical
+
+return vec3

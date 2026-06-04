@@ -1,4 +1,4 @@
-require 'ext.class'
+local class = require 'ext.class'
 
 local Threads = class()
 Threads.init = |:|do
@@ -37,3 +37,5 @@ Threads.update = |:| do
 		end
 	end
 end
+
+return Threads

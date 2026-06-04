@@ -5,9 +5,9 @@ end
 
 math.randomseed(tstamp())
 
-require 'ext.class'
-require 'vec.vec2'
-require 'vec.box2'
+local class = require 'ext.class'
+local vec2 = require 'vec.vec2'
+local box2 = require 'vec.box2'
 require 'numo9.screen'
 
 mode(42)	-- 16:9 480x270x8bpp-indexed
