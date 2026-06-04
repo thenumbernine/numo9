@@ -122,7 +122,7 @@ startPos={
 	{0,maph-1},
 }
 
---#include ext/class.lua
+local class = require 'ext.class'
 
 BaseObj=class{
 	bbox={-.4,-.4,.4,.4},
