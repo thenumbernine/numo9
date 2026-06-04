@@ -3,8 +3,8 @@
 -- author = Chris Moore
 -- description = color matching puzzle game
 
---#include ext/class.lua
---#include vec/vec2.lua
+local class = require 'ext.class'
+local vec2 = require 'vec.vec2'
 
 -- in-place modify vec2 to work around Lua's weird 1-based indexing
 vec2.modPlus1=|v,m|do
@@ -661,19 +661,19 @@ Game.setBoardPlaceTileColor = |:,x,y,tile,grabbedFromPlace|do
 	local playedSameColor = playedOnColor == playedColor
 	local rows = {}
 	local cols = {}
-trace('placing tile type', tile.type, 'at', x, y)		
+trace('placing tile type', tile.type, 'at', x, y)
 	if tile.type == Tile.TYPE_TILE then
-trace('placing tile at', x, y)		
+trace('placing tile at', x, y)
 		self:setColorAt(x,y,playedColor,cols,rows)
 	elseif tile.type == Tile.TYPE_AREA then
-trace('placing area at', x, y)		
+trace('placing area at', x, y)
 		self:setColorAt(x, y, playedColor, cols, rows)
 		self:setColorAt(x-1, y, playedColor, cols, rows)
 		self:setColorAt(x+1, y, playedColor, cols, rows)
 		self:setColorAt(x, y-1, playedColor, cols, rows)
 		self:setColorAt(x, y+1, playedColor, cols, rows)
 	elseif tile.type == Tile.TYPE_FILL then
-trace('placing fill at', x, y)		
+trace('placing fill at', x, y)
 		local points = table{vec2(x,y)}
 		local i = 1
 		while i <= #points do

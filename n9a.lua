@@ -136,9 +136,10 @@ elseif cmd == 'x' then
 	assert.type(blobs, 'table')
 
 	-- allow metainfo to say what sheet gets what palette
-	local metainfo = blobs.code[1]:getMetaInfo()
+	local mainCodeBlob = blobs.code[1]
+	local metainfo = mainCodeBlob and mainCodeBlob:getMetaInfo()
 
-	local paletteForSheet = metainfo['archive.paletteForSheet']
+	local paletteForSheet = metainfo and metainfo['archive.paletteForSheet']
 	if paletteForSheet then
 		paletteForSheet = op.land(pcall(fromlua, paletteForSheet))
 		if type(paletteForSheet) ~= 'table' then
@@ -418,44 +419,47 @@ print('creating default sfx '..i..' blob')
 	-- so I came up with a fix
 	-- optional save transpiled code or save bytecode
 	-- maybe I shouldn't let the normies save bytecode, or they will do it to try to "protect their intellectual property"
-	local metainfo = blobs.code[1]:getMetaInfo()
-	if metainfo.codeSaveMethod then
-		if metainfo.codeSaveMethod == 'transpiled-lua' then
-			require 'ext.timer'('caching transpiled code', function()
-				-- TODO this is duplicated in numo9/app.lua:
-				for _,codeBlob in ipairs(blobs.code) do
-					local code = codeBlob:toBinStr()
+	local mainCodeBlob = blobs.code[1]
+	if mainCodeBlob then
+		local metainfo = mainCodeBlob:getMetaInfo()
+		if metainfo.codeSaveMethod then
+			if metainfo.codeSaveMethod == 'transpiled-lua' then
+				require 'ext.timer'('caching transpiled code', function()
+					-- TODO this is duplicated in numo9/app.lua:
+					for _,codeBlob in ipairs(blobs.code) do
+						local code = codeBlob:toBinStr()
 
-					local loadenv = setmetatable({
-						package = {
-							searchpath = package.searchpath,
-							searchers = table(package.searchers or package.loaders):setmetatable(nil),
-							path = package.path,
-							cpath = package.cpath,
-							loaded = {},
-						},
-						--require = require,
-					}, {
-						__index = _G,
-					})
-					local langfixState = require 'langfix.env'(loadenv)
-					local langfix = loadenv.langfix
-					code = assert(langfix.luaToFixed(code))
+						local loadenv = setmetatable({
+							package = {
+								searchpath = package.searchpath,
+								searchers = table(package.searchers or package.loaders):setmetatable(nil),
+								path = package.path,
+								cpath = package.cpath,
+								loaded = {},
+							},
+							--require = require,
+						}, {
+							__index = _G,
+						})
+						local langfixState = require 'langfix.env'(loadenv)
+						local langfix = loadenv.langfix
+						code = assert(langfix.luaToFixed(code))
 
-					-- re-append the meta-info for the next read:
-					local metakv = table()
-					for k,v in pairs(metainfo) do
-						metakv:insert('-- '..k..' = '..v)
+						-- re-append the meta-info for the next read:
+						local metakv = table()
+						for k,v in pairs(metainfo) do
+							metakv:insert('-- '..k..' = '..v)
+						end
+						code = metakv:concat'\n'..'\n\n'..code
+
+						codeBlob.vec:resize(#code)
+						ffi.copy(codeBlob.vec.v, code, #code)
 					end
-					code = metakv:concat'\n'..'\n\n'..code
-
-					codeBlob.vec:resize(#code)
-					ffi.copy(codeBlob.vec.v, code, #code)
-				end
-			end)
-		--elseif metainfo.codeSaveMethod == 'bytecode' then
-		else
-			error("I got codeSaveMethod but it was an unknown value: "..tostring(metainfo.codeSaveMethod))
+				end)
+			--elseif metainfo.codeSaveMethod == 'bytecode' then
+			else
+				error("I got codeSaveMethod but it was an unknown value: "..tostring(metainfo.codeSaveMethod))
+			end
 		end
 	end
 
