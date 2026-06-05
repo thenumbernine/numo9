@@ -1001,28 +1001,39 @@ function App:initGL()
 			return self:loadCmd(cmd, ...)
 			--return self:loadCmd(cmd, source, self.gameEnv)  -- should it use the game's env, or the app's default env? or should it be an arg?
 		end,
-
-		require = function(req)
-			-- NOTICE if no game is running then it'll fall back on self.env's package.loaded and then you'll get different results for require() than when a game is running
-			if not self.gameEnv then
-				print'!!! WARNING !!! using require() from outside gameEnv'
-			end
-			local env = self.gameEnv or self.env
-			local loaded = env.package.loaded
-			local result = loaded[req]
-			if result ~= nil then return result end
-			-- search only the code blobs based on their filename metainfo
-			local fn = req:gsub('%.', '/')
-			local blob = self.codeBlobForFilename[fn..'.lua'] or self.codeBlobForFilename[fn..'.rua']
-			if not blob then error("module '"..req.."' not found") end
-			local code = blob:toBinStr()
-			local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
-			local f = assert(self:loadCmd(code, req, env, alreadyTranspiledToLua))
-			local result = f() or true
-			loaded[req] = result
-			return result
-		end,
 	}
+
+	local loadingPlaceholder = {}
+	self.env.require = function(modname)
+		-- NOTICE if no game is running then it'll fall back on self.env's package.loaded and then you'll get different results for require() than when a game is running
+		if not self.gameEnv then
+			print'!!! WARNING !!! using require() from outside gameEnv'
+		end
+		local env = self.gameEnv or self.env
+		local loaded = env.package.loaded
+		local mod = loaded[modname]
+		if mod ~= nil then
+			if mod == loadingPlaceholder then
+				error("loop or previous error loading module '"..modname.."'")
+			end
+			return mod
+		end
+
+		-- search only the code blobs based on their filename metainfo
+		local fn = modname:gsub('%.', '/')
+		local blob = self.codeBlobForFilename[fn..'.lua'] or self.codeBlobForFilename[fn..'.rua']
+		if not blob then error("module '"..modname.."' not found") end
+		local code = blob:toBinStr()
+
+		-- if we try to require ourselves before we've resolved our own load code then error
+		loaded[modname] = loadingPlaceholder
+		-- if this is based on the master code blob metainfo, then maybe make a function for loadCmd-of-codeblob for this and runCart?
+		local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
+		local mod = assert(self:loadCmd(code, modname, env, alreadyTranspiledToLua))(modname)
+		if mod == nil then mod = true end
+		loaded[modname] = mod
+		return mod
+	end
 
 --[[ debugging - trace all calls
 local oldenv = self.env
@@ -3311,16 +3322,16 @@ end
 function App:loadCmd(cmd, source, env, alreadyTranspiledToLua)
 	-- allow meta-info to pre-transpile and offload the langfix-transpile step
 	if alreadyTranspiledToLua then
-
-return select(2, require 'ext.timer'('App:loadCmd with alreadyTranspiledToLua', function()
+--return select(2, require 'ext.timer'('App:loadCmd with alreadyTranspiledToLua', function()
 		return load(cmd, source, 't', env or self.gameEnv or self.env)
-end))
+--end))
 	end
 -- langfix is slow... esp for big scripts...
-return select(2, require 'ext.timer'('App:loadCmd', function()
+-- so if it goes slow, use `codeSaveMethod = transpiled-lua` in large files
+--return select(2, require 'ext.timer'('App:loadCmd', function()
 	-- Lua is wrapping [string "  "] around my source always ...
 	return self.loadenv.load(cmd, source, 't', env or self.gameEnv or self.env)
-end))
+--end))
 end
 
 --[[

@@ -421,12 +421,13 @@ print('creating default sfx '..i..' blob')
 	-- maybe I shouldn't let the normies save bytecode, or they will do it to try to "protect their intellectual property"
 	local mainCodeBlob = blobs.code[1]
 	if mainCodeBlob then
-		local metainfo = mainCodeBlob:getMetaInfo()
-		if metainfo.codeSaveMethod then
-			if metainfo.codeSaveMethod == 'transpiled-lua' then
+		local masterMetaInfo = mainCodeBlob:getMetaInfo()
+		if masterMetaInfo.codeSaveMethod then
+			if masterMetaInfo.codeSaveMethod == 'transpiled-lua' then
 				require 'ext.timer'('caching transpiled code', function()
 					-- TODO this is duplicated in numo9/app.lua:
 					for _,codeBlob in ipairs(blobs.code) do
+						local blobMetaInfo = codeBlob:getMetaInfo()
 						local code = codeBlob:toBinStr()
 
 						local loadenv = setmetatable({
@@ -447,7 +448,7 @@ print('creating default sfx '..i..' blob')
 
 						-- re-append the meta-info for the next read:
 						local metakv = table()
-						for k,v in pairs(metainfo) do
+						for k,v in pairs(blobMetaInfo) do
 							metakv:insert('-- '..k..' = '..v)
 						end
 						code = metakv:concat'\n'..'\n\n'..code
@@ -456,9 +457,9 @@ print('creating default sfx '..i..' blob')
 						ffi.copy(codeBlob.vec.v, code, #code)
 					end
 				end)
-			--elseif metainfo.codeSaveMethod == 'bytecode' then
+			--elseif masterMetaInfo.codeSaveMethod == 'bytecode' then
 			else
-				error("I got codeSaveMethod but it was an unknown value: "..tostring(metainfo.codeSaveMethod))
+				error("I got codeSaveMethod but it was an unknown value: "..tostring(masterMetaInfo.codeSaveMethod))
 			end
 		end
 	end
