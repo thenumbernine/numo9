@@ -426,7 +426,7 @@ print('creating default sfx '..i..' blob')
 			if masterMetaInfo.codeSaveMethod == 'transpiled-lua' then
 				require 'ext.timer'('caching transpiled code', function()
 					-- TODO this is duplicated in numo9/app.lua:
-					for _,codeBlob in ipairs(blobs.code) do
+					for blobIndexPlus1,codeBlob in ipairs(blobs.code) do
 						local blobMetaInfo = codeBlob:getMetaInfo()
 						local code = codeBlob:toBinStr()
 
@@ -444,7 +444,16 @@ print('creating default sfx '..i..' blob')
 						})
 						local langfixState = require 'langfix.env'(loadenv)
 						local langfix = loadenv.langfix
-						code = assert(langfix.luaToFixed(code))
+						code, msg = langfix.luaToFixed(code)
+						if not code then
+							local parts = table()
+							parts:insert('code blob #'..(blobIndexPlus1-1))
+							if blobMetaInfo.filename then
+								parts:insert(('file %q'):format(blobMetaInfo.filename))
+							end
+							parts:insert(msg)
+							error(parts:concat', ')
+						end
 
 						-- re-append the meta-info for the next read:
 						local metakv = table()
