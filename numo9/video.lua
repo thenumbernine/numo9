@@ -3363,7 +3363,8 @@ end
 local modelMatPush = matArrType()
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
-	sheetIndex
+	sheetIndex,
+	paletteOffset
 )
 	voxelmapIndex = voxelmapIndex or 0
 	local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
@@ -3382,6 +3383,8 @@ function AppVideo:drawVoxelMap(
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	local sheetTex = sheetRAM.tex
+
+	paletteOffset = paletteOffset or 0
 
 	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
 	if not paletteBlob then
@@ -3445,7 +3448,7 @@ function AppVideo:drawVoxelMap(
 	-- ... never seems to go that fast
 	self:triBuf_flush()
 	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)	-- make sure textures are set
-	voxelmap:drawMesh(self)
+	voxelmap:drawMesh(self, paletteOffset)
 	--]]
 
 	framebufferRAM.dirtyGPU = true
@@ -3459,14 +3462,14 @@ function AppVideo:drawVoxelMap(
 	for j=0,#voxelmap.billboardXYZVoxels-1 do
 		local i = voxelmap.billboardXYZVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
-		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex, paletteOffset)
 		ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
 		self:onModelMatChange()
 	end
 	for j=0,#voxelmap.billboardXYVoxels-1 do
 		local i = voxelmap.billboardXYVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
-		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex, paletteOffset)
 		ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
 		self:onModelMatChange()
 	end

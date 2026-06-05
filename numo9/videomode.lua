@@ -1579,6 +1579,8 @@ uniform vec4 blendColorSolid;
 uniform uint dither;
 //uniform vec2 frameBufferSize;
 
+uniform int paletteOffsetUniform;	// for when you want to shift palette but can't change attributes ... i.e. voxelmap rendering
+
 uniform float spriteNormalExhaggeration;
 
 <?=glslCode5551?>
@@ -1727,7 +1729,7 @@ end ?>
 	// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
 	transparentIndex |= (extra.x & 4u) << 6;
 
-	uint paletteOffset = extra.w;
+	uint paletteOffset = extra.w + paletteOffsetUniform;
 
 	// sheetTex is usampler2D / returns uvec4
 	// sheetTex.r holds the uint8 value of the indexed color

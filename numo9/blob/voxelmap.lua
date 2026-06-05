@@ -951,16 +951,23 @@ function BlobVoxelMap:onVoxelmapCullSideFlagsChange()
 	end
 end
 
-function BlobVoxelMap:drawMesh(app)
+function BlobVoxelMap:drawMesh(app, paletteOffset)
 	local sceneObj = app.triBuf_sceneObj
+	local program = sceneObj.program
 
 	local pushVAO = sceneObj.vao
 	local pushVertexBufCPU = app.vertexBufCPU
 	local pushVertexBufGPU = app.vertexBufGPU
 
+	-- all this to allow voxelmaps to shift palettes ...
+	program:use()
+	gl.glUniform1i(program.uniforms.paletteOffsetUniform.loc, paletteOffset or 0)
+
 	for i=0,self.chunkVolume-1 do
 		self.chunks[i]:drawMesh(app)
 	end
+
+	gl.glUniform1i(program.uniforms.paletteOffsetUniform.loc, 0)
 
 	-- restore old buffers
 	app.vertexBufCPU = pushVertexBufCPU
