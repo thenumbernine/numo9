@@ -3,43 +3,75 @@
 -- author = Chris Moore
 -- description = block blast
 
+math.randomseed(tstamp())
+
 local vec2 = require 'vec.vec2'
 local matpush = require 'numo9.matstack'.push
 local matpop = require 'numo9.matstack'.pop
 
 mode(0)	-- 256x256x16bpp
-local w, h = 256, 256<<3
-local tw, th = w >> 3, h >> 3
+local tw, th = 256 >> 3, 256
 -- so tiles-high is 256 <-> tilemap height
 
-do
-	local hole = math.floor(tw/2)
-	for y=10,th-1 do
+-- for seeing what's going on at the bottom
+--th = (256>>3) - 1
+
+
+points = 0
+local numEmptyRows = 10
+local numColors = 4	-- so 1 thru 4 are colored tiles
+
+local fillY = 0
+local holeCol = math.floor(tw/2)
+local fillRows=|fromRow|do
+	for y=fromRow,th-1 do
+		fillY += 1
 		for x=0,tw-1 do
-			if x ~= hole then
-				tset(0,x,y,1)
+			if x == holeCol then
+				tset(0, x,y,0)
+			else
+				local tileColor = numColors *
+					math.sin((x+.5) * math.pi * 2 / 32)
+					* math.sin((fillY+.5) * math.pi * 2 / 32)
+				tileColor %= numColors
+				tileColor += 1
+				tset(0,x,y,tileColor)
 			end
 		end
-		if math.random() < .1 then
-			hole += math.random(1,3) * (math.random(0,1)*2-1)
+		if math.random() < .25 then
+			holeCol += math.random(1,3) * (math.random(0,1)*2-1)
+			holeCol %= tw
 		end
 	end
 end
+fillRows(numEmptyRows)
 
 
 local newPiece = ||do
 	rot = 0
 	piece = math.random(0,6)
-	piecePos = vec2(math.floor(tw/2), 3)
+	piecePos = vec2(math.floor(tw/2), 1)
+	pieceTilePos = vec2()
 	baseDropTime = 60
 	dropTimer = baseDropTime
+
+	-- copy our piece into a temp location and color it
+	-- 256-4, 7<<2 will be where our piece is
+	pieceTilePos:set(256-4, 7<<2)
+	local pieceColor = math.random(1, numColors)
+	for j=0,3 do
+		for i=0,3 do
+			local tile = tget(0, 256-4+i, (piece<<2)+j) * pieceColor
+			tset(0, pieceTilePos.x+i, pieceTilePos.y+j, tile)
+		end
+	end
 end
 
 local testHit = ||do
 	for j=0,3 do
 		for i=0,3 do
 			-- if there's a tilemap entry on the piece
-			if tget(0, 256-4+i, (piece<<2) + j) ~= 0 then
+			if tget(0, pieceTilePos.x+i, pieceTilePos.y+j) ~= 0 then
 				-- then rotate it and offset it
 				-- and see if there's a tilemap entry in the map
 				-- and if so then return true
@@ -64,7 +96,7 @@ local placePiece = ||do
 	for j=0,3 do
 		for i=0,3 do
 			-- if there's a tilemap entry on the piece
-			local tile = tget(0, 256-4+i, (piece<<2) + j)
+			local tile = tget(0, pieceTilePos.x+i, pieceTilePos.y+j)
 			if tile ~= 0 then
 				-- then rotate it and offset it
 				-- and see if there's a tilemap entry in the map
@@ -80,6 +112,7 @@ local placePiece = ||do
 		end
 	end
 	-- now check for lines....
+	local gotLine
 	for y=0,th-1 do
 		local line = true
 		for x=0,tw-1 do
@@ -99,10 +132,45 @@ local placePiece = ||do
 			for x=0,tw-1 do
 				tset(0,x,0,0)
 			end
+trace('got line at row',y)
 			rowFlashes:insert{y=y, time=time()}
+			gotLine = true
+			lastLineTime = time()
+			points += tw
 		end
 	end
 	newPiece()
+	return gotLine
+end
+
+local checkForRaise = ||do
+	-- now see what the first non-empty row is and raise things up and fill in as we go
+	local firstNonEmptyRow
+	for y=0,th-1 do
+		local empty = true
+		for x=0,tw-1 do
+			if tget(0,x,y) ~= 0 then
+				empty = false
+				break
+			end
+		end
+		if not empty then
+			firstNonEmptyRow = y
+			break
+		end
+	end
+	firstNonEmptyRow ??= th
+	if firstNonEmptyRow > numEmptyRows then
+print('firstNonEmptyRow', firstNonEmptyRow, 'vs numEmptyRows', numEmptyRows, '... moving up')
+		--local moveUp = firstNonEmptyRow - numEmptyRows
+		local moveUp = 1
+		for y=firstNonEmptyRow,th-1 do
+			for x=0,tw-1 do
+				tset(0, x, y-moveUp, tget(0, x, y))
+			end
+		end
+		fillRows(th-moveUp)
+	end
 end
 
 newPiece()
@@ -121,11 +189,13 @@ update = ||do
 	mattrans(piecePos.x << 3, piecePos.y << 3)
 	matrot(rot * math.pi/2)
 	tilemap(
-		256-4, piece<<2,
+		pieceTilePos.x, pieceTilePos.y,
 		4,4,
 		-16,-16
 	)
 	matpop()
+
+	text(tostring(points))
 
 	for i=#rowFlashes,1,-1 do
 		local f = rowFlashes[i]
@@ -179,7 +249,15 @@ update = ||do
 		piecePos.y += 1
 		if testHit() then
 			piecePos.y = oldPiecePosY
-			placePiece()
+			if not placePiece() then
+print("placed, didn't get line, checking for raise...")
+				-- only if we placed a piece, and it wans't a line, and we previously got a line more than 5s ago...., then raise
+				--if lastLineTime and time() - lastLineTime > 1 then
+				--	lastLineTime = time()
+print'raising...'
+				checkForRaise()
+				--end
+			end
 		end
 	end
 end
