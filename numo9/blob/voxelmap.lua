@@ -593,6 +593,8 @@ function Chunk:drawMesh(app)
 	app.vertexBufGPU = vertexBufGPU
 	sceneObj.vao = self.vao
 
+	-- The buffers are currently pointed at this Chunk's buffers,
+	-- not the dynamic per-frame buffer, so don't clear them.
 	app:triBuf_flushButDontClear()
 end
 

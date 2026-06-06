@@ -383,12 +383,13 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb, generator)
 		end
 	end
 
-	if self.menuTabIndex < buttonMenuTabCounter
-	or self.menuTabIndex >= self.menuTabCounter
-	then
-		t[popupKey] = false
+	if buttonMenuTabCounter then	-- am I removing this?
+		if self.menuTabIndex < buttonMenuTabCounter
+		or self.menuTabIndex >= self.menuTabCounter
+		then
+			t[popupKey] = false
+		end
 	end
-
 	return handled
 end
 

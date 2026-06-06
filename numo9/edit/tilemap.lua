@@ -6,6 +6,7 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
+local sdl = require 'sdl'
 
 local clip = require 'numo9.clipboard'
 
@@ -70,7 +71,7 @@ function EditTilemap:init(args)
 
 	self:newUI_setup()
 
-	local x = 90
+	local x = 100
 	local y = 0
 	self:addChild(self.tileSel:makeButton{
 		owner = self,
@@ -276,6 +277,7 @@ function EditTilemap:init(args)
 		local sdlkey = e.sdl.key.key
 
 		local app = self.app
+		local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 
 		local uikey
 		if ffi.os == 'OSX' then
@@ -519,7 +521,7 @@ function EditTilemap:update()
 		2+bit.lshift(tilemapSize.x, tileBits),	-- w
 		2+bit.lshift(tilemapSize.y, tileBits),	-- h
 		0, 0,									-- tx ty tw th
-		1, 1 --2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
+		self.scale*1024, self.scale*1024	--2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
 	)
 
 	-- set the current selected palette via RAM registry to self.paletteBlobIndex
@@ -924,6 +926,7 @@ function EditTilemap:update()
 	end
 
 	app:matMenuReset()
+	self:guiSetClipRect(-9999, -9999, clipMax, clipMax)
 
 	self:newUI_update()
 end

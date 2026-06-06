@@ -52,6 +52,7 @@ files = {
 	"include/vec/quat.lua",
 	"include/vec/vec2.lua",
 	"include/vec/vec3.lua",
+	"infinitris.n9",
 	"jumpman.n9",
 	"kart.n9",
 	"knots.n9",
