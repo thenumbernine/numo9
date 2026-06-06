@@ -10,23 +10,22 @@ local matpush = require 'numo9.matstack'.push
 local matpop = require 'numo9.matstack'.pop
 
 mode(0)	-- 256x256x16bpp
-local tw, th = 256 >> 3, 256
--- so tiles-high is 256 <-> tilemap height
 
--- for seeing what's going on at the bottom
---th = (256>>3) - 1
+-- game config:
+mapwidth, mapheight = 256 >> 3, 256	-- so tiles-high is 256 <-> tilemap height
+--mapheight = (256>>3) - 1	-- for seeing what's going on at the bottom
+numEmptyRows = 10
+numColors = 4	-- so 1 thru 4 are colored tiles
+baseDropTime = 60
 
+-- game state:
+local fillY, holeCol
+local rowFlashes
 
-points = 0
-local numEmptyRows = 10
-local numColors = 4	-- so 1 thru 4 are colored tiles
-
-local fillY = 0
-local holeCol = math.floor(tw/2)
 local fillRows=|fromRow|do
-	for y=fromRow,th-1 do
+	for y=fromRow,mapheight-1 do
 		fillY += 1
-		for x=0,tw-1 do
+		for x=0,mapwidth-1 do
 			if x == holeCol then
 				tset(0, x,y,0)
 			else
@@ -40,19 +39,16 @@ local fillRows=|fromRow|do
 		end
 		if math.random() < .25 then
 			holeCol += math.random(1,3) * (math.random(0,1)*2-1)
-			holeCol %= tw
+			holeCol %= mapwidth
 		end
 	end
 end
-fillRows(numEmptyRows)
-
 
 local newPiece = ||do
 	rot = 0
 	piece = math.random(0,6)
-	piecePos = vec2(math.floor(tw/2), 1)
+	piecePos = vec2(math.floor(mapwidth/2), 1)
 	pieceTilePos = vec2()
-	baseDropTime = 60
 	dropTimer = baseDropTime
 
 	-- copy our piece into a temp location and color it
@@ -61,8 +57,9 @@ local newPiece = ||do
 	local pieceColor = math.random(1, numColors)
 	for j=0,3 do
 		for i=0,3 do
-			local tile = tget(0, 256-4+i, (piece<<2)+j) * pieceColor
-			tset(0, pieceTilePos.x+i, pieceTilePos.y+j, tile)
+			-- color our temp region
+			local pieceTile = tget(0, 256-4+i, (piece<<2)+j) * pieceColor
+			tset(0, pieceTilePos.x+i, pieceTilePos.y+j, pieceTile)
 		end
 	end
 end
@@ -81,8 +78,8 @@ local testHit = ||do
 				end
 				x += piecePos.x - 2
 				y += piecePos.y - 2
-				if x < 0 or x >= tw then return true end
-				if y >= th then return true end
+				if x < 0 or x >= mapwidth then return true end
+				if y >= mapheight then return true end
 				if tget(0, x, y) ~= 0 then
 					return true
 				end
@@ -91,7 +88,6 @@ local testHit = ||do
 	end
 end
 
-rowFlashes = table()
 local placePiece = ||do
 	for j=0,3 do
 		for i=0,3 do
@@ -113,9 +109,9 @@ local placePiece = ||do
 	end
 	-- now check for lines....
 	local gotLine
-	for y=0,th-1 do
+	for y=0,mapheight-1 do
 		local line = true
-		for x=0,tw-1 do
+		for x=0,mapwidth-1 do
 			if tget(0, x, y) == 0 then
 				line = false
 				break
@@ -124,19 +120,19 @@ local placePiece = ||do
 		if line then
 			-- copy all previous lines down over it
 			for j=y-1,0,-1 do
-				for x=0,tw-1 do
+				for x=0,mapwidth-1 do
 					tset(0,x,j+1,tget(0,x,j))
 				end
 			end
 			-- erase the top
-			for x=0,tw-1 do
+			for x=0,mapwidth-1 do
 				tset(0,x,0,0)
 			end
 trace('got line at row',y)
 			rowFlashes:insert{y=y, time=time()}
 			gotLine = true
-			lastLineTime = time()
-			points += tw
+			--lastLineTime = time()
+			points += mapwidth
 		end
 	end
 	newPiece()
@@ -146,9 +142,9 @@ end
 local checkForRaise = ||do
 	-- now see what the first non-empty row is and raise things up and fill in as we go
 	local firstNonEmptyRow
-	for y=0,th-1 do
+	for y=0,mapheight-1 do
 		local empty = true
-		for x=0,tw-1 do
+		for x=0,mapwidth-1 do
 			if tget(0,x,y) ~= 0 then
 				empty = false
 				break
@@ -159,28 +155,42 @@ local checkForRaise = ||do
 			break
 		end
 	end
-	firstNonEmptyRow ??= th
+	firstNonEmptyRow ??= mapheight
 	if firstNonEmptyRow > numEmptyRows then
 print('firstNonEmptyRow', firstNonEmptyRow, 'vs numEmptyRows', numEmptyRows, '... moving up')
 		--local moveUp = firstNonEmptyRow - numEmptyRows
 		local moveUp = 1
-		for y=firstNonEmptyRow,th-1 do
-			for x=0,tw-1 do
+		for y=firstNonEmptyRow,mapheight-1 do
+			for x=0,mapwidth-1 do
 				tset(0, x, y-moveUp, tget(0, x, y))
 			end
 		end
-		fillRows(th-moveUp)
+		fillRows(mapheight-moveUp)
 	end
 end
 
-newPiece()
+local newGame = ||do
+	for y=0,mapheight-1 do
+		for x=0,mapwidth-1 do
+			tset(0,x,y,0)
+		end
+	end
+	newGameTime = nil
+	points = 0
+	fillY = 0
+	holeCol = math.floor(mapwidth/2)
+	fillRows(numEmptyRows)
+	rowFlashes = table()
+	newPiece()
+end
+newGame()
 
 update = ||do
 	cls()
 
 	tilemap(
 		0,0,	-- tilex, tiley
-		tw, th,	-- tileswide, tileshigh
+		mapwidth, mapheight,	-- tileswide, tileshigh
 		0, 0	-- screenx, screeny
 	)
 
@@ -197,6 +207,13 @@ update = ||do
 
 	text(tostring(points))
 
+	if newGameTime then
+		text('GAME OVER', 20, 100, 12, -1, 5, 5)
+		if time() - newGameTime > 10 then
+			newGame()
+		end
+	end
+
 	for i=#rowFlashes,1,-1 do
 		local f = rowFlashes[i]
 		local dt = time() - f.time
@@ -204,7 +221,7 @@ update = ||do
 			rowFlashes:remove(i)
 		else
 			if (dt * 12) % 1 < .5 then
-				rect(0, f.y << 3, tw << 3, 1<<3, 12)
+				rect(0, f.y << 3, mapwidth << 3, 1<<3, 12)
 			end
 		end
 	end
@@ -249,7 +266,12 @@ update = ||do
 		piecePos.y += 1
 		if testHit() then
 			piecePos.y = oldPiecePosY
-			if not placePiece() then
+			local gotLine = placePiece()
+			if testHit() then
+print'gameover...'
+				-- see if the initial piecePos will be stuck or not ...
+				newGameTime = time()
+			elseif not gotLine then
 print("placed, didn't get line, checking for raise...")
 				-- only if we placed a piece, and it wans't a line, and we previously got a line more than 5s ago...., then raise
 				--if lastLineTime and time() - lastLineTime > 1 then
