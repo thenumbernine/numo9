@@ -49,6 +49,8 @@ local testHit = ||do
 				end
 				x += piecePos.x - 2
 				y += piecePos.y - 2
+				if x < 0 or x >= tw then return true end
+				if y >= th then return true end
 				if tget(0, x, y) ~= 0 then
 					return true
 				end
@@ -123,7 +125,6 @@ update = ||do
 		4,4,
 		-16,-16
 	)
-	rectb(-17, -17, 34, 34, 12)
 	matpop()
 
 	for i=#rowFlashes,1,-1 do
@@ -152,7 +153,7 @@ update = ||do
 		if testHit() then
 			piecePos.x = oldPiecePosX
 		end
-	elseif btnp'down' then
+	elseif btnp('down', 0, 3, 3) then
 		-- drop ...
 		drop = true
 	elseif btnp'a' or btnp'up' then
@@ -162,7 +163,7 @@ update = ||do
 			rot = oldRot
 		end
 	elseif btnp'b' then
-		rot += 1
+		rot -= 1
 		rot &= 3
 		if testHit() then
 			rot = oldRot
