@@ -240,7 +240,7 @@ update = ||do
 		if testHit() then
 			piecePos.x = oldPiecePosX
 		end
-	elseif btnp('down', 0, 3, 3) then
+	elseif btnp('down', 0, 2, 2) then
 		-- drop ...
 		drop = true
 	elseif btnp'a' or btnp'up' then
