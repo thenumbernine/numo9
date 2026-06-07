@@ -10,6 +10,7 @@ local matpush = require 'numo9.matstack'.push
 local matpop = require 'numo9.matstack'.pop
 
 mode(0)	-- 256x256x16bpp
+screenWidth = 256
 
 -- game config:
 mapwidth, mapheight = 256 >> 3, 256	-- so tiles-high is 256 <-> tilemap height
@@ -17,6 +18,7 @@ mapwidth, mapheight = 256 >> 3, 256	-- so tiles-high is 256 <-> tilemap height
 numEmptyRows = 10
 numColors = 4	-- so 1 thru 4 are colored tiles
 baseDropTime = 60
+numPieceTypes = 7
 
 -- game state:
 local fillY, holeCol
@@ -44,16 +46,22 @@ local fillRows=|fromRow|do
 	end
 end
 
+numNextPieces = 1
+nextPieces = table()
+
 local newPiece = ||do
 	rot = 0
-	piece = math.random(0,6)
+	while #nextPieces < numNextPieces+1 do
+		nextPieces:insert(math.random(0,numPieceTypes))
+	end
+	piece = nextPieces:remove(1)
 	piecePos = vec2(math.floor(mapwidth/2), 1)
 	pieceTilePos = vec2()
 	dropTimer = baseDropTime
 
 	-- copy our piece into a temp location and color it
-	-- 256-4, 7<<2 will be where our piece is
-	pieceTilePos:set(256-4, 7<<2)
+	-- 256-4, numPieceTypes<<2 will be where our piece is
+	pieceTilePos:set(256-4, numPieceTypes<<2)
 	local pieceColor = math.random(1, numColors)
 	for j=0,3 do
 		for i=0,3 do
@@ -108,7 +116,7 @@ local placePiece = ||do
 		end
 	end
 	-- now check for lines....
-	local gotLine
+	local numLines = 0
 	for y=0,mapheight-1 do
 		local line = true
 		for x=0,mapwidth-1 do
@@ -130,13 +138,23 @@ local placePiece = ||do
 			end
 trace('got line at row',y)
 			rowFlashes:insert{y=y, time=time()}
-			gotLine = true
+			numLines += 1
 			--lastLineTime = time()
-			points += mapwidth
 		end
 	end
 	newPiece()
-	return gotLine
+	if numLines > 0 then
+--[[
+tetris ... 1 lines = 40, 2 lines = x2.5, 3 lines = x7.5, 4 lines = x30
+f(0) = 0
+f(1) = 1
+f(2) = 2.5
+f(3) = 7.5
+f(4) = 30
+--]]
+		points += 40 * math.ceil(((numLines + 1) / 2) ^ numLines)	-- meh
+		return true
+	end
 end
 
 local checkForRaise = ||do
@@ -204,6 +222,20 @@ update = ||do
 		-16,-16
 	)
 	matpop()
+
+	do
+		blend(3)
+		rect(screenWidth - (4<<3), 0, 4<<3, #nextPieces<<5, 16)
+		blend(-1)
+		for i,p in ipairs(nextPieces) do
+			tilemap(
+				256-4, p<<2,
+				4, 4,
+				screenWidth - (4<<3), (i-1)<<5
+			)
+		end
+		rectb(screenWidth - (4<<3) - 1, -1, (4<<3) + 2, (#nextPieces<<5) + 2, 12)
+	end
 
 	text(tostring(points))
 
