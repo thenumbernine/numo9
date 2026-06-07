@@ -2326,9 +2326,9 @@ function AppVideo:drawQuad(
 end
 
 function AppVideo:drawTexTri3D(
-	x1,y1,z1,u1,v1,
-	x2,y2,z2,u2,v2,
-	x3,y3,z3,u3,v3,
+	x1, y1, z1, u1, v1,
+	x2, y2, z2, u2, v2,
+	x3, y3, z3, u3, v3,
 	sheetIndex,
 	paletteOffset,
 	transparentIndex,

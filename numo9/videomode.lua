@@ -1890,10 +1890,10 @@ void main() {
 		// TODO make sure this doesn't go over the sprite edge ...
 		// but how to tell how big the sprite is?
 		// hmm I could use the 'box' to store the texcoord boundary ...
-		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
-		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
-		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
-		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1.5, 1.5)) / size);
+		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0., 0.)) / size);
+		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1., 0.)) / size);
+		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0., 1.)) / size);
+		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1., 1.)) / size);
 
 		fragColor = mix(
 			mix(fragColorLL, fragColorRL, fp.x),
@@ -1913,10 +1913,10 @@ void main() {
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
 
-		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
-		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
-		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
-		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1.5, 1.5)) / size);
+		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0., 0.)) / size);
+		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1., 0.)) / size);
+		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0., 1.)) / size);
+		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1., 1.)) / size);
 
 		float bumpHeightLL = toGreyscale(fragColorLL);
 		float bumpHeightRL = toGreyscale(fragColorRL);
