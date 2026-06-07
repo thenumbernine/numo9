@@ -508,8 +508,8 @@ function Chunk:rebuildMesh(app)
 											local srcv = va
 											local dstVtx1 = vertexBufCPU:emplace_back()
 											dstVtx1.vertex.x, dstVtx1.vertex.y, dstVtx1.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
-											dstVtx1.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-											dstVtx1.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx1.texcoord.x = tonumber(srcv.u + uofs) / tonumber(spriteSheetSize.x)
+											dstVtx1.texcoord.y = tonumber(srcv.v + vofs) / tonumber(spriteSheetSize.y)
 											dstVtx1.normal = normal
 											dstVtx1.extra = extra
 											dstVtx1.box.x, dstVtx1.box.y, dstVtx1.box.z, dstVtx1.box.w = 0, 0, 1, 1
@@ -517,8 +517,8 @@ function Chunk:rebuildMesh(app)
 											local srcv = vb
 											local dstVtx2 = vertexBufCPU:emplace_back()
 											dstVtx2.vertex.x, dstVtx2.vertex.y, dstVtx2.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
-											dstVtx2.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-											dstVtx2.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx2.texcoord.x = tonumber(srcv.u + uofs) / tonumber(spriteSheetSize.x)
+											dstVtx2.texcoord.y = tonumber(srcv.v + vofs) / tonumber(spriteSheetSize.y)
 											dstVtx2.normal = normal
 											dstVtx2.extra = extra
 											dstVtx2.box.x, dstVtx2.box.y, dstVtx2.box.z, dstVtx2.box.w = 0, 0, 1, 1
@@ -526,8 +526,8 @@ function Chunk:rebuildMesh(app)
 											local srcv = vc
 											local dstVtx3 = vertexBufCPU:emplace_back()
 											dstVtx3.vertex.x, dstVtx3.vertex.y, dstVtx3.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
-											dstVtx3.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-											dstVtx3.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx3.texcoord.x = tonumber(srcv.u + uofs) / tonumber(spriteSheetSize.x)
+											dstVtx3.texcoord.y = tonumber(srcv.v + vofs) / tonumber(spriteSheetSize.y)
 											dstVtx3.normal = normal
 											dstVtx3.extra = extra
 											dstVtx3.box.x, dstVtx3.box.y, dstVtx3.box.z, dstVtx3.box.w = 0, 0, 1, 1

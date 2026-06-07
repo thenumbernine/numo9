@@ -1883,7 +1883,7 @@ void main() {
 #if 0	// color and bump height LINEAR ... gotta do it here, can't do it in mag filter texture because it's a u8 texture (TODO change to a GL_RED texture?  but then no promises on the value having 8 bits (but it's 2025, who am I kidding, it'll have 8 bits))
 
 		vec2 size = vec2(textureSize(sheetTex, 0));
-		vec2 stc = tcv.xy * size - .5;
+		vec2 stc = tcv.xy * size;
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
 
@@ -1909,7 +1909,7 @@ void main() {
 		bumpHeight = dot(fragColor.xyz, greyscale);
 #else	// linear sampler in-shader for bump height / lighting only:
 		vec2 size = vec2(textureSize(sheetTex, 0));
-		vec2 stc = tcv.xy * size - .5;
+		vec2 stc = tcv.xy * size;
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
 

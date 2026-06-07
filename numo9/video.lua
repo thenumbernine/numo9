@@ -2387,16 +2387,9 @@ function AppVideo:drawTexTri3D(
 		sheetRAM.tex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
-		-- [[
 		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
-		--]]
-		--[[
-		x1, y1, z1, (tonumber(u1) + .5) / tonumber(spriteSheetSize.x), (tonumber(v1) + .5) / tonumber(spriteSheetSize.y),
-		x2, y2, z2, (tonumber(u2) + .5) / tonumber(spriteSheetSize.x), (tonumber(v2) + .5) / tonumber(spriteSheetSize.y),
-		x3, y3, z3, (tonumber(u3) + .5) / tonumber(spriteSheetSize.x), (tonumber(v3) + .5) / tonumber(spriteSheetSize.y),
-		--]]
 		normalX, normalY, normalZ,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
@@ -3222,9 +3215,9 @@ function AppVideo:drawMesh3D(
 				-- how to do texcoords faster?
 				-- I hear that casting uint8_t(value) is slow ...
 				-- maybe if I allocated a uint8_t[3] and assigned / added to it?
-				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)) + .5, tonumber(bit.band(0xff, a.v + vofs)) + .5,
-				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)) + .5, tonumber(bit.band(0xff, b.v + vofs)) + .5,
-				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)) + .5, tonumber(bit.band(0xff, c.v + vofs)) + .5,
+				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)), tonumber(bit.band(0xff, a.v + vofs)),
+				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)), tonumber(bit.band(0xff, b.v + vofs)),
+				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)), tonumber(bit.band(0xff, c.v + vofs)),
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
@@ -3239,9 +3232,9 @@ function AppVideo:drawMesh3D(
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)) + .5, tonumber(bit.band(0xff, a.v + vofs)) + .5,
-				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)) + .5, tonumber(bit.band(0xff, b.v + vofs)) + .5,
-				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)) + .5, tonumber(bit.band(0xff, c.v + vofs)) + .5,
+				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)), tonumber(bit.band(0xff, a.v + vofs)),
+				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)), tonumber(bit.band(0xff, b.v + vofs)),
+				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)), tonumber(bit.band(0xff, c.v + vofs)),
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,

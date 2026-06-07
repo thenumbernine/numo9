@@ -49,7 +49,7 @@ function BlobMesh3D:init(data)
 	self.vec = vector(uint8_t)
 
 	local minsize = 2 * ffi.sizeof(meshIndexType)	-- # vtxs, # indexes
-	if not data or #data < minsize then 
+	if not data or #data < minsize then
 		self.vec:resize(minsize)
 	else
 		self.vec:resize(#data)
@@ -120,7 +120,7 @@ function BlobMesh3D:init(data)
 		local vj = vtxs+j bounds:stretch(vec3i(vj.x, vj.y, vj.z))
 		local vk = vtxs+k bounds:stretch(vec3i(vk.x, vk.y, vk.z))
 		local n = self.normalList.v + ti
---[[ test face orientation as well?	
+--[[ test face orientation as well?
 		local unitN = n:normalize()
 --]]
 		for axis=0,2 do
@@ -219,13 +219,13 @@ function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	for i=0,numVtxs-1 do
 		local v = vtxs + i
 		o:insert('v '..table{v.x, v.y, v.z}:mapi(function(x)
-			return ('%.9f'):format((x + .5) / 256)
+			return ('%.9f'):format(x / 256)
 		end):concat' ')
 	end
 	for i=0,numVtxs-1 do
 		local v = vtxs + i
 		o:insert('vt '..table{v.u, v.v}:mapi(function(x)
-			return ('%.9f'):format((tonumber(x)  + .5) / 256)
+			return ('%.9f'):format(tonumber(x) / 256)
 		end):concat' ')
 	end
 	for ti=0,#self.triList-1 do
