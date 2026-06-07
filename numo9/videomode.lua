@@ -219,8 +219,8 @@ function VideoMode:buildFramebuffers()
 		minFilter = gl.GL_NEAREST,
 		magFilter = gl.GL_NEAREST,
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 	}
 	gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.framebufferDepthTex.id, 0)
@@ -243,8 +243,8 @@ function VideoMode:buildFramebuffers()
 		--magFilter = gl.GL_NEAREST,
 		magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 	}:unbind()
 	self.fb:bind()
@@ -263,8 +263,8 @@ function VideoMode:buildFramebuffers()
 		magFilter = gl.GL_NEAREST,
 		--magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 	}:unbind()
 	self.fb:bind()
@@ -298,8 +298,8 @@ function VideoMode:buildFramebuffers()
 				width = width,
 				height = height,
 				wrap = {
-					s = gl.GL_CLAMP_TO_EDGE,
-					t = gl.GL_CLAMP_TO_EDGE,
+					s = gl.GL_REPEAT,
+					t = gl.GL_REPEAT,
 				},
 				magFilter = gl.GL_NEAREST,
 				minFilter = gl.GL_NEAREST,
@@ -371,8 +371,8 @@ function VideoMode:buildFramebuffers()
 		minFilter = gl.GL_NEAREST,
 		magFilter = gl.GL_LINEAR,
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 	}
 	-- TODO put drawBuffers init in gl.pingpong ... when you dont provide a fbo?
@@ -760,8 +760,8 @@ if (debugDraw == 4) {	// debug show the first light buffer
 		minFilter = gl.GL_NEAREST,
 		--]]
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 		generateMipmap = true,
 	}
@@ -799,8 +799,8 @@ if (debugDraw == 4) {	// debug show the first light buffer
 		minFilter = gl.GL_NEAREST,
 		--]]
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 	}
 	self.hdrTex.fbo
@@ -882,8 +882,8 @@ void main() {
 		magFilter = gl.GL_NEAREST,
 		minFilter = gl.GL_NEAREST,
 		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 	}
 	self.dofTex.fbo

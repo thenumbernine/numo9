@@ -529,8 +529,8 @@ function AppVideo:initVideo()
 			format = glformat5551,
 			type = gltype5551,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -548,8 +548,8 @@ function AppVideo:initVideo()
 			width = fontImageSize.x,
 			height = fontImageSize.y,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -635,8 +635,8 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
 			},
 		}:unbind()
 
@@ -3521,8 +3521,8 @@ print()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_LINEAR,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
 			},
 		}:unbind()
 

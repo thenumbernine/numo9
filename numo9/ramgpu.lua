@@ -84,8 +84,8 @@ function RAMGPUTex:init(args)
 		width = width,
 		height = height,
 		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		--minFilter = args.minFilter or gl.GL_LINEAR_MIPMAP_LINEAR,

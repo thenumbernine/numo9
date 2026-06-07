@@ -128,8 +128,8 @@ function CartBrowser:update()
 					format = GLTex2D.formatInfoForInternalFormat[internalFormat].format,
 					type = GLTex2D.formatInfoForInternalFormat[internalFormat].types[1],
 					wrap = {
-						s = gl.GL_CLAMP_TO_EDGE,
-						t = gl.GL_CLAMP_TO_EDGE,
+						s = gl.GL_REPEAT,
+						t = gl.GL_REPEAT,
 					},
 					minFilter = gl.GL_NEAREST,
 					magFilter = gl.GL_NEAREST,
