@@ -1,0 +1,31 @@
+#!/bin/env rua
+
+local n9fn = path(cmdline[1])
+assert(n9fn:exists(), "couldn't find "..n9fn)
+assert.eq(n9fn:getdir(), path'.')	-- only cwd .n9's.  TODO pick off the dirpart for copying-to?
+n9fn = path(n9fn:getname())	-- trim off dir part
+assert.eq('"'..n9fn..'"', n9fn:escape())	-- assert no string-escaping (since i have to paste the filename into strings in the launch scripts)
+
+-- first build dists
+os.exec('rm -fr dist')
+os.exec('../dist/run.lua win64 dontZip')
+os.exec('../dist/run.lua linux dontZip')	-- why not linux64?
+
+-- next, copy our desired .n9 into the data/numo9/ folder of each
+(path'dist/numo9-linux64/data/numo9'/n9fn):write(n9fn:read())
+(path'dist/numo9-win64/data/numo9'/n9fn):write(n9fn:read())
+
+-- modify the run scripts...
+local fixscript = |runfn|
+	assert(runfn:write((
+		assert(runfn:read)
+		:gsub('run.lua', 'run.lua '..n9fn)
+	)))
+fixscript(path'dist/numo9-linux64/run-linux.sh')
+fixscript(path'dist/numo9-win64/run-Windows-x64.bat')
+fixscript(path'dist/numo9-win64/run-Windows-x64.vbs')	-- <- this is the culprit, why i can't just quote-wrap the n9fn
+
+-- last, re-zip
+local makeZip = require 'dist.makezip'
+makeZip('dist', 'numo9-linux64')
+makeZip('dist', 'numo9-win64')
