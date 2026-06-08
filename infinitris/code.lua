@@ -5,20 +5,29 @@
 
 math.randomseed(tstamp())
 
+local class = require 'ext.class'
 local vec2 = require 'vec.vec2'
 local matpush = require 'numo9.matstack'.push
 local matpop = require 'numo9.matstack'.pop
 
 mode(0)	-- 256x256x16bpp
-screenWidth = 256
+local screenWidth, screenHeight = require 'numo9.screen'.getScreenSize()
 
 -- game config:
-mapwidth, mapheight = 256 >> 3, 256	-- so tiles-high is 256 <-> tilemap height
---mapheight = (256>>3) - 1	-- for seeing what's going on at the bottom
-numEmptyRows = 10
+--mapwidth = 256 >> 3		-- screen size
+mapwidth = 10				-- vanilla tetris
+--mapheight = 256			-- so tiles-high is 256 <-> tilemap height
+--mapheight = 256 >> 3		-- screen size.  useful for seeing what's going on at the bottom
+mapheight = 20				-- vanilla tetris
+--numEmptyRows = 10			-- infinitris
+numEmptyRows = mapheight	-- vanilla tetris
 numColors = 4	-- so 1 thru 4 are colored tiles
 baseDropTime = 60
 numPieceTypes = 7
+
+local Player = class()
+players = {}
+conns = {}			-- conns[connID][playerID] = players[playerID]
 
 -- game state:
 local fillY, holeCol
@@ -49,43 +58,44 @@ end
 numNextPieces = 1
 nextPieces = table()
 
-local newPiece = ||do
-	rot = 0
+Player.newPiece = |:|do
+	self.rot = 0
 	while #nextPieces < numNextPieces+1 do
 		nextPieces:insert(math.random(0,numPieceTypes))
 	end
-	piece = nextPieces:remove(1)
-	piecePos = vec2(math.floor(mapwidth/2), 1)
-	pieceTilePos = vec2()
-	dropTimer = baseDropTime
+	self.piece = nextPieces:remove(1)
+	self.piecePos = vec2(math.floor(mapwidth/2), 1)
+	self.pieceTilePos = vec2()
+	self.dropTimer = baseDropTime
 
 	-- copy our piece into a temp location and color it
 	-- 256-4, numPieceTypes<<2 will be where our piece is
-	pieceTilePos:set(256-4, numPieceTypes<<2)
+	self.pieceTilePos:set(256-4, (numPieceTypes + self.id)<<2)
 	local pieceColor = math.random(1, numColors)
+print('pieceColor', pieceColor)
 	for j=0,3 do
 		for i=0,3 do
 			-- color our temp region
-			local pieceTile = tget(0, 256-4+i, (piece<<2)+j) * pieceColor
-			tset(0, pieceTilePos.x+i, pieceTilePos.y+j, pieceTile)
+			local pieceTile = tget(0, 256-4+i, (self.piece<<2)+j) == 0 and 0 or pieceColor
+			tset(0, self.pieceTilePos.x+i, self.pieceTilePos.y+j, pieceTile)
 		end
 	end
 end
 
-local testHit = ||do
+Player.testHit = |:|do
 	for j=0,3 do
 		for i=0,3 do
 			-- if there's a tilemap entry on the piece
-			if tget(0, pieceTilePos.x+i, pieceTilePos.y+j) ~= 0 then
+			if tget(0, self.pieceTilePos.x+i, self.pieceTilePos.y+j) ~= 0 then
 				-- then rotate it and offset it
 				-- and see if there's a tilemap entry in the map
 				-- and if so then return true
 				local x,y = i,j
-				for k=0,rot-1 do
+				for k=0,self.rot-1 do
 					x,y = 3-y,x
 				end
-				x += piecePos.x - 2
-				y += piecePos.y - 2
+				x += self.piecePos.x - 2
+				y += self.piecePos.y - 2
 				if x < 0 or x >= mapwidth then return true end
 				if y >= mapheight then return true end
 				if tget(0, x, y) ~= 0 then
@@ -96,21 +106,21 @@ local testHit = ||do
 	end
 end
 
-local placePiece = ||do
+Player.placePiece = |:|do
 	for j=0,3 do
 		for i=0,3 do
 			-- if there's a tilemap entry on the piece
-			local tile = tget(0, pieceTilePos.x+i, pieceTilePos.y+j)
+			local tile = tget(0, self.pieceTilePos.x+i, self.pieceTilePos.y+j)
 			if tile ~= 0 then
 				-- then rotate it and offset it
 				-- and see if there's a tilemap entry in the map
 				-- and if so then return true
 				local x,y = i,j
-				for k=0,rot-1 do
+				for k=0,self.rot-1 do
 					x,y = 3-y,x
 				end
-				x += piecePos.x - 2
-				y += piecePos.y - 2
+				x += self.piecePos.x - 2
+				y += self.piecePos.y - 2
 				tset(0, x, y, tile)
 			end
 		end
@@ -142,7 +152,7 @@ trace('got line at row',y)
 			--lastLineTime = time()
 		end
 	end
-	newPiece()
+	self:newPiece()
 	if numLines > 0 then
 --[[
 tetris ... 1 lines = 40, 2 lines = x2.5, 3 lines = x7.5, 4 lines = x30
@@ -155,6 +165,62 @@ f(4) = 30
 		points += 40 * math.ceil(((numLines + 1) / 2) ^ numLines)	-- meh
 		return true
 	end
+end
+
+Player.update = |:|do
+	local drop
+	local oldPiecePosX = self.piecePos.x
+	local oldPiecePosY = self.piecePos.y
+	local oldRot = self.rot
+	if btnp('left', self.id, 10, 5) then
+		self.piecePos.x -= 1
+		if self:testHit() then
+			self.piecePos.x = oldPiecePosX
+		end
+	elseif btnp('right', self.id, 10, 5) then
+		self.piecePos.x += 1
+		if self:testHit() then
+			self.piecePos.x = oldPiecePosX
+		end
+	elseif btnp('down', self.id, 2, 2) then
+		-- drop ...
+		drop = true
+	elseif btnp('a', self.id) or btnp('up', self.id) then
+		self.rot += 1
+		self.rot &= 3
+		if self:testHit() then
+			self.rot = oldRot
+		end
+	elseif btnp('b', self.id) then
+		self.rot -= 1
+		self.rot &= 3
+		if self:testHit() then
+			self.rot = oldRot
+		end
+	end
+
+	self.dropTimer -= 1
+	if self.dropTimer <= 0 then
+		self.dropTimer = baseDropTime
+		drop = true
+	end
+
+	local gotHit, gotLine
+	if drop then
+		self.piecePos.y += 1
+		if self:testHit() then
+			gotHit = true
+			self.piecePos.y = oldPiecePosY
+			gotLine = self:placePiece()
+			if self:testHit() then
+print'gameover...'
+				-- see if the initial piecePos will be stuck or not ...
+				newGameTime = time()
+				return
+			end
+		end
+	end
+	return gotHit, gotLine
 end
 
 local checkForRaise = ||do
@@ -199,12 +265,50 @@ local newGame = ||do
 	holeCol = math.floor(mapwidth/2)
 	fillRows(numEmptyRows)
 	rowFlashes = table()
-	newPiece()
 end
 newGame()
 
-update = ||do
+onconnect=|connID|do	-- FC API:
+	conns[connID] = {}
+end
+
+-- FC API
+draw = |connID, ...|do
+	local conn = conns[connID]
+	if not conn then
+		trace'I LOST THE PLAYER'
+		return
+	end
+	-- add players and set their last update time
+	for i=1,select('#', ...) do
+		local playerID = select(i, ...)
+		local player = players[playerID]
+		if not player then
+			player = Player()
+			player.id = playerID
+			player:newPiece()
+			players[playerID] = player
+		end
+		conn[playerID] = player
+		player.drawTime = time()
+	end
+	-- remove disconnected players from conn
+	for playerID,player in pairs(conn) do
+		if conn[playerID].drawTime ~= t then
+			conn[playerID] = nil
+		end
+	end
+	-- TODO remove players from players[] that disconnect...
+
 	cls()
+
+-- [[ draw field
+	matpush()
+	mattrans(
+		(screenWidth >> 1) - (mapwidth << 2),	-- center x
+		(screenHeight >> 1) - (mapheight << 2)	-- center y ... TODO clamp to top
+	)
+	rectb(-1, -1, (mapwidth << 3) + 2, (mapheight << 3) + 2, 12)
 
 	tilemap(
 		0,0,	-- tilex, tiley
@@ -213,16 +317,35 @@ update = ||do
 	)
 
 	-- pieces are 4x4's on the rhs of the tilemap
-	matpush()
-	mattrans(piecePos.x << 3, piecePos.y << 3)
-	matrot(rot * math.pi/2)
-	tilemap(
-		pieceTilePos.x, pieceTilePos.y,
-		4,4,
-		-16,-16
-	)
-	matpop()
+	for _,player in pairs(players) do
+		matpush()
+		mattrans(player.piecePos.x << 3, player.piecePos.y << 3)
+		matrot(player.rot * math.pi/2)
+		tilemap(
+			player.pieceTilePos.x, player.pieceTilePos.y,
+			4,4,
+			-16,-16
+		)
+		matpop()
+	end
 
+	-- draw row flashes
+	for i=#rowFlashes,1,-1 do
+		local f = rowFlashes[i]
+		local dt = time() - f.time
+		if dt > .5 then
+			rowFlashes:remove(i)
+		else
+			if (dt * 12) % 1 < .5 then
+				rect(0, f.y << 3, mapwidth << 3, 1<<3, 12)
+			end
+		end
+	end
+
+	matpop()
+--]] end draw field
+
+	-- next piece in upper-right
 	do
 		blend(3)
 		rect(screenWidth - (4<<3), 0, 4<<3, #nextPieces<<5, 16)
@@ -237,81 +360,37 @@ update = ||do
 		rectb(screenWidth - (4<<3) - 1, -1, (4<<3) + 2, (#nextPieces<<5) + 2, 12)
 	end
 
+	-- points in upper-left
 	text(tostring(points))
 
 	if newGameTime then
 		text('GAME OVER', 20, 100, 12, -1, 5, 5)
+	end
+end
+
+-- FC API
+update = ||do
+	if newGameTime then
 		if time() - newGameTime > 10 then
 			newGame()
 		end
+		return
 	end
 
-	for i=#rowFlashes,1,-1 do
-		local f = rowFlashes[i]
-		local dt = time() - f.time
-		if dt > .5 then
-			rowFlashes:remove(i)
-		else
-			if (dt * 12) % 1 < .5 then
-				rect(0, f.y << 3, mapwidth << 3, 1<<3, 12)
-			end
-		end
+	local gotHit, gotLine
+	for _,player in pairs(players) do
+		local playerHit, playerLine = player:update()
+		gotHit = gotHit or playerHit
+		gotLine = gotLine or playerLine
 	end
 
-	local drop
-	local oldPiecePosX = piecePos.x
-	local oldPiecePosY = piecePos.y
-	local oldRot = rot
-	if btnp('left', 0, 10, 5) then
-		piecePos.x -= 1
-		if testHit() then
-			piecePos.x = oldPiecePosX
-		end
-	elseif btnp('right', 0, 10, 5) then
-		piecePos.x += 1
-		if testHit() then
-			piecePos.x = oldPiecePosX
-		end
-	elseif btnp('down', 0, 2, 2) then
-		-- drop ...
-		drop = true
-	elseif btnp'a' or btnp'up' then
-		rot += 1
-		rot &= 3
-		if testHit() then
-			rot = oldRot
-		end
-	elseif btnp'b' then
-		rot -= 1
-		rot &= 3
-		if testHit() then
-			rot = oldRot
-		end
-	end
-
-	dropTimer -= 1
-	if dropTimer <= 0 then
-		dropTimer = baseDropTime
-		drop = true
-	end
-	if drop then
-		piecePos.y += 1
-		if testHit() then
-			piecePos.y = oldPiecePosY
-			local gotLine = placePiece()
-			if testHit() then
-print'gameover...'
-				-- see if the initial piecePos will be stuck or not ...
-				newGameTime = time()
-			elseif not gotLine then
+	if not newGameTime and gotHit and not gotLine then
 print("placed, didn't get line, checking for raise...")
-				-- only if we placed a piece, and it wans't a line, and we previously got a line more than 5s ago...., then raise
-				--if lastLineTime and time() - lastLineTime > 1 then
-				--	lastLineTime = time()
+		-- only if we placed a piece, and it wans't a line, and we previously got a line more than 5s ago...., then raise
+		--if lastLineTime and time() - lastLineTime > 1 then
+		--	lastLineTime = time()
 print'raising...'
-				checkForRaise()
-				--end
-			end
-		end
+		checkForRaise()
+		--end
 	end
 end
