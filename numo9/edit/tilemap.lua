@@ -71,8 +71,45 @@ function EditTilemap:init(args)
 
 	self:newUI_setup()
 
-	local x = 100
+	local x = 48
 	local y = 0
+
+	self.tilemapBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'tilemap',
+		valueTable = self,
+		valueKey = 'tilemapBlobIndex',
+		setValue = function(value)
+			-- for now only one undo per tilemap at a time
+			self.undo:clear()
+		end,
+	}
+	self:addChild(self.tilemapBlobSelect)
+	x = x + 12
+
+	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
+	self.sheetBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'sheet',
+		valueTable = self,
+		valueKey = 'sheetBlobIndex',
+	}
+	self:addChild(self.sheetBlobSelect)
+	x = x + 12
+
+	self.paletteBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'palette',
+		valueTable = self,
+		valueKey = 'paletteBlobIndex',
+	}
+	self:addChild(self.paletteBlobSelect)
+	x = x + 12
+	-- TODO add paletteIndex to map() function
+
 	self:addChild(self.tileSel:makeButton{
 		owner = self,
 		pos = {x, y},
@@ -161,7 +198,7 @@ function EditTilemap:init(args)
 			self.drawMode = result
 		end,
 	})
-	x = x + 6 * 6
+	x = x + 6 * 5 + 1
 
 	self:addChild(UISpinner{
 		owner = self,
@@ -173,7 +210,7 @@ function EditTilemap:init(args)
 			return 'orient='..tostring(self.orientation)
 		end,
 	})
-	x = x + 16
+	x = x + 13
 
 	self:addChild(UISpinner{
 		owner = self,
@@ -185,7 +222,7 @@ function EditTilemap:init(args)
 			return 'palhi='..self.selPalHiOffset
 		end,
 	})
-	x = x + 16
+	x = x + 13
 
 	self:addChild(UISpinner{
 		owner = self,
@@ -197,7 +234,7 @@ function EditTilemap:init(args)
 			return 'grid='..self.gridSpacing
 		end,
 	})
-	x = x + 16
+	x = x + 13
 
 	self:addChild(UIButton{
 		owner = self,
@@ -213,42 +250,7 @@ function EditTilemap:init(args)
 			end,
 		},
 	})
-
-	x, y = 200, 0
-	self.tilemapBlobSelect = UIBlobSelect{
-		owner = self,
-		pos = {x, y},
-		blobName = 'tilemap',
-		valueTable = self,
-		valueKey = 'tilemapBlobIndex',
-		setValue = function(value)
-			-- for now only one undo per tilemap at a time
-			self.undo:clear()
-		end,
-	}
-	self:addChild(self.tilemapBlobSelect)
-	x = x + 12
-
-	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
-	self.sheetBlobSelect = UIBlobSelect{
-		owner = self,
-		pos = {x, y},
-		blobName = 'sheet',
-		valueTable = self,
-		valueKey = 'sheetBlobIndex',
-	}
-	self:addChild(self.sheetBlobSelect)
-	x = x + 12
-
-	self.paletteBlobSelect = UIBlobSelect{
-		owner = self,
-		pos = {x, y},
-		blobName = 'palette',
-		valueTable = self,
-		valueKey = 'paletteBlobIndex',
-	}
-	self:addChild(self.paletteBlobSelect)
-	-- TODO add paletteIndex to map() function
+	x = x + 6
 
 	self.tileSelPosTextField = UITextField{
 		owner = self,
@@ -445,6 +447,14 @@ end
 
 function EditTilemap:update()
 	local app = self.app
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
 
 	local draw16As0or1 = self.draw16Sprites and 1 or 0
 
@@ -925,9 +935,7 @@ function EditTilemap:update()
 		end
 	end
 
-	app:matMenuReset()
-	self:guiSetClipRect(-9999, -9999, clipMax, clipMax)
-
+	self:guiSetClipRect(-9999, -9999, 9999, 9999)
 	self:newUI_update()
 end
 
