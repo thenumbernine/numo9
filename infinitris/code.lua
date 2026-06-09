@@ -34,22 +34,34 @@ local fillY, holeCol
 local rowFlashes
 
 board_dAbsY = 0
+board_sumEmptyY = 0
 
 local refreshMetrics=||do
 	-- count deltas across top
-	local lastY
+	local lastTopY
 	board_dAbsY = 0
+	board_sumEmptyY = 0
 	for x=0,mapwidth-1 do
-		local y
-		for j=0,mapheight-1 do
-			if tget(0,x,j) ~= 0 then
-				y = j
+		local topY
+		local emptyY
+		for y=0,mapheight-1 do
+			if tget(0,x,y) ~= 0 then
+				if not topY then topY = y end
+			else
+				-- count holes
+				if emptyY
+				and y > emptyY+1
+				then
+					board_sumEmptyY += y - (emptyY+1)
+				end
+				emptyY = y
 			end
 		end
-		if lastY then
-			board_dAbsY += math.abs(y - lastY)
+		topY = topY or mapheight
+		if lastTopY then
+			board_dAbsY += math.abs(topY - lastTopY)
 		end
-		lastY = y
+		lastTopY = topY
 	end
 end
 
@@ -384,7 +396,8 @@ draw = |connID, ...|do
 
 	-- points in upper-left
 	text(tostring(points))
-	text('sum d|y| = '..board_dAbsY)
+	text(tostring(board_dAbsY), 0, 8)
+	text(tostring(board_sumEmptyY), 0, 16)
 
 	if newGameTime then
 		text('GAME OVER', 20, 100, 12, -1, 5, 5)
