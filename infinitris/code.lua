@@ -33,6 +33,26 @@ conns = {}			-- conns[connID][playerID] = players[playerID]
 local fillY, holeCol
 local rowFlashes
 
+board_dAbsY = 0
+
+local refreshMetrics=||do
+	-- count deltas across top
+	local lastY
+	board_dAbsY = 0
+	for x=0,mapwidth-1 do
+		local y
+		for j=0,mapheight-1 do
+			if tget(0,x,j) ~= 0 then
+				y = j
+			end
+		end
+		if lastY then
+			board_dAbsY += math.abs(y - lastY)
+		end
+		lastY = y
+	end
+end
+
 local fillRows=|fromRow|do
 	for y=fromRow,mapheight-1 do
 		fillY += 1
@@ -53,6 +73,7 @@ local fillRows=|fromRow|do
 			holeCol %= mapwidth
 		end
 	end
+	refreshMetrics()
 end
 
 numNextPieces = 1
@@ -152,6 +173,8 @@ trace('got line at row',y)
 			--lastLineTime = time()
 		end
 	end
+	refreshMetrics()
+
 	self:newPiece()
 	if numLines > 0 then
 --[[
@@ -240,17 +263,16 @@ local checkForRaise = ||do
 		end
 	end
 	firstNonEmptyRow ??= mapheight
-	if firstNonEmptyRow > numEmptyRows then
+	if firstNonEmptyRow <= numEmptyRows then return end
 print('firstNonEmptyRow', firstNonEmptyRow, 'vs numEmptyRows', numEmptyRows, '... moving up')
-		--local moveUp = firstNonEmptyRow - numEmptyRows
-		local moveUp = 1
-		for y=firstNonEmptyRow,mapheight-1 do
-			for x=0,mapwidth-1 do
-				tset(0, x, y-moveUp, tget(0, x, y))
-			end
+	--local moveUp = firstNonEmptyRow - numEmptyRows
+	local moveUp = 1
+	for y=firstNonEmptyRow,mapheight-1 do
+		for x=0,mapwidth-1 do
+			tset(0, x, y-moveUp, tget(0, x, y))
 		end
-		fillRows(mapheight-moveUp)
 	end
+	fillRows(mapheight-moveUp)
 end
 
 local newGame = ||do
@@ -362,6 +384,7 @@ draw = |connID, ...|do
 
 	-- points in upper-left
 	text(tostring(points))
+	text('sum d|y| = '..board_dAbsY)
 
 	if newGameTime then
 		text('GAME OVER', 20, 100, 12, -1, 5, 5)
