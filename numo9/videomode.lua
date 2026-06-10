@@ -37,6 +37,17 @@ it outputs directly to the screen
 - TODO maybe output to a *new* post-lighting buffer then just blit that to screen ???
 	- but honestly, I've already got the renderer set up to only draw when needed ... its just always redrawing every frame ...
 	- I should just not redraw the menu if we're not in a net game or something ... hmm ...
+
+ok gotta cache normal map for bumpmapping.  what goes into the normal map state?
+- tile sheet tex
+- palette tex
+- spriteNormalExhaggeration
+- spriteBit			   \
+- spriteMask		    |- these are attributes ....
+- transparentIndex	    |
+- paletteOffset        /
+- paletteOffsetUniform		<- if I move the prev 4 attrs to uniforms then I can also get rid of this...
+
 --]]
 local ffi = require 'ffi'
 local template = require 'template'
@@ -84,7 +95,7 @@ local Numo9Vertex = struct{
 		{name='vertex', type='vec3f'},
 		{name='texcoord', type='vec2f'},
 		{name='normal', type='vec3f'},	-- df/dw <-> df/du x df/dv
-		{name='tangent', type='vec3f'},	-- df/du <-> normal x tangent = binormal
+		{name='tangent', type='vec3f'},	-- df/du <-> normal x tangent = bitangent
 		{name='extra', type='vec4us'},
 		{name='box', type='vec4f'},
 	},
@@ -1516,9 +1527,9 @@ in vec4 boxAttr;
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
-flat out vec3 worldNormalv;
 flat out vec3 worldTangentv;
-flat out vec3 worldBinormalv;	// "bi-normal" even tho its rhs to the tangent, and normal is tangent x this , so it couples with the tagnent ...
+flat out vec3 worldBitangentv;
+flat out vec3 worldNormalv;
 flat out uvec4 extra;
 flat out vec4 box;
 
@@ -1529,13 +1540,14 @@ uniform mat4 modelMat;	// fwd-transform of model->world
 uniform mat4 viewMat;	// wait so really this is the inverse-transform of the view ....
 uniform mat4 projMat;	// fwd-transform of view coord -> ONB homogeneous coord
 
-
 void main() {
 	tcv = texcoord;
 
-	worldNormalv = normalize((modelMat * vec4(normal, 0.)).xyz);
-	worldTangentv = normalize((modelMat * vec4(tangent, 0.)).xyz);
-	worldBinormalv = normalize(cross(worldNormalv, worldTangentv));
+	mat3 normalMat = mat3(modelMat[0].xyz, modelMat[1].xyz, modelMat[2].xyz);
+	normalMat = transpose(inverse(normalMat));	//worth it for non-uniform scale?
+	worldNormalv = normalize(normalMat * normal);
+	worldTangentv = normalize(normalMat * tangent);
+	worldBitangentv = normalize(cross(worldNormalv, worldTangentv));
 
 	extra = extraAttr;
 	box = boxAttr;
@@ -1556,13 +1568,13 @@ precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;
 
-in vec2 tcv;		// framebuffer pixel coordinates before transform, so they are sprite texels
+in vec2 tcv;					// framebuffer pixel coordinates before transform, so they are sprite texels
 
-flat in vec3 worldNormalv;		// df/dz = dh/dx x dh/dy
 flat in vec3 worldTangentv;		// df/dx
-flat in vec3 worldBinormalv;	// df/dy
-flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
-flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
+flat in vec3 worldBitangentv;	// df/dy
+flat in vec3 worldNormalv;		// df/dz = dh/dx x dh/dy
+flat in uvec4 extra;			// flags (round, borderOnly), colorIndex
+flat in vec4 box;				// x, y, w, h in world coordinates, used for round / border calculations
 
 in float clipDepth;
 in vec3 worldCoordv;
@@ -1762,6 +1774,7 @@ end ?>
 		resultColor.a = 0.;
 <? end ?>
 	}
+
 	return resultColor;
 }
 
@@ -1910,9 +1923,6 @@ void main() {
 
 	}	// pathway
 
-// why is my glsl optimizing away 'tangent' attr when I'm using it next?  did idiots ruin the latest glsl compilers?
-fragColor.xyz += worldTangentv * 0.01;
-
 <? if fragType == 'uvec4' then ?>
 	if (fragColor.a == 0u) discard;
 <? else ?>
@@ -1939,10 +1949,9 @@ fragColor.xyz += worldTangentv * 0.01;
 
 		//flat-shaded normalized in vertex shader so it should be normalized here too
 		mat3 modelBasis;
-		modelBasis[0] = worldTangentv;
-		modelBasis[1] = worldBinormalv;
-		modelBasis[2] = worldNormalv;
-
+		modelBasis[0] = normalize(worldTangentv);
+		modelBasis[1] = normalize(worldBitangentv);
+		modelBasis[2] = normalize(worldNormalv);
 		fragNormal.xyz = normalize(modelBasis * surfaceCoordsNormal);
 #endif
 	}
