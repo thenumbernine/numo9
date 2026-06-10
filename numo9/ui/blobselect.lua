@@ -20,9 +20,9 @@ UIBlobSelect.tag = 'blobselect'
 
 function UIBlobSelect:init(args)
 	UIBlobSelect.super.init(self, args)
-	
+
 	local app = self.owner.app
-	
+
 	local blobName = assert.index(args, 'blobName')
 
 	self.size.y = spriteSize.y
@@ -91,7 +91,7 @@ function UIBlobSelect:init(args)
 					self.valueTable[valueKey] = self.valueTable[valueKey] + 1
 				end
 
-				app:updateBlobChanges()
+				self.owner:updateBlobChanges()
 			end,
 		},
 	}
@@ -118,7 +118,7 @@ function UIBlobSelect:init(args)
 				blobsOfType:remove(self.valueTable[valueKey]+1)
 				self.valueTable[valueKey] = math.clamp(self.valueTable[valueKey] - 1, 0, #blobsOfType-1)
 
-				app:updateBlobChanges()
+				self.owner:updateBlobChanges()
 			end,
 		},
 	}
@@ -127,8 +127,8 @@ end
 
 function UIBlobSelect:update(...)
 	UIBlobSelect.super.update(self, ...)
-	
-	-- has to be done in draw so matrices are setup 
+
+	-- has to be done in draw so matrices are setup
 	-- (I guess, tho its storedin screen space
 	--  so transforming things should always result in pixels, regardless of where it takes place...
 	-- ... so long as children are set up too ...)
@@ -137,7 +137,7 @@ function UIBlobSelect:update(...)
 
 	local function stretch(ch)
 		self.ssbbox:stretch(ch.ssbbox)
-		
+
 		self.size.x = math.max(self.size.x, ch.pos.x + ch.size.x)
 		self.size.y = math.max(self.size.y, ch.pos.y + ch.size.y)
 	end
