@@ -274,34 +274,9 @@ function Chunk:rebuildMesh(app)
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
-	-- ok here I shoot myself in the foot just a bit
-	-- cuz now that I'm baking extra flags,
-	-- that means I can no longer update the voxelmap spriteBit, spriteMask, transparentIndex, paletteIndex,
-	-- not without rebuilding the whole mesh
-	-- but even before it meant recalculating extra every time we draw so *shrug* I don't miss it
-	-- maybe those should all be uniforms anyways?
-	local spriteBit = 0
-	local spriteMask = 0xFF
-	local transparentIndex = -1
-	local paletteIndex = 0
-
 	-- also in drawTexTri3D:
-	local drawFlags = bit.bor(
-		-- bits 0/1 == 01b <=> use sprite pathway:
-		1,
-		-- if transparency is oob then flag the "don't use transparentIndex" bit:
-		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-		-- store sprite bit shift in the next 3 bits:
-		bit.lshift(spriteBit, 3),
-
-		bit.lshift(spriteMask, 8)
-	)
-
-	local extra = vec4us(
-		drawFlags,
-		0,
-		transparentIndex,
-		paletteIndex)
+	local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway:
+	local extra = vec4us(drawFlags, 0, 0, 0)
 
 	local voxelmapSize = self.voxelmap:getVoxelSize()
 
@@ -958,23 +933,16 @@ function BlobVoxelMap:onVoxelmapCullSideFlagsChange()
 	end
 end
 
-function BlobVoxelMap:drawMesh(app, paletteOffset)
+function BlobVoxelMap:drawMesh(app)
 	local sceneObj = app.triBuf_sceneObj
-	local program = sceneObj.program
 
 	local pushVAO = sceneObj.vao
 	local pushVertexBufCPU = app.vertexBufCPU
 	local pushVertexBufGPU = app.vertexBufGPU
 
-	-- all this to allow voxelmaps to shift palettes ...
-	program:use()
-	gl.glUniform1i(program.uniforms.paletteOffsetUniform.loc, paletteOffset or 0)
-
 	for i=0,self.chunkVolume-1 do
 		self.chunks[i]:drawMesh(app)
 	end
-
-	gl.glUniform1i(program.uniforms.paletteOffsetUniform.loc, 0)
 
 	-- restore old buffers
 	app.vertexBufCPU = pushVertexBufCPU

@@ -42,11 +42,10 @@ ok gotta cache normal map for bumpmapping.  what goes into the normal map state?
 - tile sheet tex
 - palette tex
 - spriteNormalExhaggeration
-- spriteBit			   \
-- spriteMask		    |- these are attributes ....
-- transparentIndex	    |
-- paletteOffset        /
-- paletteOffsetUniform		<- if I move the prev 4 attrs to uniforms then I can also get rid of this...
+- paletteOffset
+- transparentIndex
+- spriteBit
+- spriteMask
 
 --]]
 local ffi = require 'ffi'
@@ -1482,32 +1481,6 @@ for solid:
 for sprites:
 	.x:
 		bit 0/1 = render pathway = 01
-		bit 2 = don't use transparentIndex (on means don't test transparency at all ... set this when transparentIndex is OOB)
-		bits 3-5 = spriteBit shift
-			Specifies which bit to read from at the sprite.
-			Only needs 3 bits.
-			  (extra.x >> 3) == 0 = read sprite low nibble.
-			  (extra.x >> 3) == 4 = read sprite high nibble.
-
-		bits 8-15 = spriteMask;
-			Specifies the mask after shifting the sprite bit
-			  0x01u = 1bpp
-			  0x03u = 2bpp
-			  0x07u = 3bpp
-			  0x0Fu = 4bpp
-			  0xFFu = 8bpp
-			I'm giving this all 8 bits, but honestly I could just represent it as 3 bits and calculate the mask as ((1 << mask) - 1)
-
-	.z = transparentIndex;
-		Specifies which colorIndex to use as transparency.
-		This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteOffset shift / high bits.
-		If you want fully opaque then just choose an oob color index.
-
-	.w = paletteOffset;
-		For now this is an integer added to the 0-15 4-bits of the sprite tex.
-		You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
-		Or you can set it to low numbers and use it to offset the palette.
-		Should this be high bits? or just an offset to OR? or to add?
 
 for tilemap:
 	.x
@@ -1589,21 +1562,21 @@ uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
 uniform sampler2D normalMapTex;
 
-// TODO hmm
-// caching would be nice
-// but the baked texture would be unique to: sheetTex, palTex, palOffset, spriteBit, spriteMask
 // hmm if I introduced image blobs with fixed bpp, and didn't allow variable masks/planes, then the last two would go ... but palette shifting too? hmm... not sure I want to get rid of that feature ...
 //uniform sampler2D sheetAndPalTex;	// cached sheet indexed + palette rgba baked together, only needed for RGB565 mode for lighting
 //uniform sampler2D normalTex;		// cached sheetAndPalTex normalmap from heightmap from greyscale conversion of sheetAndPalTex
 
+
+uniform int paletteOffset;
+uniform int transparentIndex;
+uniform int spriteBit;
+uniform int spriteMask;
 
 uniform vec4 clipRect;
 uniform int HD2DFlags;
 uniform vec4 blendColorSolid;
 uniform uint dither;
 //uniform vec2 frameBufferSize;
-
-uniform int paletteOffsetUniform;	// for when you want to shift palette but can't change attributes ... i.e. voxelmap rendering
 
 <?=glslCode5551?>
 
@@ -1743,16 +1716,6 @@ end ?>
 }
 
 <?=fragType?> spriteShading(vec2 tc) {
-	uint spriteBit = (extra.x >> 3) & 7u;
-	uint spriteMask = (extra.x >> 8) & 0xffu;
-	uint transparentIndex = extra.z;
-
-	// shift the oob-transparency 2nd bit up to the 8th bit,
-	// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
-	transparentIndex |= (extra.x & 4u) << 6;
-
-	uint paletteOffset = extra.w + paletteOffsetUniform;
-
 	// sheetTex is usampler2D / returns uvec4
 	// sheetTex.r holds the uint8 value of the indexed color
 	uint colorIndex = texture(sheetTex, tc).r;
@@ -1854,6 +1817,7 @@ void tilemapShading(
 	// sheetTex is R8 indexing into our palette ...
 	uint colorIndex = texelFetch(sheetTex, tileTexTC, 0).r;
 
+	// should I add paletteOffset here, or should paletteOffset be strictly for spr() ... and voxelmap() ... and brush() ... and mesh3d() ... and everything else but tilemap() ?
 	colorIndex += palHi << 5;
 	colorIndex &= 0xFFu;
 
@@ -1861,7 +1825,7 @@ void tilemapShading(
 
 	// hmm I guess I am doing a lot of wasted calcs when lighting is disabled...
 	const float spriteSheetSize = 256.;
-	outNormal = texture(normalMapTex, vec2(tileTexTC) / spriteSheetSize).xyz * 2. - 1.;
+//	outNormal = texture(normalMapTex, vec2(tileTexTC) / spriteSheetSize).xyz * 2. - 1.;
 }
 
 // this is a horrible hack
@@ -1909,7 +1873,7 @@ void main() {
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 		fragColor = spriteShading(tcv);
-		surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
+//		surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
 
 	} else if (pathway == 2u) {
 

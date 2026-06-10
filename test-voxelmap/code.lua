@@ -21,8 +21,8 @@ mode(0xff)	-- NativexRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
 --HD2DFlags = 0
-HD2DFlags = 1|8|32				-- bump-mapping without shadows
---HD2DFlags = 1|2|8|16|32		-- no SSAO, noDoF
+--HD2DFlags = 1|8|32				-- bump-mapping without shadows
+HD2DFlags = 1|2|8|16|32		-- no SSAO, noDoF
 --HD2DFlags = 0xff				-- everything
 
 -- this is post-projection transform so good luck with that

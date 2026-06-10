@@ -338,6 +338,13 @@ local AppVideo = {}
 -- maybe this should be its own file?
 -- maybe I'll merge RAMGPU with BlobImage ... and then make framebuffer a blob of its own (nahhhh ...) and then I won't need this to be its own file?
 function AppVideo:initVideoModes()
+
+	-- not in RAM yet ... should it be? probably? then I can take it out of the draw API calls...
+	self.paletteOffset = 0
+	self.transparentIndex = 0x100
+	self.spriteBit = 0
+	self.spriteMask = 0xff
+
 --DEBUG:self.triBuf_flushCallsPerFrame = 0
 --DEBUG:self.triBuf_flushSizes = {}
 --DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
@@ -862,12 +869,15 @@ assert(animSheetTex)
 	if self.modelMatDirty
 	or self.viewMatDirty
 	or self.projMatDirty
+	or self.paletteOffsetDirty
+	or self.transparentIndexDirty
+	or self.spriteBitDirty
+	or self.spriteMaskDirty
 	or self.clipRectDirty
 	or self.blendColorDirty
 	or self.ditherDirty
 	or self.cullFaceDirty
 	or self.HD2DFlagsDirty
-	or self.spriteNormalExhaggerationDirty
 	or self.frameBufferSizeUniformDirty
 	then
 		program:use()
@@ -882,6 +892,22 @@ assert(animSheetTex)
 		if self.projMatDirty then
 			program:setUniform('projMat', self.ram.projMat.ptr)
 			self.projMatDirty = false
+		end
+		if self.paletteOffsetDirty then
+			program:setUniform('paletteOffset', self.paletteOffset)	-- not in RAM I guess
+			self.paletteOffsetDirty = false
+		end
+		if self.transparentIndexDirty then
+			program:setUniform('transparentIndex', self.transparentIndex)	-- not in RAM I guess
+			self.transparentIndexDirty = false
+		end
+		if self.spriteBitDirty then
+			program:setUniform('spriteBit', self.spriteBit)	-- not in RAM I guess
+			self.spriteBitDirty = false
+		end
+		if self.spriteMaskDirty then
+			program:setUniform('spriteMask', self.spriteMask)	-- not in RAM I guess
+			self.spriteMaskDirty = false
 		end
 		if self.clipRectDirty then
 			gl.glUniform4f(
@@ -922,11 +948,6 @@ assert(animSheetTex)
 		if self.HD2DFlagsDirty then
 			self.HD2DFlagsDirty = false
 			gl.glUniform1i(program.uniforms.HD2DFlags.loc, self.ram.HD2DFlags)
-		end
-		if self.spriteNormalExhaggerationDirty then
-			self.spriteNormalExhaggerationDirty = false
-			print('!!! TODO on spriteNormalExhaggerationDirty, regen cached normal maps')
-			--gl.glUniform1f(program.uniforms.spriteNormalExhaggeration.loc, self.ram.spriteNormalExhaggeration)
 		end
 		--[[ TODO not sure just yet
 		if self.frameBufferSizeUniformDirty then
@@ -1018,6 +1039,27 @@ function AppVideo:onProjMatChange()
 	self.projMatDirty = true
 end
 
+-- I'm not storing this in RAM just yet... or maybe I should?
+function AppVideo:onPaletteOffsetChange()
+	self:triBuf_flush()
+	self.paletteOffsetDirty = true
+end
+
+function AppVideo:onTransparentIndexChange()
+	self:triBuf_flush()
+	self.transparentIndexDirty = true
+end
+
+function AppVideo:onSpriteBitChange()
+	self:triBuf_flush()
+	self.spriteBitDirty = true
+end
+
+function AppVideo:onSpriteMaskChange()
+	self:triBuf_flush()
+	self.spriteMaskDirty = true
+end
+
 function AppVideo:onClipRectChange()
 	self:triBuf_flush()
 	self.clipRectDirty = true
@@ -1052,10 +1094,11 @@ function AppVideo:onCullFaceChange()
 	self.cullFaceDirty = true
 end
 
-
 function AppVideo:onSpriteNormalExhaggerationChange()
-	self:triBuf_flush()
-	self.spriteNormalExhaggerationDirty = true
+	-- only changing this will reset all normalmaps
+	-- otherwise, changing paletteOffset, transparentIndex, spriteBit, spriteMask will correlate with a new normalMap,
+	-- but we can have multiple entries in the cache for that
+	print('!!! TODO regen cached normal maps')
 end
 
 
@@ -1224,6 +1267,10 @@ function AppVideo:resetVideo()
 	--]]
 
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
+	self:setPaletteOffset(0)
+	self:setTransparentIndex(-1)
+	self:setSpriteBit(0)
+	self:setSpriteMask(0xff)
 	self:setClipRect(0, 0, clipMax, clipMax)
 
 	self:matident()
@@ -1419,6 +1466,10 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onModelMatChange()	-- the drawObj changed so make sure it refreshes its modelMat
 	self:onViewMatChange()
 	self:onProjMatChange()
+	self:onPaletteOffsetChange()
+	self:onTransparentIndexChange()
+	self:onSpriteBitChange()
+	self:onSpriteMaskChange()
 	self:onClipRectChange()
 	self:onBlendColorChange()
 	self:onDitherChange()
@@ -2044,6 +2095,30 @@ function AppVideo:clearScreen(
 	end
 end
 
+function AppVideo:setPaletteOffset(paletteOffset)
+	if self.paletteOffset == paletteOffset then return end	-- required? here?
+	self.paletteOffset = paletteOffset
+	self:onPaletteOffsetChange()
+end
+
+function AppVideo:setTransparentIndex(transparentIndex)
+	if self.transparentIndex == transparentIndex then return end	-- required? here?
+	self.transparentIndex = transparentIndex
+	self:onTransparentIndexChange()
+end
+
+function AppVideo:setSpriteBit(spriteBit)
+	if self.spriteBit == spriteBit then return end	-- required? here?
+	self.spriteBit = spriteBit
+	self:onSpriteBitChange()
+end
+
+function AppVideo:setSpriteMask(spriteMask)
+	if self.spriteMask == spriteMask then return end	-- required? here?
+	self.spriteMask = spriteMask
+	self:onSpriteMaskChange()
+end
+
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
 -- NOTICE I chose [incl,excl) at first so that I could represent it with bytes for 256x256 screen, but now that I've got bigger screens, meh no point.
 function AppVideo:setClipRect(...)
@@ -2122,22 +2197,14 @@ function AppVideo:drawQuadTex(
 	spriteBit,
 	spriteMask
 )
+	self:setPaletteOffset(paletteOffset or 0)
+	self:setTransparentIndex(transparentIndex or -1)
+	self:setSpriteBit(spriteBit or 0)
+	self:setSpriteMask(spriteMask or 0xff)
+
 	orientation2D = orientation2D or 0
-	paletteOffset = paletteOffset or 0
-	transparentIndex = transparentIndex or -1
-	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xFF
 
-	local drawFlags = bit.bor(
-		-- bits 0/1 == 01b <=> use sprite pathway
-		1,
-
-		-- if transparency is oob then flag the "don't use transparentIndex" bit
-		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-
-		-- store sprite bit shift in the next 3 bits
-		bit.lshift(spriteBit, 3)
-	)
+	local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway
 
 	local xR = x + w
 	local yR = y + h
@@ -2188,7 +2255,7 @@ vR   3-4
 		x,  yR, 0, u3, v3,
 		0, 0, 1,
 		1, 0, 0,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
+		drawFlags, 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -2202,7 +2269,7 @@ vR   3-4
 		xR, yR, 0, u4, v4,
 		0, 0, 1,
 		1, 0, 0,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
+		drawFlags, 0, 0, 0,
 		0, 0, 1, 1
 	)
 end
@@ -2369,27 +2436,19 @@ function AppVideo:drawTexTri3D(
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
-	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xFF
-	transparentIndex = transparentIndex or -1
-	paletteOffset = paletteOffset or 0
-
-	local drawFlags = bit.bor(
-		-- bits 0/1 == 01b <=> use sprite pathway
-		1,
-
-		-- if transparency is oob then flag the "don't use transparentIndex" bit
-		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-
-		-- store sprite bit shift in the next 3 bits
-		bit.lshift(spriteBit, 3)
-	)
+	local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway
 
 	local normalX, normalY, normalZ, tangentX, tangentY, tangentZ = calcNormalForTri(
 		x1, y1, z1,
 		x2, y2, z2,
 		x3, y3, z3
 	)
+
+	self:setPaletteOffset(paletteOffset or 0)
+	self:setTransparentIndex(transparentIndex or -1)
+	self:setSpriteBit(spriteBit or 0)
+	self:setSpriteMask(spriteMask or 0xff)
+
 	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
@@ -2400,7 +2459,7 @@ function AppVideo:drawTexTri3D(
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		normalX, normalY, normalZ,
 		tangentX, tangentY, tangentZ,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
+		drawFlags, 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -2417,8 +2476,7 @@ spriteIndex =
 	bits 11.. = blob to use for sprite/tile sheet
 tilesWide = width in tiles
 tilesHigh = height in tiles
-paletteOffset =
-	byte value that holds which palette to use, added to the sprite color index
+paletteOffset = byte value that holds which palette to use, added to the sprite color index
 transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
 spriteBit = index of bit (0-based) to use, default is zero
 spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
@@ -2637,23 +2695,21 @@ function AppVideo:drawTextCommon(
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
-	local paletteOffset = fgColorIndex - 1
+
+	self:setPaletteOffset(fgColorIndex - 1)
+	self:setTransparentIndex(0)
+	self:setSpriteMask(1)	-- 1bpp right? TODO time for varying bpp images and esp fonts
 
 	for i=1,#text do
 		local ch = text:byte(i)
 		local spriteBit = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 
-		local drawFlags = bit.bor(
-			-- bits 0/1 == 01b <=> use sprite pathway
-			1,
+		local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway
 
-			-- transparentIndex == 0, which is in-bounds, so don't set the transparentIndex oob flag
-			0,
-
-			-- store sprite bit shift in the next 3 bits
-			bit.lshift(spriteBit, 3)
-		)
+		-- TODO time to store 8bpp-tiled images in RAM?  ruin our relocatable framebuffer?
+		-- doing so would stop all these uniform chagnes.
+		self:setSpriteBit(spriteBit)
 
 		local xR = x + w
 		local yR = y + h
@@ -2671,7 +2727,7 @@ function AppVideo:drawTextCommon(
 			x,  yR, 0, uL, th,
 			0, 0, 1,
 			1, 0, 0,
-			bit.bor(drawFlags, 0x100), 0, 0, paletteOffset,
+			drawFlags, 0, 0, 0,
 			0, 0, 1, 1
 		)
 
@@ -2685,7 +2741,7 @@ function AppVideo:drawTextCommon(
 			x,  yR, 0, uL, th,
 			0, 0, 1,
 			1, 0, 0,
-			bit.bor(drawFlags, 0x100), 0, 0, paletteOffset,
+			drawFlags, 0, 0, 0,
 			0, 0, 1, 1
 		)
 
@@ -3453,6 +3509,12 @@ function AppVideo:drawVoxelMap(
 	-- [[ draw using blob/voxelmap's own GPU buffer
 	-- ... never seems to go that fast
 	self:triBuf_flush()
+
+	self:setPaletteOffset(paletteOffset)
+	self:setTransparentIndex(-1)	--- TODO add this to voxelmap() or just move all these to RAM and remove them from all draw API calls?
+	self:setSpriteBit(0)
+	self:setSpriteMask(0xff)
+
 	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)	-- make sure textures are set
 	voxelmap:drawMesh(self, paletteOffset)
 	--]]
