@@ -1530,34 +1530,6 @@ uniform mat4 viewMat;	// wait so really this is the inverse-transform of the vie
 uniform mat4 projMat;	// fwd-transform of view coord -> ONB homogeneous coord
 
 
-//debugging
-mat3 onb1(vec3 n) {
-	mat3 m;
-	m[2] = n;
-	vec3 x = vec3(0., n.z, -n.y); // cross(n, vec3(1., 0., 0.));
-	vec3 y = vec3(-n.z, 0., n.x); // cross(n, vec3(0., 1., 0.));
-	vec3 z = vec3(n.y, -n.x, 0.); // cross(n, vec3(0., 0., 1.));
-	float x2 = dot(x,x);
-	float y2 = dot(y,y);
-	float z2 = dot(z,z);
-	if (x2 > y2) {
-		if (x2 > z2) {
-			m[0] = x;
-		} else {
-			m[0] = z;
-		}
-	} else {
-		if (y2 > z2) {
-			m[0] = y;
-		} else {
-			m[0] = z;
-		}
-	}
-	m[0] = normalize(m[0]);
-	m[1] = cross(m[2], m[0]);	// should be unit enough
-	return m;
-}
-
 void main() {
 	tcv = texcoord;
 
@@ -1793,7 +1765,11 @@ end ?>
 	return resultColor;
 }
 
-<?=fragType?> tilemapShading(vec2 tc) {
+void tilemapShading(
+	vec2 tc,
+	out <?=fragType?> outColor,
+	out vec3 outNormal
+) {
 	uint tilemapIndexOffset = uint(extra.z);
 
 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
@@ -1841,7 +1817,7 @@ end ?>
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileIndexTC = ivec2(
 		int(tileIndex & 0x1Fu),				// tilemap bits 0..4
-		int((tileIndex >> 5) & 0x1Fu)			// tilemap bits 5..9
+		int((tileIndex >> 5) & 0x1Fu)		// tilemap bits 5..9
 	);
 
 	if (rot == 1u) {
@@ -1868,7 +1844,11 @@ end ?>
 	colorIndex += palHi << 5;
 	colorIndex &= 0xFFu;
 
-	return colorIndexToFragColor(colorIndex);
+	outColor = colorIndexToFragColor(colorIndex);
+
+	// hmm I guess I am doing a lot of wasted calcs when lighting is disabled...
+	const float spriteSheetSize = 256.;
+	outNormal = texture(normalMapTex, vec2(tileTexTC) / spriteSheetSize).xyz * 2. - 1.;
 }
 
 // this is a horrible hack
@@ -1916,14 +1896,11 @@ void main() {
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 		fragColor = spriteShading(tcv);
-		//surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
+		surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
 
 	} else if (pathway == 2u) {
 
-		fragColor = tilemapShading(tcv);
-
-		// TODO read from tilemap normalmap cache
-		surfaceCoordsNormal = vec3(0., 0., 1.);
+		tilemapShading(tcv, fragColor, surfaceCoordsNormal);
 
 	// I had an extra pathway and I didn't know what to use it for
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
