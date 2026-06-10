@@ -33,6 +33,7 @@ conns = {}			-- conns[connID][playerID] = players[playerID]
 local fillY, holeCol
 local rowFlashes
 
+board_sumSolid = 0
 board_dAbsY = 0
 board_sumEmptyY = 0
 
@@ -41,11 +42,13 @@ local refreshMetrics=||do
 	local lastTopY
 	board_dAbsY = 0
 	board_sumEmptyY = 0
+	board_sumSolid = 0
 	for x=0,mapwidth-1 do
 		local topY
 		local emptyY
 		for y=0,mapheight-1 do
 			if tget(0,x,y) ~= 0 then
+				board_sumSolid += 1
 				if not topY then topY = y end
 			else
 				-- count holes
@@ -396,8 +399,9 @@ draw = |connID, ...|do
 
 	-- points in upper-left
 	text(tostring(points))
-	text(tostring(board_dAbsY), 0, 8)
-	text(tostring(board_sumEmptyY), 0, 16)
+	text(tostring(board_sumSolid), 0, 8)
+	text(tostring(board_dAbsY), 0, 16)
+	text(tostring(board_sumEmptyY), 0, 24)
 
 	if newGameTime then
 		text('GAME OVER', 20, 100, 12, -1, 5, 5)

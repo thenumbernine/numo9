@@ -1466,25 +1466,25 @@ in vec3 tangent;
 flat, flags for sprite vs solid etc:
 
 extra.x:
-	bit 0/1 =
+	bit 0:1 =
 		00 = use solid path
 		01 = use sprite path
 		10 = use tilemap path
 
 for solid:
 	.x = flags:
-		bit 0/1 = render pathway = 00
+		bit 0:1 = render pathway = 00
 		bit 2 = draw a solid round quad
 		bit 4 = solid shader uses borderOnly
 		bits 8-15 = colorIndex
 
 for sprites:
 	.x:
-		bit 0/1 = render pathway = 01
+		bit 0:1 = render pathway = 01
 
 for tilemap:
 	.x
-		bit 0/1 = render pathway = 10
+		bit 0:1 = render pathway = 10
 		bit 2 = on = 16x16 tiles, off = 8x8 tiles
 
 	.z = tilemapIndexOffset

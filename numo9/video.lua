@@ -864,8 +864,29 @@ assert(animSheetTex)
 		end
 	end
 
+--[[
+TODO somewhere here ...
+check our normalmap cache based on:
+- tile sheet tex
+- palette tex
+- paletteOffset
+- transparentIndex
+- spriteBit
+- spriteMask
+if none is there then rebuild it
+throw out the oldest if it gets too big
+
+hmm but how to design the hash ...
+maybe I will just linear search the last 10 or so
+
+TODO TODO TODO
+'onSpriteNormalExhaggerationChange' is called by setVideoMode when vars are reset.
+... and right now the menu system is setting video mode back and forth every frame.
+so for this to work, TODO, I have to stop doing that.
+TODO TODO TODO move the menu system to its own graphics API layer, and bypass the FC-video-API system.
+--]]
+
 	-- upload uniforms to GPU before adding new tris ...
-	local program = self.triBuf_sceneObj.program
 	if self.modelMatDirty
 	or self.viewMatDirty
 	or self.projMatDirty
@@ -880,6 +901,7 @@ assert(animSheetTex)
 	or self.HD2DFlagsDirty
 	or self.frameBufferSizeUniformDirty
 	then
+		local program = self.triBuf_sceneObj.program
 		program:use()
 		if self.modelMatDirty then
 			program:setUniform('modelMat', self.ram.modelMat.ptr)
@@ -1098,7 +1120,8 @@ function AppVideo:onSpriteNormalExhaggerationChange()
 	-- only changing this will reset all normalmaps
 	-- otherwise, changing paletteOffset, transparentIndex, spriteBit, spriteMask will correlate with a new normalMap,
 	-- but we can have multiple entries in the cache for that
-	print('!!! TODO regen cached normal maps')
+--	print('!!! TODO regen cached normal maps')
+--	print(debug.traceback())
 end
 
 
