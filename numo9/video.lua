@@ -925,7 +925,8 @@ assert(animSheetTex)
 		end
 		if self.spriteNormalExhaggerationDirty then
 			self.spriteNormalExhaggerationDirty = false
-			gl.glUniform1f(program.uniforms.spriteNormalExhaggeration.loc, self.ram.spriteNormalExhaggeration)
+			print('!!! TODO on spriteNormalExhaggerationDirty, regen cached normal maps')
+			--gl.glUniform1f(program.uniforms.spriteNormalExhaggeration.loc, self.ram.spriteNormalExhaggeration)
 		end
 		--[[ TODO not sure just yet
 		if self.frameBufferSizeUniformDirty then
@@ -951,7 +952,9 @@ local function calcNormalForTri(
 	return
 		day * dbz - daz * dby,
 		daz * dbx - dax * dbz,
-		dax * dby - day * dbx
+		dax * dby - day * dbx,
+		-- tangent
+		dax, day, daz
 end
 
 function AppVideo:triBuf_addTri(
@@ -967,17 +970,10 @@ function AppVideo:triBuf_addTri(
 
 	-- divisor
 	normalX, normalY, normalZ,
+	tangentX, tangentY, tangentZ,
 	extraX, extraY, extraZ, extraW,
 	boxX, boxY, boxW, boxH
 )
-	local sceneObj = self.triBuf_sceneObj
-
-	local vertex = sceneObj.attrs.vertex.buffer.vec
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	local normal = sceneObj.attrs.normal.buffer.vec
-	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
-	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-
 	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
 
 	-- push
@@ -986,6 +982,7 @@ function AppVideo:triBuf_addTri(
 	v.vertex.x, v.vertex.y, v.vertex.z = x1, y1, z1
 	v.texcoord.x, v.texcoord.y = u1, v1
 	v.normal.x, v.normal.y, v.normal.z = normalX, normalY, normalZ
+	v.tangent.x, v.tangent.y, v.tangent.z = tangentX, tangentY, tangentZ
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 
@@ -993,6 +990,7 @@ function AppVideo:triBuf_addTri(
 	v.vertex.x, v.vertex.y, v.vertex.z = x2, y2, z2
 	v.texcoord.x, v.texcoord.y = u2, v2
 	v.normal.x, v.normal.y, v.normal.z = normalX, normalY, normalZ
+	v.tangent.x, v.tangent.y, v.tangent.z = tangentX, tangentY, tangentZ
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 
@@ -1000,6 +998,7 @@ function AppVideo:triBuf_addTri(
 	v.vertex.x, v.vertex.y, v.vertex.z = x3, y3, z3
 	v.texcoord.x, v.texcoord.y = u3, v3
 	v.normal.x, v.normal.y, v.normal.z = normalX, normalY, normalZ
+	v.tangent.x, v.tangent.y, v.tangent.z = tangentX, tangentY, tangentZ
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 end
@@ -1584,6 +1583,7 @@ function AppVideo:drawSolidRect(
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
 		0, 0, 1,
+		1, 0, 0,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
 		x, y, w, h
 	)
@@ -1597,6 +1597,7 @@ function AppVideo:drawSolidRect(
 		xR, y,  0, xR, y,
 		xR, yR, 0, xR, yR,
 		0, 0, 1,
+		1, 0, 0,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
 		x, y, w, h
 	)
@@ -1643,7 +1644,7 @@ function AppVideo:drawSolidTri3D(
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
-	local normalX, normalY, normalZ = calcNormalForTri(
+	local normalX, normalY, normalZ, tangentX, tangentY, tangentZ = calcNormalForTri(
 		x1, y1, z1,
 		x2, y2, z2,
 		x3, y3, z3
@@ -1657,6 +1658,7 @@ function AppVideo:drawSolidTri3D(
 		x2, y2, z2, 1, 0,
 		x3, y3, z3, 0, 1,
 		normalX, normalY, normalZ,
+		tangentX, tangentY, tangentZ,
 		bit.lshift(math.floor(colorIndex or 0), 8), 0, 0, 0,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
@@ -1895,6 +1897,7 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL, 1, 0,
 		xLR, yLR, zLR, 0, 1,
 		normalX, normalY, normalZ,
+		dx, dy, dz,
 		bit.lshift(colorIndex, 8), 0, 0, 0,
 		0, 0, 1, 1
 	)
@@ -1908,6 +1911,7 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL, 1, 0,
 		xRR, yRR, zRR, 1, 1,
 		normalX, normalY, normalZ,
+		dx, dy, dz,
 		bit.lshift(colorIndex, 8), 0, 0, 0,
 		0, 0, 1, 1
 	)
@@ -2183,6 +2187,7 @@ vR   3-4
 		xR, y,  0, u2, v2,
 		x,  yR, 0, u3, v3,
 		0, 0, 1,
+		1, 0, 0,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
 	)
@@ -2196,6 +2201,7 @@ vR   3-4
 		xR, y,  0, u2, v2,
 		xR, yR, 0, u4, v4,
 		0, 0, 1,
+		1, 0, 0,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
 	)
@@ -2226,9 +2232,10 @@ function AppVideo:drawQuadTexRGB(
 		x,  y,  0, uL, vL,
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
-		0, 0, 1,
-		3, 0, 0, 0,
-		0, 0, 1, 1
+		0, 0, 1,			-- normal
+		1, 0, 0,			-- tangent
+		3, 0, 0, 0,			-- extra
+		0, 0, 1, 1			-- rect box
 	)
 
 	self:triBuf_addTri(
@@ -2240,6 +2247,7 @@ function AppVideo:drawQuadTexRGB(
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
 		0, 0, 1,
+		1, 0, 0,
 		3, 0, 0, 0,
 		0, 0, 1, 1
 	)
@@ -2377,7 +2385,7 @@ function AppVideo:drawTexTri3D(
 		bit.lshift(spriteBit, 3)
 	)
 
-	local normalX, normalY, normalZ = calcNormalForTri(
+	local normalX, normalY, normalZ, tangentX, tangentY, tangentZ = calcNormalForTri(
 		x1, y1, z1,
 		x2, y2, z2,
 		x3, y3, z3
@@ -2391,6 +2399,7 @@ function AppVideo:drawTexTri3D(
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		normalX, normalY, normalZ,
+		tangentX, tangentY, tangentZ,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
 	)
@@ -2554,6 +2563,7 @@ function AppVideo:drawTileMap(
 		xR, yL, 0, uR, vL,
 		xL, yR, 0, uL, vR,
 		0, 0, 1,
+		1, 0, 0,
 		extraX, 0, extraZ, 0,
 		0, 0, 1, 1
 	)
@@ -2567,6 +2577,7 @@ function AppVideo:drawTileMap(
 		xR, yL, 0, uR, vL,
 		xR, yR, 0, uR, vR,
 		0, 0, 1,
+		1, 0, 0,
 		extraX, 0, extraZ, 0,
 		0, 0, 1, 1
 	)
@@ -2659,6 +2670,7 @@ function AppVideo:drawTextCommon(
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
 			0, 0, 1,
+			1, 0, 0,
 			bit.bor(drawFlags, 0x100), 0, 0, paletteOffset,
 			0, 0, 1, 1
 		)
@@ -2672,6 +2684,7 @@ function AppVideo:drawTextCommon(
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
 			0, 0, 1,
+			1, 0, 0,
 			bit.bor(drawFlags, 0x100), 0, 0, paletteOffset,
 			0, 0, 1, 1
 		)

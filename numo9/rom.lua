@@ -505,6 +505,8 @@ local RAM = struct{
 				-- SSAO ...
 				{name='ssaoSampleRadius', type=float},
 				{name='ssaoInfluence', type=float},
+
+				-- bump-mapping:
 				{name='spriteNormalExhaggeration', type=float},	-- float or byte or who cares?
 
 				-- end of RAM, beginning of ROM
@@ -571,6 +573,8 @@ local Stamp = struct{
 assert.eq(ffi.sizeof(Stamp), 10)
 
 -- used by the mesh file format
+-- TODO rename to 'MeshVertex' to not confused with videomode.lua's Numo9Vertex
+-- or just make them all nameless?
 local Vertex = struct{
 	name = 'Vertex',
 	fields = {

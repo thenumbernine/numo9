@@ -20,8 +20,10 @@ mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
---HD2DFlags = 0xff
-HD2DFlags = 1|2|8|0x10|0x20
+--HD2DFlags = 0
+HD2DFlags = 1|8|32				-- bump-mapping without shadows
+--HD2DFlags = 1|2|8|16|32		-- no SSAO, noDoF
+--HD2DFlags = 0xff				-- everything
 
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
@@ -29,6 +31,8 @@ pokef(ramaddr'dofFocalRange', 2)
 pokef(ramaddr'dofAperature', .3)	-- how much to multiply depth-dist to get blur amount
 pokef(ramaddr'dofBlurMax', 10)
 
+-- default is 8
+pokef(ramaddr'spriteNormalExhaggeration', 64)
 
 local player
 local playerCoins = 0
@@ -493,12 +497,10 @@ update=||do
 		if objs[i].remove then objs:remove(i) end
 	end
 
-	local lightPos = vec3(player.pos.x, player.pos.y + 3, player.pos.z + 3)
-
---[[ use default for now.
+-- [[ use default for now.
 	pokew(ramaddr'numLights', 1)
 --]]
--- [[
+--[[
 	Lights.MakeLight.znear = 1
 	Lights.MakeLight.zfar = 100
 	Lights.MakeLight.diffuse:set(1,1,1)
@@ -507,6 +509,7 @@ update=||do
 	Lights.MakeLight.distAtten:set(1,0,.05)
 	Lights:beginFrame()
 	-- now come this is only shining down?  where are my 6 transform sides?
+	local lightPos = vec3(player.pos.x, player.pos.y + 3, player.pos.z + 3)
 	Lights.makePointLight(lightPos:unpack())
 	Lights:endFrame()
 --]]

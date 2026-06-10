@@ -84,11 +84,11 @@ function BlobMesh3D:init(data)
 	-- [[ cache surface normals
 	local numo9_video = require 'numo9.video'
 	local calcNormalForTri = numo9_video.calcNormalForTri
-	local Numo9Vertex = numo9_video.Numo9Vertex
 	self.normalList = vector(vec3f)
+	self.tangentList = vector(vec3f)
 	assert.eq(
 		self.normalList.type,
-		ffi.typeof(select(2, table.find(Numo9Vertex.fields, nil, function(field)
+		ffi.typeof(select(2, table.find(numo9_video.Numo9Vertex.fields, nil, function(field)
 			return field.name == 'normal'
 		end)).type)
 	)
@@ -97,12 +97,14 @@ function BlobMesh3D:init(data)
 		local vi = vtxs + i
 		local vj = vtxs + j
 		local vk = vtxs + k
-		local nx, ny, nz = calcNormalForTri(
-			vi.x, vi.y, vi.z,
-			vj.x, vj.y, vj.z,
-			vk.x, vk.y, vk.z
+		local nx, ny, nz, tnx, tny, tnz = calcNormalForTri(
+			-- trying to find TNB calc errors
+			vi.x/32768, vi.y/32768, vi.z/32768,
+			vj.x/32768, vj.y/32768, vj.z/32768,
+			vk.x/32768, vk.y/32768, vk.z/32768
 		)
 		self.normalList:emplace_back():set(nx, ny, nz)
+		self.tangentList:emplace_back():set(tnx, tny, tnz)
 	end
 	--]]
 
@@ -119,8 +121,8 @@ function BlobMesh3D:init(data)
 		local vi = vtxs+i bounds:stretch(vec3i(vi.x, vi.y, vi.z))
 		local vj = vtxs+j bounds:stretch(vec3i(vj.x, vj.y, vj.z))
 		local vk = vtxs+k bounds:stretch(vec3i(vk.x, vk.y, vk.z))
-		local n = self.normalList.v + ti
 --[[ test face orientation as well?
+		local n = self.normalList.v + ti
 		local unitN = n:normalize()
 --]]
 		for axis=0,2 do

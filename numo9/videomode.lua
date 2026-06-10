@@ -83,7 +83,8 @@ local Numo9Vertex = struct{
 	fields = {
 		{name='vertex', type='vec3f'},
 		{name='texcoord', type='vec2f'},
-		{name='normal', type='vec3f'},
+		{name='normal', type='vec3f'},	-- df/dw <-> df/du x df/dv
+		{name='tangent', type='vec3f'},	-- df/du <-> normal x tangent = binormal
 		{name='extra', type='vec4us'},
 		{name='box', type='vec4f'},
 	},
@@ -1446,9 +1447,10 @@ This is the texcoord for sprite shaders.
 This is the model-space coord (within box min/max) for solid/round shaders.
 (TODO for round shader, should this be after transform? but then you'd have to transform the box by mvmat in the fragment shader too ...)
 */
-layout(location=1) in vec2 texcoord;
+in vec2 texcoord;
 
-layout(location=2) in vec3 normal;
+in vec3 normal;
+in vec3 tangent;
 
 /*
 flat, flags for sprite vs solid etc:
@@ -1503,11 +1505,11 @@ for tilemap:
 
 	.z = tilemapIndexOffset
 */
-layout(location=3) in uvec4 extraAttr;
+in uvec4 extraAttr;
 
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
 // TODO just use texcoord?
-layout(location=4) in vec4 boxAttr;
+in vec4 boxAttr;
 
 //GLES3 says we have at least 16 attributes to use ...
 
@@ -1515,6 +1517,8 @@ layout(location=4) in vec4 boxAttr;
 out vec2 tcv;
 
 flat out vec3 worldNormalv;
+flat out vec3 worldTangentv;
+flat out vec3 worldBinormalv;	// "bi-normal" even tho its rhs to the tangent, and normal is tangent x this , so it couples with the tagnent ...
 flat out uvec4 extra;
 flat out vec4 box;
 
@@ -1525,9 +1529,42 @@ uniform mat4 modelMat;	// fwd-transform of model->world
 uniform mat4 viewMat;	// wait so really this is the inverse-transform of the view ....
 uniform mat4 projMat;	// fwd-transform of view coord -> ONB homogeneous coord
 
+
+//debugging
+mat3 onb1(vec3 n) {
+	mat3 m;
+	m[2] = n;
+	vec3 x = vec3(0., n.z, -n.y); // cross(n, vec3(1., 0., 0.));
+	vec3 y = vec3(-n.z, 0., n.x); // cross(n, vec3(0., 1., 0.));
+	vec3 z = vec3(n.y, -n.x, 0.); // cross(n, vec3(0., 0., 1.));
+	float x2 = dot(x,x);
+	float y2 = dot(y,y);
+	float z2 = dot(z,z);
+	if (x2 > y2) {
+		if (x2 > z2) {
+			m[0] = x;
+		} else {
+			m[0] = z;
+		}
+	} else {
+		if (y2 > z2) {
+			m[0] = y;
+		} else {
+			m[0] = z;
+		}
+	}
+	m[0] = normalize(m[0]);
+	m[1] = cross(m[2], m[0]);	// should be unit enough
+	return m;
+}
+
 void main() {
 	tcv = texcoord;
-	worldNormalv = (modelMat * vec4(normal, 0.)).xyz;
+
+	worldNormalv = normalize((modelMat * vec4(normal, 0.)).xyz);
+	worldTangentv = normalize((modelMat * vec4(tangent, 0.)).xyz);
+	worldBinormalv = normalize(cross(worldNormalv, worldTangentv));
+
 	extra = extraAttr;
 	box = boxAttr;
 
@@ -1547,9 +1584,11 @@ precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;
 
-in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
+in vec2 tcv;		// framebuffer pixel coordinates before transform, so they are sprite texels
 
-flat in vec3 worldNormalv;
+flat in vec3 worldNormalv;		// df/dz = dh/dx x dh/dy
+flat in vec3 worldTangentv;		// df/dx
+flat in vec3 worldBinormalv;	// df/dy
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
@@ -1564,6 +1603,7 @@ uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
+uniform sampler2D normalMapTex;
 
 // TODO hmm
 // caching would be nice
@@ -1580,8 +1620,6 @@ uniform uint dither;
 //uniform vec2 frameBufferSize;
 
 uniform int paletteOffsetUniform;	// for when you want to shift palette but can't change attributes ... i.e. voxelmap rendering
-
-uniform float spriteNormalExhaggeration;
 
 <?=glslCode5551?>
 
@@ -1868,73 +1906,24 @@ void main() {
 
 	uint pathway = extra.x & 3u;
 
-	float bumpHeight = -1.;
+	vec3 surfaceCoordsNormal = vec3(0., 0., 1);
 
 	// solid shading pathway
 	if (pathway == 0u) {
 
 		fragColor = solidShading(tcv);
 
-		bumpHeight = toGreyscale(fragColor);
-
 	// sprite shading pathway
 	} else if (pathway == 1u) {
-
-#if 0	// color and bump height LINEAR ... gotta do it here, can't do it in mag filter texture because it's a u8 texture (TODO change to a GL_RED texture?  but then no promises on the value having 8 bits (but it's 2025, who am I kidding, it'll have 8 bits))
-
-		vec2 size = vec2(textureSize(sheetTex, 0));
-		vec2 stc = tcv.xy * size;
-		vec2 ftc = floor(stc);
-		vec2 fp = fract(stc);
-
-		// TODO make sure this doesn't go over the sprite edge ...
-		// but how to tell how big the sprite is?
-		// hmm I could use the 'box' to store the texcoord boundary ...
-		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0., 0.)) / size);
-		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1., 0.)) / size);
-		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0., 1.)) / size);
-		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1., 1.)) / size);
-
-		fragColor = mix(
-			mix(fragColorLL, fragColorRL, fp.x),
-			mix(fragColorLR, fragColorRR, fp.x), fp.y
-		);
-
-		bumpHeight = dot(fragColor.xyz, greyscale);
-
-#else
 		fragColor = spriteShading(tcv);
-
-#if 0	// bump height based on sprite sheet sampler which is NEAREST:
-		bumpHeight = dot(fragColor.xyz, greyscale);
-#else	// linear sampler in-shader for bump height / lighting only:
-		vec2 size = vec2(textureSize(sheetTex, 0));
-		vec2 stc = tcv.xy * size;
-		vec2 ftc = floor(stc);
-		vec2 fp = fract(stc);
-
-		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0., 0.)) / size);
-		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1., 0.)) / size);
-		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0., 1.)) / size);
-		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1., 1.)) / size);
-
-		float bumpHeightLL = toGreyscale(fragColorLL);
-		float bumpHeightRL = toGreyscale(fragColorRL);
-		float bumpHeightLR = toGreyscale(fragColorLR);
-		float bumpHeightRR = toGreyscale(fragColorRR);
-
-		bumpHeight = mix(
-			mix(bumpHeightLL, bumpHeightRL, fp.x),
-			mix(bumpHeightLR, bumpHeightRR, fp.x), fp.y
-		);
-#endif
-#endif
+		//surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
 
 	} else if (pathway == 2u) {
 
 		fragColor = tilemapShading(tcv);
 
-		bumpHeight = toGreyscale(fragColor);
+		// TODO read from tilemap normalmap cache
+		surfaceCoordsNormal = vec3(0., 0., 1.);
 
 	// I had an extra pathway and I didn't know what to use it for
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
@@ -1942,10 +1931,10 @@ void main() {
 
 		fragColor = directShading(tcv);
 
-		bumpHeight = toGreyscale(fragColor);
-
 	}	// pathway
 
+// why is my glsl optimizing away 'tangent' attr when I'm using it next?  did idiots ruin the latest glsl compilers?
+fragColor.xyz += worldTangentv * 0.01;
 
 <? if fragType == 'uvec4' then ?>
 	if (fragColor.a == 0u) discard;
@@ -1960,41 +1949,24 @@ void main() {
 
 // lighting:
 
-	bumpHeight *= spriteNormalExhaggeration;
-
 	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useBumpMap?>) == 0) {
 		// normal from flat sided objs
 		fragNormal.xyz = worldNormalv;
 	} else {
+
 #if 0	// debug - show sprite normals only
 		// TODO transform from viewCoords to worldCoords by the inverse-view matrix
-		fragNormal.xyz = normalize(cross(
-			vec3(1., 0., dFdx(bumpHeight)),
-			vec3(0., 1., dFdy(bumpHeight))));
+		fragNormal.xyz = normalize(surfaceCoordsNormal);
 
 #else	// rotate sprite normals onto frag normal plane
 
-		//glsl matrix index access is based on columns
-		//so its index notation is reversed from math index notation.
-		// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
-		mat3 spriteBasis = onb2(
-			vec3(1., 0., dFdx(bumpHeight)),
-			vec3(0., 1., dFdy(bumpHeight)));
+		//flat-shaded normalized in vertex shader so it should be normalized here too
+		mat3 modelBasis;
+		modelBasis[0] = worldTangentv;
+		modelBasis[1] = worldBinormalv;
+		modelBasis[2] = worldNormalv;
 
-		// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
-		mat3 modelBasis = onb1(normalize(worldNormalv));
-
-	//TODO now transform the bumpmap coord into the worldnormal basis
-	// probably involves an inverse view or something idk
-	// (how about I cache/calc the bumpmap tangent space on tex, then no need to use dFdx)
-
-		//result should be d(bumpHeight)/d(vertex_j)
-		// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
-		// = d(bumpHeight)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
-		// = spriteBasis * transpose(modelBasis)
-		//modelBasis = spriteBasis * transpose(modelBasis);
-		//fragNormal.xyz = transpose(modelBasis)[2];
-		fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
+		fragNormal.xyz = normalize(modelBasis * surfaceCoordsNormal);
 #endif
 	}
 
@@ -2014,6 +1986,7 @@ void main() {
 				sheetTex = 1,
 				tilemapTex = 2,
 				animSheetTex = 3,
+				normalMapTex = 4,
 			},
 		},
 		geometry = {
@@ -2041,6 +2014,13 @@ void main() {
 				buffer = app.vertexBufGPU,
 				stride = ffi.sizeof(Numo9Vertex),
 				offset = ffi.offsetof(Numo9Vertex, 'normal'),
+			},
+			tangent = {
+				type = gl.GL_FLOAT,
+				size = 3,
+				buffer = app.vertexBufGPU,
+				stride = ffi.sizeof(Numo9Vertex),
+				offset = ffi.offsetof(Numo9Vertex, 'tangent'),
 			},
 			-- 8 bytes = 32 bit so I can use memset?
 			extraAttr = {
