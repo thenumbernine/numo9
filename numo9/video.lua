@@ -991,13 +991,14 @@ assert(animSheetTex)
 	end
 end
 
--- TODO only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
--- a simple cart used 3 to run ...
--- the menu system used 32 ...
--- hmmmmmmm I don't want to be constantly updating normalmaps...
 local normalMapCacheSize = 32
 AppVideo.normalMapCache = table()
 function AppVideo:getNormalMapTex(sheetTex, paletteTex)
+	-- only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
+	local needsNormalMap = 0 ~= bit.band(self.ram.HD2DFlags, bit.bor(1, 8, 32))
+	-- TODO instead of the first, how about a dummy filler?
+	if not needsNormalMap and #self.normalMapCache > 0 then return self.normalMapCache[1].tex end
+
 --print('looking for', sheetTex.id, paletteTex.id, self.ram.spriteNormalExhaggeration, self.paletteOffset, self.transparentIndex, self.spriteBit, self.spriteMask)
 	for i,entry in ipairs(self.normalMapCache) do
 --print('testing vs', entry.sheetTexID, entry.paletteTexID, entry.spriteNormalExhaggeration, entry.paletteOffset, entry.transparentIndex, entry.spriteBit, entry.spriteMask)
