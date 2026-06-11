@@ -328,8 +328,6 @@ end
 
 Player = Object:subclass()
 Player.draw = |:|do
-	matpush()
-	mattrans(self.pos:unpack())
 --	matrotcs(view.cosYaw, view.sinYaw, 0, 0, 1)
 --	matrotcs(0, 1, 1, 0, 0)
 --	matscale(1/16, -1/16, 1/16)
@@ -345,10 +343,8 @@ Player.draw = |:|do
 		sprIndex = 2
 	end
 	--local hflip = (self.angle - (view.yaw + 45)) % 360 < 180 and 1 or 0
-	--spr(sprIndex, -8, -16, 2, 2, hflip)
 	self.voxelCode = 0x50000800 | sprIndex
-	drawvoxel(self.voxelCode)
-	matpop()
+	Player.super.draw(self)
 end
 Player.update = |:, ...|do
 
@@ -472,6 +468,7 @@ update=||do
 	-- draw sky
 	-- assume we are still in ortho matrix setup from the end of last frame
 	local width, height = getScreenSize()
+	poke(ramaddr'cullFace', 0)
 	spr(
 		1024,							-- spriteIndex
 		0, 0, 							-- screenX, screenY
@@ -479,6 +476,7 @@ update=||do
 		0,								-- orientation2D
 		textwidth/256, textheight/256	-- scaleX, scaleY
 	)
+	poke(ramaddr'cullFace', 1)
 
 	-- you gotta set HD2DFlags with lighting first
 	-- before clearing the depth buffer next....
