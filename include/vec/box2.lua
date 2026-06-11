@@ -19,11 +19,15 @@ box2=class{
 		if type(a) == 'table' and a.min and a.max then
 			self.min = vec2(a.min)
 			self.max = vec2(a.max)
-		else
+		elseif b then
 			self.min = vec2(a)
 			self.max = vec2(b)
+		else
+			self.min = vec2(a)
+			self.max = vec2(a)
 		end
 	end,
+	clone=|v| box2(v),
 	stretch=|:,v|do
 		if getmetatable(v) == box2 then
 			self:stretch(v.min)
@@ -34,6 +38,7 @@ box2=class{
 			self.min.y = math.min(self.min.y, v.y)
 			self.max.y = math.max(self.max.y, v.y)
 		end
+		return self
 	end,
 	size=|:|self.max-self.min,
 	floor=|:|do
