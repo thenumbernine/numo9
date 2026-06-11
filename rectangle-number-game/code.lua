@@ -61,18 +61,6 @@ update=||do
 			rectb(tileSize * x, tileSize * y, tileSize - 2, tileSize - 2, 12)
 		end
 	end
-	for i,r in ipairs(solnRects) do
-		--[[ show answer
-		local x = tileSize * r.bbox.min.x
-		local y = tileSize * r.bbox.min.y
-		local w = tileSize * (r.bbox.max.x - r.bbox.min.x + 1) - 2
-		local h = tileSize * (r.bbox.max.y - r.bbox.min.y + 1) - 2
-		rect(x, y, w, h, i)
-		rectb(x, y, w, h, 12)
-		--]]
-		local s = tostring(r.area)
-		text(s, tileSize * (r.showPos.x + .5) - 8*#s/2, tileSize * (r.showPos.y + .5) - 4)
-	end
 
 	-- show user-created boxes
 	for i,r in ipairs(userRects) do
@@ -99,6 +87,12 @@ update=||do
 		-- b's color is red otherwise (and throw it away upon release?)
 		local foundArea
 		newRectColor = nil
+		for _,r in ipairs(userRects) do
+			if r.bbox:touchesE(b) then
+				newRectColor = red
+				goto done
+			end
+		end
 		for j=b.min.y,b.max.y do
 			for i=b.min.x,b.max.x do
 				local cellArea = areaForCell?[i]?[j]
@@ -120,6 +114,11 @@ update=||do
 	end
 
 	blend(-1)
+
+	for i,r in ipairs(solnRects) do
+		local s = tostring(r.area)
+		text(s, tileSize * (r.showPos.x + .5) - 8*#s/2, tileSize * (r.showPos.y + .5) - 4)
+	end
 
 	text('X', mouseX - 4, mouseY - 4)
 
