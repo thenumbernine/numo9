@@ -3,6 +3,7 @@ class = require 'ext.class'
 range = require 'ext.range'
 vec2 = require 'vec.vec2'
 box2 = require 'vec.box2'
+getScreenSize = require 'numo9.screen'.getScreenSize
 
 -- randomize palette?
 do
@@ -27,14 +28,18 @@ end
 
 --[[ beginner?
 boardSize = vec2(8, 8)
-tileSize = 24
 numPieces = 8
 --]]
 -- [[ expert?
 boardSize = vec2(20, 20)
-tileSize = 12
 numPieces = 64
 --]]
+--[[ super-expert?
+boardSize = vec2(40, 40)
+numPieces = 1024
+--]]
+
+mode(-1)
 
 boardBBox = box2(vec2(1,1), boardSize)
 
@@ -51,8 +56,8 @@ Rect.size=|:| self.bbox:size()+1
 Rect.area=|:| self:size():product()
 Rect.draw=|:|do
 	local b = self.bbox
-	local x = tileSize * b.min.x + 2
-	local y = tileSize * b.min.y + 2
+	local x = tileSize * (b.min.x - 1) + 2
+	local y = tileSize * (b.min.y - 1) + 2
 	local w = tileSize * (b.max.x - b.min.x + 1) - 6
 	local h = tileSize * (b.max.y - b.min.y + 1) - 6
 	rect(x, y, w, h, self.color)
@@ -124,16 +129,31 @@ end
 newGame()
 
 update=||do
+	local screenWidth, screenHeight = getScreenSize()
+	tileSize = screenHeight / boardSize.y
 	cls()
 
 	local mouseX, mouseY = mouse()
-	local mouseTilePos = || vec2(math.floor(mouseX / tileSize), math.floor(mouseY / tileSize))
+	local mouseTilePos = || vec2(
+		math.floor(mouseX / tileSize) + 1,
+		math.floor(mouseY / tileSize) + 1
+	)
 
 	blend(1)
 	for y=1,boardSize.y do
 		for x=1,boardSize.x do
-			rect(tileSize * x, tileSize * y, tileSize - 2, tileSize - 2, 8)
-			rectb(tileSize * x, tileSize * y, tileSize - 2, tileSize - 2, 12)
+			rect(
+				tileSize * (x-1),
+				tileSize * (y-1),
+				tileSize - 2,
+				tileSize - 2,
+				8)
+			rectb(
+				tileSize * (x-1),
+				tileSize * (y-1),
+				tileSize - 2,
+				tileSize - 2,
+				12)
 		end
 	end
 
@@ -153,8 +173,8 @@ update=||do
 	if pressPos then
 		local dragPos = mouseTilePos():clamp(boardBBox)
 		local b = box2(pressPos):stretch(dragPos)
-		local x = tileSize * b.min.x + 2
-		local y = tileSize * b.min.y + 2
+		local x = tileSize * (b.min.x-1) + 2
+		local y = tileSize * (b.min.y-1) + 2
 		local w = tileSize * (b.max.x - b.min.x + 1) - 6
 		local h = tileSize * (b.max.y - b.min.y + 1) - 6
 		local area = (b:size()+1):product()
@@ -192,7 +212,15 @@ update=||do
 
 	for i,r in ipairs(solnRects) do
 		local s = tostring(r.area)
-		text(s, tileSize * (r.showPos.x + .5) - 8*#s/2, tileSize * (r.showPos.y + .5) - 4)
+		text(
+			s,
+			tileSize * (r.showPos.x - .5) - 8*#s/2,
+			tileSize * (r.showPos.y - .5) - 4,
+			nil,
+			nil,
+			tileSize/16,
+			tileSize/16
+		)
 	end
 
 	text('X', mouseX - 4, mouseY - 4)
