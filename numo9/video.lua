@@ -1107,30 +1107,30 @@ function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
 	local spriteNormalExhaggeration = self.ram.spriteNormalExhaggeration
 	local p = entry.image.buffer
 	for y=0,spriteSheetSize.y-1 do
-		--[=[ wrap the whole sheet
+		-- [=[ wrap the whole sheet
 		local yl = bit.band(y - 1, 0xff)
 		local yr = bit.band(y + 1, 0xff)
 		--]=]
-		-- [=[ wrap just the 16x16 tile
+		--[=[ wrap just the 16x16 tile
 		local yl = bit.bor(bit.band(y - 1, 0xf), bit.band(y, 0xf0))
 		local yr = bit.bor(bit.band(y + 1, 0xf), bit.band(y, 0xf0))
 		--]=]
 		for x=0,spriteSheetSize.x-1 do
-			--[=[ wrap the whole sheet
+			-- [=[ wrap the whole sheet
 			local xl = bit.band(x - 1, 0xff)
 			local xr = bit.band(x + 1, 0xff)
 			--]=]
-			-- [=[ wrap just the 16x16 tile
+			--[=[ wrap just the 16x16 tile
 			local xl = bit.bor(bit.band(x - 1, 0xf), bit.band(x, 0xf0))
 			local xr = bit.bor(bit.band(x + 1, 0xf), bit.band(x, 0xf0))
 			--]=]
 			local dz_dx = (
-				calcGrey(sheetTex.data + xr + spriteSheetSize.y * y)
-				- calcGrey(sheetTex.data + xl + spriteSheetSize.y * y)
+				calcGrey(sheetTex.data + (xr + spriteSheetSize.y * y))
+				- calcGrey(sheetTex.data + (xl + spriteSheetSize.y * y))
 			) * .5
 			local dz_dy = (
-				calcGrey(sheetTex.data + x + spriteSheetSize.y * yr)
-				- calcGrey(sheetTex.data + x + spriteSheetSize.y * yl)
+				calcGrey(sheetTex.data + (x + spriteSheetSize.y * yr))
+				- calcGrey(sheetTex.data + (x + spriteSheetSize.y * yl))
 			) * .5
 			-- n = [1,0,dz_dx] x [0,1,dz_dy]
 			local nx = -dz_dx

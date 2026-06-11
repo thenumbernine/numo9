@@ -30,6 +30,7 @@ pokef(ramaddr'dofFocalDist', 10)
 pokef(ramaddr'dofFocalRange', 2)
 pokef(ramaddr'dofAperature', .3)	-- how much to multiply depth-dist to get blur amount
 pokef(ramaddr'dofBlurMax', 10)
+poke(ramaddr'cullFace', 1)
 
 -- default is 8
 pokef(ramaddr'spriteNormalExhaggeration', 64)
@@ -329,9 +330,9 @@ Player = Object:subclass()
 Player.draw = |:|do
 	matpush()
 	mattrans(self.pos:unpack())
-	matrotcs(view.cosYaw, view.sinYaw, 0, 0, 1)
-	matrotcs(0, 1, 1, 0, 0)
-	matscale(1/16, -1/16, 1/16)
+--	matrotcs(view.cosYaw, view.sinYaw, 0, 0, 1)
+--	matrotcs(0, 1, 1, 0, 0)
+--	matscale(1/16, -1/16, 1/16)
 	local sprIndex
 	if not self.onground and self.vel.z > 0 then
 		sprIndex = 10
@@ -343,8 +344,10 @@ Player.draw = |:|do
 	else
 		sprIndex = 2
 	end
-	local hflip = (self.angle - (view.yaw + 45)) % 360 < 180 and 1 or 0
-	spr(sprIndex, -8, -16, 2, 2, hflip)
+	--local hflip = (self.angle - (view.yaw + 45)) % 360 < 180 and 1 or 0
+	--spr(sprIndex, -8, -16, 2, 2, hflip)
+	self.voxelCode = 0x50000800 | sprIndex
+	drawvoxel(self.voxelCode)
 	matpop()
 end
 Player.update = |:, ...|do
