@@ -991,7 +991,11 @@ AppVideo.normalMapCache = table()
 function AppVideo:getNormalMapTex(sheetTex, paletteTex)
 	local normalMapCache = self.normalMapCache
 	-- only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
-	local needsNormalMap = 0 ~= bit.band(self.ram.HD2DFlags, bit.bor(1, 8, 32))
+	local needsNormalMap = 0 ~= bit.band(self.ram.HD2DFlags, bit.bor(
+		ffi.C.HD2DFlags_lightingApplyToSurface,
+		ffi.C.HD2DFlags_useBumpMap,
+		ffi.C.HD2DFlags_calcFromLights
+	))
 	-- TODO instead of the first, how about a dummy filler?
 	if not needsNormalMap then
 		if not dummyNormalMapTex then
