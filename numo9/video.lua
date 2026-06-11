@@ -991,12 +991,15 @@ assert(animSheetTex)
 	end
 end
 
+local getTime = require 'ext.timer'.getTime
+
 local dummyNormalMapTex
 local dummyNormalMapImage
 
 local normalMapCacheSize = 32
 AppVideo.normalMapCache = table()
 function AppVideo:getNormalMapTex(sheetTex, paletteTex)
+	local normalMapCache = self.normalMapCache
 	-- only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
 	local needsNormalMap = 0 ~= bit.band(self.ram.HD2DFlags, bit.bor(1, 8, 32))
 	-- TODO instead of the first, how about a dummy filler?
@@ -1027,21 +1030,30 @@ function AppVideo:getNormalMapTex(sheetTex, paletteTex)
 	end
 
 --print('looking for', sheetTex.id, paletteTex.id, self.ram.spriteNormalExhaggeration, self.paletteOffset, self.transparentIndex, self.spriteBit, self.spriteMask)
-	for i,entry in ipairs(self.normalMapCache) do
---print('testing vs', entry.sheetTexID, entry.paletteTexID, entry.spriteNormalExhaggeration, entry.paletteOffset, entry.transparentIndex, entry.spriteBit, entry.spriteMask)
-		if entry.sheetTexID == sheetTex.id
-		and entry.paletteTexID == paletteTex.id
-		and entry.spriteNormalExhaggeration == self.ram.spriteNormalExhaggeration
-		and entry.paletteOffset == self.paletteOffset
-		and entry.transparentIndex == self.transparentIndex
-		and entry.spriteBit == self.spriteBit
-		and entry.spriteMask == self.spriteMask
-		then
---print('found', i)
-			return entry.tex
+	local oldestIndex = 1
+	if #normalMapCache > 0 then
+		local oldestTime = normalMapCache[oldestIndex].lastUsedTime
+		for i,entry in ipairs(normalMapCache) do
+	--print('testing vs', entry.sheetTexID, entry.paletteTexID, entry.spriteNormalExhaggeration, entry.paletteOffset, entry.transparentIndex, entry.spriteBit, entry.spriteMask)
+			if entry.sheetTexID == sheetTex.id
+			and entry.paletteTexID == paletteTex.id
+			and entry.spriteNormalExhaggeration == self.ram.spriteNormalExhaggeration
+			and entry.paletteOffset == self.paletteOffset
+			and entry.transparentIndex == self.transparentIndex
+			and entry.spriteBit == self.spriteBit
+			and entry.spriteMask == self.spriteMask
+			then
+	--print('found', i)
+				entry.lastUsedTime = getTime()
+				return entry.tex
+			end
+			if oldestTime > entry.lastUsedTime then
+				oldestTime = entry.lastUsedTime
+				oldestIndex = i
+			end
 		end
 	end
-	if #self.normalMapCache < normalMapCacheSize then
+	if #normalMapCache < normalMapCacheSize then
 print("!!! building new normalmap cache tex !!!")
 		local entry = {}
 		entry.sheetTexID = sheetTex.id
@@ -1051,6 +1063,7 @@ print("!!! building new normalmap cache tex !!!")
 		entry.transparentIndex = self.transparentIndex
 		entry.spriteBit = self.spriteBit
 		entry.spriteMask = self.spriteMask
+		entry.lastUsedTime = getTime()
 		entry.image = Image(spriteSheetSize.x, spriteSheetSize.y, 3, uint8_t)
 		entry.tex = GLTex2D{
 			width = spriteSheetSize.x,
@@ -1067,12 +1080,13 @@ print("!!! building new normalmap cache tex !!!")
 		}
 		self:refreshNormalMapTex(entry, sheetTex, paletteTex)
 		sheetTex:bind()	-- goes in tex 0
-		self.normalMapCache:insert(entry)
+		normalMapCache:insert(entry)
 		return entry.tex
 	end
 print("!!! replacing old normapmap cache tex !!!")
 	-- TODO here, find the oldest and replace it with this stats.
-	local entry = self.normalMapCache:remove()
+	local entry = normalMapCache:remove(oldestIndex)	-- worth it to remove/reinsert? which is slower, the loop traversal or the loop rearrangement from overwrite?
+	--local entry = normalMapCache[oldestIndex]
 	entry.sheetTexID = sheetTex.id
 	entry.paletteTexID = paletteTex.id
 	entry.spriteNormalExhaggeration = self.ram.spriteNormalExhaggeration
@@ -1080,10 +1094,11 @@ print("!!! replacing old normapmap cache tex !!!")
 	entry.transparentIndex = self.transparentIndex
 	entry.spriteBit = self.spriteBit
 	entry.spriteMask = self.spriteMask
+	entry.lastUsedTime = getTime()
 	entry.tex:bind()
 	self:refreshNormalMapTex(entry, sheetTex, paletteTex)
 	sheetTex:bind()	-- goes in tex 0
-	self.normalMapCache:insert(entry)
+	normalMapCache:insert(entry)	-- insert first again
 	return entry.tex
 end
 
@@ -1124,12 +1139,13 @@ function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
 			p=p+3
 		end
 	end
-	entry.image:save'normalmap.png'
+--DEBUG:entry.image:save'normalmap.png'
 	entry.tex
 		:subimage()
 		:generateMipmap()
 	--]]
-	-- TODO on GPU
+	--[[ TODO on GPU
+	--]]
 end
 
 local function calcNormalForTri(

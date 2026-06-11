@@ -1825,7 +1825,7 @@ void tilemapShading(
 
 	// hmm I guess I am doing a lot of wasted calcs when lighting is disabled...
 	const float spriteSheetSize = 256.;
-//	outNormal = texture(normalMapTex, vec2(tileTexTC) / spriteSheetSize).xyz * 2. - 1.;
+	outNormal = texture(normalMapTex, vec2(tileTexTC) / spriteSheetSize).xyz * 2. - 1.;
 }
 
 // this is a horrible hack
@@ -1873,7 +1873,7 @@ void main() {
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 		fragColor = spriteShading(tcv);
-//		surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
+		surfaceCoordsNormal = texture(normalMapTex, tcv).xyz * 2. - 1.;
 
 	} else if (pathway == 2u) {
 
