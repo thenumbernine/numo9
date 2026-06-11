@@ -841,23 +841,13 @@ assert(animSheetTex)
 	check our normalmap cache based on:
 	- tile sheet tex
 	- palette tex
+	- spriteNormalExhaggeration
 	- paletteOffset
 	- transparentIndex
 	- spriteBit
 	- spriteMask
 	if none is there then rebuild it
 	throw out the oldest if it gets too big
-
-	hmm but how to design the hash ...
-	maybe I will just linear search the last 10 or so
-
-	TODO TODO TODO
-	'spriteNormalExhaggeration' is called by setVideoMode when vars are reset.
-	... and right now the menu system is setting video mode back and forth every frame.
-	so for this to work, TODO, I have to stop doing that.
-	TODO TODO TODO move the menu system to its own graphics API layer, and bypass the FC-video-API system.
-
-	in fact to get it to work, just include spriteNormalExhaggeration in the hash, simple as.
 	--]]
 	local normalMapTex = self:getNormalMapTex(sheetTex, paletteTex)
 	-- TODO here compare normalMapTex with lastNormalMapTex, bind etc
@@ -1015,6 +1005,8 @@ function AppVideo:getNormalMapTex(sheetTex, paletteTex)
 				width = spriteSheetSize.x,
 				height = spriteSheetSize.y,
 				internalFormat = gl.GL_RGB,	-- does rgba work any faster?
+				format = gl.GL_RGB,
+				type = gl.GL_UNSIGNED_BYTE,
 				wrap = {
 					s = gl.GL_REPEAT,
 					t = gl.GL_REPEAT,
@@ -1069,6 +1061,8 @@ print("!!! building new normalmap cache tex !!!")
 			width = spriteSheetSize.x,
 			height = spriteSheetSize.y,
 			internalFormat = gl.GL_RGB,	-- does rgba work any faster?
+			format = gl.GL_RGB,
+			type = gl.GL_UNSIGNED_BYTE,
 			wrap = {
 				s = gl.GL_REPEAT,
 				t = gl.GL_REPEAT,
@@ -1110,25 +1104,38 @@ end
 -- assumes entry.tex is bound to 0
 function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
 	-- [[ first attempt, in CPU...
+	local spriteNormalExhaggeration = self.ram.spriteNormalExhaggeration
 	local p = entry.image.buffer
 	for y=0,spriteSheetSize.y-1 do
+		--[=[ wrap the whole sheet
 		local yl = bit.band(y - 1, 0xff)
 		local yr = bit.band(y + 1, 0xff)
+		--]=]
+		-- [=[ wrap just the 16x16 tile
+		local yl = bit.bor(bit.band(y - 1, 0xf), bit.band(y, 0xf0))
+		local yr = bit.bor(bit.band(y + 1, 0xf), bit.band(y, 0xf0))
+		--]=]
 		for x=0,spriteSheetSize.x-1 do
+			--[=[ wrap the whole sheet
 			local xl = bit.band(x - 1, 0xff)
 			local xr = bit.band(x + 1, 0xff)
-			local dx = (
+			--]=]
+			-- [=[ wrap just the 16x16 tile
+			local xl = bit.bor(bit.band(x - 1, 0xf), bit.band(x, 0xf0))
+			local xr = bit.bor(bit.band(x + 1, 0xf), bit.band(x, 0xf0))
+			--]=]
+			local dz_dx = (
 				calcGrey(sheetTex.data + xr + spriteSheetSize.y * y)
 				- calcGrey(sheetTex.data + xl + spriteSheetSize.y * y)
 			) * .5
-			local dy = (
+			local dz_dy = (
 				calcGrey(sheetTex.data + x + spriteSheetSize.y * yr)
 				- calcGrey(sheetTex.data + x + spriteSheetSize.y * yl)
 			) * .5
-			-- n = [1,0,dx] x [0,1,dy]
-			local nx = -dx
-			local ny = -dy
-			local nz = 1
+			-- n = [1,0,dz_dx] x [0,1,dz_dy]
+			local nx = -dz_dx
+			local ny = -dz_dy
+			local nz = spriteNormalExhaggeration
 			local inl = 1 / math.sqrt(nx*nx + ny*ny + nz*nz)
 			nx = nx * inl
 			ny = ny * inl
