@@ -18,7 +18,7 @@ update=||do
 		m %= #modes
 		mode(modes[m+1])
 	end
-	spr(bl and 0 or 1, 
+	spr(bl and 0 or 1,
 		x, y,
 		nil, nil, nil,	-- tilesWide, tilesHigh, orientation2D,
 		sx, sy
