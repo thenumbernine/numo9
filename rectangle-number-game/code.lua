@@ -4,6 +4,27 @@ range = require 'ext.range'
 vec2 = require 'vec.vec2'
 box2 = require 'vec.box2'
 
+-- randomize palette?
+do
+	-- do I still want these last 16 palette?
+	poke(ramaddr'textFgColor', 0xc)
+	poke(ramaddr'textBgColor', 0)
+
+	local palAddr = blobaddr'palette'
+	for i=16,255 do
+		local color = require 'vec.vec3'()
+			:map(|| math.random())
+			:unit() * 31
+		pokew(
+			palAddr+(i<<1),
+			color.x
+			| (color.y << 5)
+			| (color.z << 10)
+			| 0x8000
+		)
+	end
+end
+
 --[[ beginner?
 boardSize = vec2(8, 8)
 tileSize = 24
@@ -17,8 +38,7 @@ numPieces = 64
 
 boardBBox = box2(vec2(1,1), boardSize)
 
--- ??fixme?
-red = 3
+red = 2
 green = 7
 
 Rect=class()
@@ -81,6 +101,12 @@ newGame=||do
 			math.random(r.bbox.min.x, r.bbox.max.x),
 			math.random(r.bbox.min.y, r.bbox.max.y)
 		)
+		--[[ push away from edges to make things tough
+		if r.showPos.x == 1 and r.bbox.max.x > 1 then r.showPos.x += 1 end
+		if r.showPos.y == 1 and r.bbox.max.y > 1 then r.showPos.y += 1 end
+		if r.showPos.x == boardSize.x and r.bbox.min.x < boardSize.x then r.showPos.x -= 1 end
+		if r.showPos.y == boardSize.y and r.bbox.min.y < boardSize.y then r.showPos.y -= 1 end
+		--]]
 		r.area = (r.bbox:size()+1):product()
 		areaForCell[r.showPos.x] ??= {}
 		areaForCell[r.showPos.x][r.showPos.y] = r.area
