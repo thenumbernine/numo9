@@ -726,6 +726,7 @@ function AppVideo:triBuf_flushButDontClear()
 
 	-- bind textures
 	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+	self.lastNormalMapTex:bind(4)
 	self.lastAnimSheetTex:bind(3)
 	self.lastTilemapTex:bind(2)
 	self.lastSheetTex:bind(1)
@@ -835,16 +836,44 @@ assert(sheetTex)
 assert(tilemapTex)
 assert(animSheetTex)
 
+	--[[
+	TODO somewhere here ...
+	check our normalmap cache based on:
+	- tile sheet tex
+	- palette tex
+	- paletteOffset
+	- transparentIndex
+	- spriteBit
+	- spriteMask
+	if none is there then rebuild it
+	throw out the oldest if it gets too big
+
+	hmm but how to design the hash ...
+	maybe I will just linear search the last 10 or so
+
+	TODO TODO TODO
+	'spriteNormalExhaggeration' is called by setVideoMode when vars are reset.
+	... and right now the menu system is setting video mode back and forth every frame.
+	so for this to work, TODO, I have to stop doing that.
+	TODO TODO TODO move the menu system to its own graphics API layer, and bypass the FC-video-API system.
+
+	in fact to get it to work, just include spriteNormalExhaggeration in the hash, simple as.
+	--]]
+	local normalMapTex = self:getNormalMapTex(sheetTex, paletteTex)
+	-- TODO here compare normalMapTex with lastNormalMapTex, bind etc
+
 	if self.lastPaletteTex ~= paletteTex
 	or self.lastSheetTex ~= sheetTex
 	or self.lastTilemapTex ~= tilemapTex
 	or self.lastAnimSheetTex ~= animSheetTex
+	or self.lastNormalMapTex ~= normalMapTex
 	then
 		self:triBuf_flush()
 		self.lastPaletteTex = paletteTex
 		self.lastSheetTex = sheetTex
 		self.lastTilemapTex = tilemapTex
 		self.lastAnimSheetTex = animSheetTex
+		self.lastNormalMapTex = normalMapTex
 	end
 
 	-- do this either first or last prepAddTri of the frame when HD2DFlags is set
@@ -863,30 +892,6 @@ assert(animSheetTex)
 			ffi.copy(self.drawProjMatForLighting.ptr, self.ram.projMat, ffi.sizeof(matArrType))
 		end
 	end
-
---[[
-TODO somewhere here ...
-check our normalmap cache based on:
-- tile sheet tex
-- palette tex
-- paletteOffset
-- transparentIndex
-- spriteBit
-- spriteMask
-if none is there then rebuild it
-throw out the oldest if it gets too big
-
-hmm but how to design the hash ...
-maybe I will just linear search the last 10 or so
-
-TODO TODO TODO
-'spriteNormalExhaggeration' is called by setVideoMode when vars are reset.
-... and right now the menu system is setting video mode back and forth every frame.
-so for this to work, TODO, I have to stop doing that.
-TODO TODO TODO move the menu system to its own graphics API layer, and bypass the FC-video-API system.
-
-in fact to get it to work, just include spriteNormalExhaggeration in the hash, simple as.
---]]
 
 	-- upload uniforms to GPU before adding new tris ...
 	if self.modelMatDirty
@@ -984,6 +989,67 @@ in fact to get it to work, just include spriteNormalExhaggeration in the hash, s
 		--]]
 		program:useNone()
 	end
+end
+
+-- TODO only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
+-- a simple cart used 3 to run ...
+-- the menu system used 32 ...
+-- hmmmmmmm I don't want to be constantly updating normalmaps...
+local normalMapCacheSize = 32
+AppVideo.normalMapCache = table()
+function AppVideo:getNormalMapTex(sheetTex, paletteTex)
+--print('looking for', sheetTex.id, paletteTex.id, self.ram.spriteNormalExhaggeration, self.paletteOffset, self.transparentIndex, self.spriteBit, self.spriteMask)
+	for i,entry in ipairs(self.normalMapCache) do
+--print('testing vs', entry.sheetTexID, entry.paletteTexID, entry.spriteNormalExhaggeration, entry.paletteOffset, entry.transparentIndex, entry.spriteBit, entry.spriteMask)
+		if entry.sheetTexID == sheetTex.id
+		and entry.paletteTexID == paletteTex.id
+		and entry.spriteNormalExhaggeration == self.ram.spriteNormalExhaggeration
+		and entry.paletteOffset == self.paletteOffset
+		and entry.transparentIndex == self.transparentIndex
+		and entry.spriteBit == self.spriteBit
+		and entry.spriteMask == self.spriteMask
+		then
+--print('found', i)
+			return entry.tex
+		end
+	end
+	if #self.normalMapCache < normalMapCacheSize then
+print("!!! building new normalmap cache tex !!!")
+		local entry = {}
+		entry.sheetTexID = sheetTex.id
+		entry.paletteTexID = paletteTex.id
+		entry.spriteNormalExhaggeration = self.ram.spriteNormalExhaggeration
+		entry.paletteOffset = self.paletteOffset
+		entry.transparentIndex = self.transparentIndex
+		entry.spriteBit = self.spriteBit
+		entry.spriteMask = self.spriteMask
+		entry.tex = GLTex2D{
+			width = spriteSheetSize.x,
+			height = spriteSheetSize.y,
+			internalFormat = gl.GL_RGB,
+			wrap = {
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
+			},
+			minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+			magFilter = gl.GL_LINEAR,
+			generateMipmap = true,
+		}:unbind()
+		self.normalMapCache:insert(entry)
+		return entry.tex
+	end
+print("!!! replacing old normapmap cache tex !!!")
+	-- TODO here, find the oldest and replace it with this stats.
+	local entry = self.normalMapCache:remove()
+	entry.sheetTexID = sheetTex.id
+	entry.paletteTexID = paletteTex.id
+	entry.spriteNormalExhaggeration = self.ram.spriteNormalExhaggeration
+	entry.paletteOffset = self.paletteOffset
+	entry.transparentIndex = self.transparentIndex
+	entry.spriteBit = self.spriteBit
+	entry.spriteMask = self.spriteMask
+	self.normalMapCache:insert(entry)
+	return entry.tex
 end
 
 local function calcNormalForTri(
@@ -1376,6 +1442,9 @@ function AppVideo:resetVideo()
 	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
 	self.lastSheetTex = self.blobs.sheet[1].ramgpu.tex
 	self.lastPaletteTex = self.blobs.palette[1].ramgpu.tex
+	self.lastNormalMapTex = self:getNormalMapTex(self.lastSheetTex, self.lastPaletteTex)
+
+	self.lastNormalMapTex:bind(4)
 	self.lastAnimSheetTex:bind(3)
 	self.lastTilemapTex:bind(2)
 	self.lastSheetTex:bind(1)
