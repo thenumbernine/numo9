@@ -761,11 +761,14 @@ local framebufferAddr = numo9_rom.framebufferAddr
 	app:onModelMatChange()	-- the drawObj changed so make sure it refreshes its modelMat
 	app:onViewMatChange()
 	app:onProjMatChange()
+	app:onPaletteOffsetChange()
+	app:onTransparentIndexChange()
+	app:onSpriteBitChange()
+	app:onSpriteMaskChange()
 	app:onClipRectChange()
 	app:onBlendColorChange()
 	app:onDitherChange()
 	app:onCullFaceChange()
-	app:onSpriteNormalExhaggerationChange()
 	app:onFrameBufferSizeChange()
 	--]]
 

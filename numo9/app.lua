@@ -2565,9 +2565,6 @@ local postPokeCode = template([=[
 			if addrend >= <?=voxelmapCullSideFlagsAddr?> and addr < <?=voxelmapCullSideFlagsAddrEnd?> then
 				self:onVoxelmapCullSideFlagsChange()
 			end
-			if addrend >= <?=spriteNormalExhaggerationAddr?> and addr < <?=spriteNormalExhaggerationAddrEnd?> then
-				self:onSpriteNormalExhaggerationChange()
-			end
 		else
 			-- TODO none of the others happen period, only the palette texture
 			-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...

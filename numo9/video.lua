@@ -880,10 +880,12 @@ hmm but how to design the hash ...
 maybe I will just linear search the last 10 or so
 
 TODO TODO TODO
-'onSpriteNormalExhaggerationChange' is called by setVideoMode when vars are reset.
+'spriteNormalExhaggeration' is called by setVideoMode when vars are reset.
 ... and right now the menu system is setting video mode back and forth every frame.
 so for this to work, TODO, I have to stop doing that.
 TODO TODO TODO move the menu system to its own graphics API layer, and bypass the FC-video-API system.
+
+in fact to get it to work, just include spriteNormalExhaggeration in the hash, simple as.
 --]]
 
 	-- upload uniforms to GPU before adding new tris ...
@@ -1115,15 +1117,6 @@ function AppVideo:onCullFaceChange()
 	self:triBuf_flush()
 	self.cullFaceDirty = true
 end
-
-function AppVideo:onSpriteNormalExhaggerationChange()
-	-- only changing this will reset all normalmaps
-	-- otherwise, changing paletteOffset, transparentIndex, spriteBit, spriteMask will correlate with a new normalMap,
-	-- but we can have multiple entries in the cache for that
---	print('!!! TODO regen cached normal maps')
---	print(debug.traceback())
-end
-
 
 function AppVideo:onFrameBufferSizeChange()
 	self:triBuf_flush()
@@ -1378,7 +1371,6 @@ function AppVideo:resetVideo()
 	ram.dofBlurMax = 2
 
 	ram.spriteNormalExhaggeration = 8
-	self:onSpriteNormalExhaggerationChange()
 
 	self.lastAnimSheetTex = self.blobs.animsheet[1].ramgpu.tex
 	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
@@ -1497,7 +1489,6 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onBlendColorChange()
 	self:onDitherChange()
 	self:onCullFaceChange()
-	self:onSpriteNormalExhaggerationChange()
 	self:onFrameBufferSizeChange()
 
 	self.currentVideoMode = newVideoMode
