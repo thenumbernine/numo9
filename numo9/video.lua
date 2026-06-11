@@ -991,13 +991,40 @@ assert(animSheetTex)
 	end
 end
 
+local dummyNormalMapTex
+local dummyNormalMapImage
+
 local normalMapCacheSize = 32
 AppVideo.normalMapCache = table()
 function AppVideo:getNormalMapTex(sheetTex, paletteTex)
 	-- only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
 	local needsNormalMap = 0 ~= bit.band(self.ram.HD2DFlags, bit.bor(1, 8, 32))
 	-- TODO instead of the first, how about a dummy filler?
-	if not needsNormalMap and #self.normalMapCache > 0 then return self.normalMapCache[1].tex end
+	if not needsNormalMap then
+		if not dummyNormalMapTex then
+			dummyNormalMapImage = Image(spriteSheetSize.x, spriteSheetSize.y, 3, uint8_t)
+			local p = dummyNormalMapImage.buffer
+			for i=0,spriteSheetSize.x*spriteSheetSize.y-1,3 do
+				p[0], p[1], p[2] = 0, 0, 255
+				p = p + 3
+			end
+			dummyNormalMapTex = GLTex2D{
+				width = spriteSheetSize.x,
+				height = spriteSheetSize.y,
+				internalFormat = gl.GL_RGB,	-- does rgba work any faster?
+				wrap = {
+					s = gl.GL_REPEAT,
+					t = gl.GL_REPEAT,
+				},
+				minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+				magFilter = gl.GL_LINEAR,
+				generateMipmap = true,
+				data = dummyNormalMapImage.buffer,
+			}:unbind()
+			sheetTex:bind()
+		end
+		return dummyNormalMapTex
+	end
 
 --print('looking for', sheetTex.id, paletteTex.id, self.ram.spriteNormalExhaggeration, self.paletteOffset, self.transparentIndex, self.spriteBit, self.spriteMask)
 	for i,entry in ipairs(self.normalMapCache) do
@@ -1024,10 +1051,11 @@ print("!!! building new normalmap cache tex !!!")
 		entry.transparentIndex = self.transparentIndex
 		entry.spriteBit = self.spriteBit
 		entry.spriteMask = self.spriteMask
+		entry.image = Image(spriteSheetSize.x, spriteSheetSize.y, 3, uint8_t)
 		entry.tex = GLTex2D{
 			width = spriteSheetSize.x,
 			height = spriteSheetSize.y,
-			internalFormat = gl.GL_RGB,
+			internalFormat = gl.GL_RGB,	-- does rgba work any faster?
 			wrap = {
 				s = gl.GL_REPEAT,
 				t = gl.GL_REPEAT,
@@ -1035,7 +1063,10 @@ print("!!! building new normalmap cache tex !!!")
 			minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 			magFilter = gl.GL_LINEAR,
 			generateMipmap = true,
-		}:unbind()
+			data = entry.image.buffer,
+		}
+		self:refreshNormalMapTex(entry, sheetTex, paletteTex)
+		sheetTex:bind()	-- goes in tex 0
 		self.normalMapCache:insert(entry)
 		return entry.tex
 	end
@@ -1049,8 +1080,56 @@ print("!!! replacing old normapmap cache tex !!!")
 	entry.transparentIndex = self.transparentIndex
 	entry.spriteBit = self.spriteBit
 	entry.spriteMask = self.spriteMask
+	entry.tex:bind()
+	self:refreshNormalMapTex(entry, sheetTex, paletteTex)
+	sheetTex:bind()	-- goes in tex 0
 	self.normalMapCache:insert(entry)
 	return entry.tex
+end
+
+local function calcGrey(p)
+	return p[0] * .3 + p[1] * .6 + p[2] * .1
+end
+
+-- redo the normalmap
+-- assumes entry.tex is bound to 0
+function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
+	-- [[ first attempt, in CPU...
+	local p = entry.image.buffer
+	for y=0,spriteSheetSize.y-1 do
+		local yl = bit.band(y - 1, 0xff)
+		local yr = bit.band(y + 1, 0xff)
+		for x=0,spriteSheetSize.x-1 do
+			local xl = bit.band(x - 1, 0xff)
+			local xr = bit.band(x + 1, 0xff)
+			local dx = (
+				calcGrey(sheetTex.data + xr + spriteSheetSize.y * y)
+				- calcGrey(sheetTex.data + xl + spriteSheetSize.y * y)
+			) * .5
+			local dy = (
+				calcGrey(sheetTex.data + x + spriteSheetSize.y * yr)
+				- calcGrey(sheetTex.data + x + spriteSheetSize.y * yl)
+			) * .5
+			-- n = [1,0,dx] x [0,1,dy]
+			local nx = -dx
+			local ny = -dy
+			local nz = 1
+			local inl = 1 / math.sqrt(nx*nx + ny*ny + nz*nz)
+			nx = nx * inl
+			ny = ny * inl
+			nz = nz * inl
+			p[0] = 127 * (nx + 1)
+			p[1] = 127 * (ny + 1)
+			p[2] = 127 * (nz + 1)
+			p=p+3
+		end
+	end
+	entry.image:save'normalmap.png'
+	entry.tex
+		:subimage()
+		:generateMipmap()
+	--]]
+	-- TODO on GPU
 end
 
 local function calcNormalForTri(
