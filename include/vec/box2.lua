@@ -66,16 +66,17 @@ box2=class{
 		end
 	end,
 	touches=|:,b|do
-		return self.min.x < b.max.x
-			and self.max.x > b.min.x
-			and self.min.y < b.max.y
-			and self.max.y > b.min.y
-	end,
-	touchesE=|:,b|do
 		return self.min.x <= b.max.x
 			and self.max.x >= b.min.x
 			and self.min.y <= b.max.y
 			and self.max.y >= b.min.y
+	end,
+	-- touches excluding boundary
+	touchesE=|:,b|do
+		return self.min.x < b.max.x
+			and self.max.x > b.min.x
+			and self.min.y < b.max.y
+			and self.max.y > b.min.y
 	end,
 	map=|b,c|c*b:size()+b.min,
 	__add=|a,b|box2(box2_getminvalue(a)+box2_getminvalue(b),box2_getmaxvalue(a)+box2_getmaxvalue(b)),
