@@ -1179,9 +1179,10 @@ local function calcNormalForTri(
 	local dtc1x, dtc1y = u2 - u1, v2 - v1
 	local dtc2x, dtc2y = u3 - u1, v3 - v1
 	-- tangent
+	-- check det of [u, v], i.e. measure of simplex of u and v combined (so either is zero <-> measure is zero <-> tangent is zero)
 	local tl = dtc1x * dtc2y - dtc2x * dtc1y
 	local tx, ty, tz
-	if tl < 1e-7 then
+	if tl < 1e-7 then	-- if tangent was going to be zero then instead use best cross of normal with basis vector
 		local anx, any, anz = math.abs(nx), math.abs(ny), math.abs(nz)
 		if anx <= any then
 			if anx <= anz then	-- nx is smallest <-> nyz are largest <-> cross with x-axis
@@ -1197,10 +1198,15 @@ local function calcNormalForTri(
 			end
 		end
 	else
+		tx = dtc2y * dvtx1x - dtc1y * dvtx2x
+		ty = dtc2y * dvtx1y - dtc1y * dvtx2y
+		tz = dtc2y * dvtx1z - dtc1y * dvtx2z
+		--[[ wait but i'm not going to normalize cuz the shader will...
 		local itl = 1 / tl
-		tx = itl * (dtc2y * dvtx1x - dtc1y * dvtx2x)
-		ty = itl * (dtc2y * dvtx1y - dtc1y * dvtx2y)
-		tz = itl * (dtc2y * dvtx1z - dtc1y * dvtx2z)
+		tx = itl * tx
+        ty = itl * ty
+        tz = itl * tz
+		--]]
 	end
 	-- return normal and tangent
 	return nx, ny, nz, tx, ty, tz
