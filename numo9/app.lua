@@ -2012,7 +2012,8 @@ print('run thread dead')
 			do--if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
 				local sceneObj = self.currentVideoMode.blitScreenObj
 				-- [[
-				local bgTex = self.currentVideoMode.menuPauseTex or fbTex
+				--local bgTex = self.currentVideoMode.menuPauseTex or fbTex
+				local bgTex = fbTex
 				local fx = self.width / bgTex.width
 				local fy = self.height / bgTex.height
 				local fmin = math.min(fx, fy)
@@ -3596,7 +3597,7 @@ function App:setMenu(newActiveMenu)
 
 	local videoMode = self.currentVideoMode
 	if newActiveMenu then
-		-- if we are going from no menu to menu then save a snapshot for the menu background
+--[[ if we are going from no menu to menu then save a snapshot for the menu background ... TODO maybe later
 		if not oldActiveMenu then
 			local menuPauseTex = videoMode.menuPauseTex
 			if menuPauseTex then
@@ -3614,6 +3615,7 @@ function App:setMenu(newActiveMenu)
 					:unbind()
 			end
 		end
+--]]
 		if newActiveMenu.gainFocus then
 			newActiveMenu:gainFocus()
 		end

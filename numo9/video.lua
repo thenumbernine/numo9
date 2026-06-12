@@ -459,7 +459,7 @@ function AppVideo:initVideoModes()
 		app.ram.screenHeight = self.height
 		app:onFrameBufferSizeChange()
 
-		-- while we're here, make one extra texture for the menu background on pause
+--[=[ while we're here, make one extra texture for the menu background on pause ... maybe later
 		if self.menuPauseTex then
 			self.menuPauseTex:delete()
 		end
@@ -484,6 +484,7 @@ function AppVideo:initVideoModes()
 			data = image.data,
 			image = image,
 		}:unbind()
+--]=]
 	end
 	--]]
 end
@@ -1552,8 +1553,8 @@ function AppVideo:resetVideo()
 		ram.fontWidth[i] = 5
 	end
 
-	ram.textFgColor = 0xfc
-	ram.textBgColor = 0xf0
+	ram.textFgColor = 0x0c
+	ram.textBgColor = 0x10
 
 
 	-- init light vars

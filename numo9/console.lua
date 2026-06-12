@@ -54,7 +54,7 @@ function Console:reset()
 	-- TODO move these to RAM
 	self.cursorPos = vec2i(0, 0)
 	self.fgColor = 0xfd
-	self.bgColor = 0xf0
+	self.bgColor = 0x10
 
 	self.needsPrompt = true
 end
@@ -111,13 +111,14 @@ end
 
 function Console:addChar(ch)
 	local app = self.app
-	app:drawMenuText(
+	local w = app:drawMenuText(
 		string.char(ch),
 		self.cursorPos.x,
 		self.cursorPos.y,
 		self.fgColor,
 		self.bgColor
 	)
+	app:drawSolidRect(self.cursorPos.x + w, self.cursorPos.y, 8, 8, 0x10)	-- which black is solid?
 	self:offsetCursor(menuFontWidth, 0)
 end
 
@@ -213,6 +214,7 @@ function Console:update()
 	-- otherwise give it full screen
 	--local maxLines = app.runFocus and 10 or 30
 	-- or just always show it over everything?
+	-- ... or just don't at all any of this and do like old apple 2's?
 	local maxLines = 30
 
 	local shownLines = math.min(#self.lines, maxLines)
@@ -232,11 +234,13 @@ function Console:update()
 			self.cursorPos.y = self.cursorPos.y + 8
 		end
 		--]]
-		app:drawMenuText(l, 0, self.cursorPos.y, self.fgColor, self.bgColor)
+		local w = app:drawMenuText(l, 0, self.cursorPos.y, self.fgColor, self.bgColor)
+		app:drawSolidRect(w, self.cursorPos.y, 8, 8, 0x10)	-- which black is solid?
 		self.cursorPos.y = self.cursorPos.y + 8
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
-	app:drawMenuText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
+	local w = app:drawMenuText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
+	app:drawSolidRect(w, self.cursorPos.y, 8, 8, 0x10)	-- which black is solid?
 	self.cursorPos.x = #s * menuFontWidth
 
 	if getTime() % 1 < .5 then
