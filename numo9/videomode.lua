@@ -1518,9 +1518,15 @@ void main() {
 
 	mat3 normalMat = mat3(modelMat[0].xyz, modelMat[1].xyz, modelMat[2].xyz);
 	normalMat = transpose(inverse(normalMat));	//worth it for non-uniform scale?
+#if 0
 	worldNormalv = normalize(normalMat * normal);
 	worldTangentv = normalize(normalMat * tangent);
 	worldBitangentv = normalize(cross(worldNormalv, worldTangentv));
+#else	//don't normalize until fragment?
+	worldNormalv = normalMat * normal;
+	worldTangentv = normalMat * tangent;
+	worldBitangentv = cross(worldNormalv, worldTangentv);
+#endif
 
 	extra = extraAttr;
 	box = boxAttr;
@@ -1582,35 +1588,6 @@ uniform uint dither;
 
 float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
-
-//create an orthornomal basis from one vector
-// assumes 'n' is normalized
-mat3 onb1(vec3 n) {
-	mat3 m;
-	m[2] = n;
-	vec3 x = vec3(0., n.z, -n.y); // cross(n, vec3(1., 0., 0.));
-	vec3 y = vec3(-n.z, 0., n.x); // cross(n, vec3(0., 1., 0.));
-	vec3 z = vec3(n.y, -n.x, 0.); // cross(n, vec3(0., 0., 1.));
-	float x2 = dot(x,x);
-	float y2 = dot(y,y);
-	float z2 = dot(z,z);
-	if (x2 > y2) {
-		if (x2 > z2) {
-			m[0] = x;
-		} else {
-			m[0] = z;
-		}
-	} else {
-		if (y2 > z2) {
-			m[0] = y;
-		} else {
-			m[0] = z;
-		}
-	}
-	m[0] = normalize(m[0]);
-	m[1] = cross(m[2], m[0]);	// should be unit enough
-	return m;
-}
 
 //create an orthonormal basis from two vectors
 // the second, normalized, is used as the 'y' column

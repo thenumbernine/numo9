@@ -1160,19 +1160,47 @@ function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
 end
 
 local function calcNormalForTri(
-	x1, y1, z1,
-	x2, y2, z2,
-	x3, y3, z3
+	x1, y1, z1, u1, v1,
+	x2, y2, z2, u2, v2,
+	x3, y3, z3, u3, v3
 )
-	local dax, day, daz = x2 - x1, y2 - y1, z2 - z1
-	local dbx, dby, dbz = x3 - x2, y3 - y2, z3 - z2
-	-- don't bother normalize it, the shader will
-	return
-		day * dbz - daz * dby,
-		daz * dbx - dax * dbz,
-		dax * dby - day * dbx,
-		-- tangent
-		dax, day, daz
+	-- vertex delta
+	local dvtx1x, dvtx1y, dvtx1z = x2 - x1, y2 - y1, z2 - z1
+	local dvtx2x, dvtx2y, dvtx2z = x3 - x2, y3 - y2, z3 - z2
+	-- normal ... don't bother normalize it, the shader will
+	local nx, ny, nz =
+		dvtx1y * dvtx2z - dvtx1z * dvtx2y,
+		dvtx1z * dvtx2x - dvtx1x * dvtx2z,
+		dvtx1x * dvtx2y - dvtx1y * dvtx2x
+	-- texcoord delta
+	local dtc1x, dtc1y = u2 - u1, v2 - v1
+	local dtc2x, dtc2y = u3 - u1, v3 - v1
+	-- tangent
+	local tl = dtc1x * dtc2y - dtc2x * dtc1y
+	local tx, ty, tz
+	if tl < 1e-7 then
+		local anx, any, anz = math.abs(nx), math.abs(ny), math.abs(nz)
+		if anx <= any then
+			if anx <= anz then	-- nx is smallest <-> nyz are largest <-> cross with x-axis
+				tx, ty, tz = 0, nz, -ny
+			else
+				tx, ty, tz = ny, -nx, 0
+			end
+		else
+			if any <= anz then
+				tx, ty, tz = -nz, 0, nx
+			else
+				tx, ty, tz = ny, -nx, 0
+			end
+		end
+	else
+		local itl = 1 / tl
+		tx = itl * (dtc2y * dvtx1x - dtc1y * dvtx2x)
+		ty = itl * (dtc2y * dvtx1y - dtc1y * dvtx2y)
+		tz = itl * (dtc2y * dvtx1z - dtc1y * dvtx2z)
+	end
+	-- return normal and tangent
+	return nx, ny, nz, tx, ty, tz
 end
 
 function AppVideo:triBuf_addTri(
@@ -1823,7 +1851,7 @@ function AppVideo:drawSolidRect(
 		x,  y,  0, x,  y,
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
-		0, 0, 1,
+		0, 0, 1,	-- rectangular texcoords <-> identity TNB frame
 		1, 0, 0,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
 		x, y, w, h
@@ -1886,9 +1914,9 @@ function AppVideo:drawSolidTri3D(
 	end
 
 	local normalX, normalY, normalZ, tangentX, tangentY, tangentZ = calcNormalForTri(
-		x1, y1, z1,
-		x2, y2, z2,
-		x3, y3, z3
+		x1, y1, z1, 0, 0,
+		x2, y2, z2, 1, 0,
+		x3, y3, z3, 0, 1
 	)
 	self:triBuf_addTri(
 		paletteTex,
@@ -2628,10 +2656,16 @@ function AppVideo:drawTexTri3D(
 
 	local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway
 
+	local invTexW = 1 / tonumber(spriteSheetSize.x)
+	local invTexH = 1 / tonumber(spriteSheetSize.y)
+	u1, v1 = u1 * invTexW, v1 * invTexH
+	u2, v2 = u2 * invTexW, v2 * invTexH
+	u3, v3 = u3 * invTexW, v3 * invTexH
+
 	local normalX, normalY, normalZ, tangentX, tangentY, tangentZ = calcNormalForTri(
-		x1, y1, z1,
-		x2, y2, z2,
-		x3, y3, z3
+		x1, y1, z1, u1, v1,
+		x2, y2, z2, u2, v2,
+		x3, y3, z3, u3, v3
 	)
 
 	self:setPaletteOffset(paletteOffset or 0)
@@ -2644,9 +2678,9 @@ function AppVideo:drawTexTri3D(
 		sheetRAM.tex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
-		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
-		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
-		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
+		x1, y1, z1, u1, v1,
+		x2, y2, z2, u2, v2,
+		x3, y3, z3, u3, v3,
 		normalX, normalY, normalZ,
 		tangentX, tangentY, tangentZ,
 		drawFlags, 0, 0, 0,

@@ -98,10 +98,9 @@ function BlobMesh3D:init(data)
 		local vj = vtxs + j
 		local vk = vtxs + k
 		local nx, ny, nz, tnx, tny, tnz = calcNormalForTri(
-			-- trying to find TNB calc errors
-			vi.x/32768, vi.y/32768, vi.z/32768,
-			vj.x/32768, vj.y/32768, vj.z/32768,
-			vk.x/32768, vk.y/32768, vk.z/32768
+			vi.x/32768, vi.y/32768, vi.z/32768, vi.u/256, vi.v/256,
+			vj.x/32768, vj.y/32768, vj.z/32768, vj.u/256, vj.v/256,
+			vk.x/32768, vk.y/32768, vk.z/32768, vk.u/256, vk.v/256
 		)
 		self.normalList:emplace_back():set(nx, ny, nz)
 		self.tangentList:emplace_back():set(tnx, tny, tnz)
