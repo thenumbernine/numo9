@@ -1110,36 +1110,39 @@ function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
 	-- [[ first attempt, in CPU...
 	local spriteNormalExhaggeration = self.ram.spriteNormalExhaggeration
 	local p = entry.image.buffer
+	-- hmm about this 1/size ... what should the normal space be?  should 1 unit be the texture?  or the tile?  or the texel?
+	local idx = spriteNormalExhaggeration / (2 * tonumber(spriteSheetSize.x))
+	local idy = spriteNormalExhaggeration / (2 * tonumber(spriteSheetSize.y))
 	for y=0,spriteSheetSize.y-1 do
-		-- [=[ wrap the whole sheet
+		--[=[ wrap the whole sheet
 		local yl = bit.band(y - 1, 0xff)
 		local yr = bit.band(y + 1, 0xff)
 		--]=]
-		--[=[ wrap just the 16x16 tile
+		-- [=[ wrap just the 16x16 tile
 		local yl = bit.bor(bit.band(y - 1, 0xf), bit.band(y, 0xf0))
 		local yr = bit.bor(bit.band(y + 1, 0xf), bit.band(y, 0xf0))
 		--]=]
 		for x=0,spriteSheetSize.x-1 do
-			-- [=[ wrap the whole sheet
+			--[=[ wrap the whole sheet
 			local xl = bit.band(x - 1, 0xff)
 			local xr = bit.band(x + 1, 0xff)
 			--]=]
-			--[=[ wrap just the 16x16 tile
+			-- [=[ wrap just the 16x16 tile ... makes things a bit smoother ... one more flag to add to the cache hash?
 			local xl = bit.bor(bit.band(x - 1, 0xf), bit.band(x, 0xf0))
 			local xr = bit.bor(bit.band(x + 1, 0xf), bit.band(x, 0xf0))
 			--]=]
 			local dz_dx = (
 				calcGrey(sheetTex.data + (xr + spriteSheetSize.y * y))
 				- calcGrey(sheetTex.data + (xl + spriteSheetSize.y * y))
-			) * .5
+			) * idx
 			local dz_dy = (
 				calcGrey(sheetTex.data + (x + spriteSheetSize.y * yr))
 				- calcGrey(sheetTex.data + (x + spriteSheetSize.y * yl))
-			) * .5
+			) * idy
 			-- n = [1,0,dz_dx] x [0,1,dz_dy]
 			local nx = -dz_dx
 			local ny = -dz_dy
-			local nz = spriteNormalExhaggeration
+			local nz = 1
 			local inl = 1 / math.sqrt(nx*nx + ny*ny + nz*nz)
 			nx = nx * inl
 			ny = ny * inl
@@ -3508,9 +3511,9 @@ function AppVideo:drawMesh3D(
 				-- how to do texcoords faster?
 				-- I hear that casting uint8_t(value) is slow ...
 				-- maybe if I allocated a uint8_t[3] and assigned / added to it?
-				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)), tonumber(bit.band(0xff, a.v + vofs)),
-				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)), tonumber(bit.band(0xff, b.v + vofs)),
-				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)), tonumber(bit.band(0xff, c.v + vofs)),
+				a.x, a.y, a.z, tonumber(a.u + uofs), tonumber(a.v + vofs),
+				b.x, b.y, b.z, tonumber(b.u + uofs), tonumber(b.v + vofs),
+				c.x, c.y, c.z, tonumber(c.u + uofs), tonumber(c.v + vofs),
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
@@ -3525,9 +3528,9 @@ function AppVideo:drawMesh3D(
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)), tonumber(bit.band(0xff, a.v + vofs)),
-				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)), tonumber(bit.band(0xff, b.v + vofs)),
-				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)), tonumber(bit.band(0xff, c.v + vofs)),
+				a.x, a.y, a.z, tonumber(a.u + uofs), tonumber(a.v + vofs),
+				b.x, b.y, b.z, tonumber(b.u + uofs), tonumber(b.v + vofs),
+				c.x, c.y, c.z, tonumber(c.u + uofs), tonumber(c.v + vofs),
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
