@@ -1897,26 +1897,26 @@ conn.receivesPerSecond = 0
 		local runFocus = self.runFocus
 		if runFocus then
 			local thread = runFocus.thread
-			if thread
-			and not self.isPaused
-			then
-				if coroutine.status(thread) == 'dead' then
+			if thread then
+				if not self.isPaused then
+					if coroutine.status(thread) == 'dead' then
 print('run thread dead')
-					self:setFocus(nil)
-					if self.activeMenu == nil then
-						-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
-						self:setMenu(self.con)
-					end
-				else
-					local success, msg = coroutine.resume(thread)
-					if not success then
-						print(msg)
-						local tb = debug.traceback(thread)
-						print(tb)
-						self.con:print(msg)
-						self.con:print(tb)
-						-- TODO these errors are a good argument for scrollback console buffers
-						-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
+						self:setFocus(nil)
+						if self.activeMenu == nil then
+							-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
+							self:setMenu(self.con)
+						end
+					else
+						local success, msg = coroutine.resume(thread)
+						if not success then
+							print(msg)
+							local tb = debug.traceback(thread)
+							print(tb)
+							self.con:print(msg)
+							self.con:print(tb)
+							-- TODO these errors are a good argument for scrollback console buffers
+							-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
+						end
 					end
 				end
 			end
@@ -2012,8 +2012,9 @@ print('run thread dead')
 			do--if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
 				local sceneObj = self.currentVideoMode.blitScreenObj
 				-- [[
-				local fx = self.width / fbTex.width
-				local fy = self.height / fbTex.height
+				local bgTex = self.currentVideoMode.menuPauseTex or fbTex
+				local fx = self.width / bgTex.width
+				local fy = self.height / bgTex.height
 				local fmin = math.min(fx, fy)
 				local rx = (fx / fmin - 1) * .5
 				local ry = (fy / fmin - 1) * .5
@@ -2038,7 +2039,7 @@ print('run thread dead')
 				-- change to old fb tex from mode before we set to video mode 255.
 				-- in case we were before at 255 then ... i should not do this.
 				local pushTex = sceneObj.texs[1]
-				sceneObj.texs[1] = fbTex
+				sceneObj.texs[1] = bgTex
 				sceneObj:draw()
 				sceneObj.texs[1] = pushTex
 			end
@@ -3585,17 +3586,40 @@ end
 -- can the menu and editor coexist?
 -- should the menu be one of these?
 -- (menu & gameplay can coexist ... editor & gameplay can coexist ...)
-function App:setMenu(editTab)
-	if self.activeMenu and self.activeMenu.loseFocus then
-		self.activeMenu:loseFocus()
+function App:setMenu(newActiveMenu)
+	local oldActiveMenu = self.activeMenu
+	if oldActiveMenu and oldActiveMenu.loseFocus then
+		oldActiveMenu:loseFocus()
 	end
-	self.activeMenu = editTab
-	if self.activeMenu and self.activeMenu.gainFocus then
-		self.activeMenu:gainFocus()
-	end
-	-- if we're closing the menu then tell it to draw one more time
-	if editTab == nil then
-		self.currentVideoMode.framebufferRAM.changedSinceDraw = true
+
+	self.activeMenu = newActiveMenu
+
+	local videoMode = self.currentVideoMode
+	if newActiveMenu then
+		-- if we are going from no menu to menu then save a snapshot for the menu background
+		if not oldActiveMenu then
+			local menuPauseTex = videoMode.menuPauseTex
+			if menuPauseTex then
+				-- TODO TODO TODO noise ... why u no show up?
+				for i=0,menuPauseTex.width*menuPauseTex.height*3-1 do
+					menuPauseTex.data[i] = math.random(0,255)
+				end
+				-- why is this just a black background
+				-- and why is not-this nothing whatsoever, not even the background, but just nothing?
+				menuPauseTex
+					:bind()
+					--:subimage{data=videoMode.framebufferRAM.image.buffer}
+					--:subimage{data=videoMode.framebufferRAM.tex.data}
+					:subimage{data=menuPauseTex.data}
+					:unbind()
+			end
+		end
+		if newActiveMenu.gainFocus then
+			newActiveMenu:gainFocus()
+		end
+	else
+		-- if we're closing the menu then tell it to draw one more time
+		videoMode.framebufferRAM.changedSinceDraw = true
 	end
 end
 

@@ -458,6 +458,32 @@ function AppVideo:initVideoModes()
 		app.ram.screenWidth = self.width
 		app.ram.screenHeight = self.height
 		app:onFrameBufferSizeChange()
+
+		-- while we're here, make one extra texture for the menu background on pause
+		if self.menuPauseTex then
+			self.menuPauseTex:delete()
+		end
+		local internalFormat = gl.GL_RGB565
+		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+		-- if internal is 565 then external is still 888 right?
+		-- TODO only need image for debugging ...
+		local image = Image(self.width, self.height, 3, uint8_t):clear()
+		self.menuPauseTex = GLTex2D{
+			internalFormat = internalFormat,
+			format = formatInfo.format,
+			type = gl.GL_UNSIGNED_SHORT_5_6_5,
+
+			width = self.width,
+			height = self.height,
+			wrap = {
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
+			},
+			magFilter = gl.GL_NEAREST,
+			minFilter = gl.GL_NEAREST,
+			data = image.data,
+			image = image,
+		}:unbind()
 	end
 	--]]
 end
