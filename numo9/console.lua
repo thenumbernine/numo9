@@ -240,12 +240,8 @@ function Console:update()
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
 	local w = app:drawMenuText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-	app:drawSolidRect(w, self.cursorPos.y, 8, 8, 0x10)	-- which black is solid?
+	app:drawSolidRect(w, self.cursorPos.y, 8, 8, getTime() % 1 < .5 and 0x10 or 0xc)	-- which black is solid?
 	self.cursorPos.x = #s * menuFontWidth
-
-	if getTime() % 1 < .5 then
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, menuFontWidth, spriteSize.y, self.fgColor)
-	end
 
 	app:matMenuReset()
 end
