@@ -26,11 +26,11 @@ do
 	end
 end
 
---[[ beginner?
+-- [[ beginner?
 boardSize = vec2(8, 8)
 numPieces = 8
 --]]
--- [[ expert?
+--[[ expert?
 boardSize = vec2(20, 20)
 numPieces = 64
 --]]
@@ -46,6 +46,19 @@ boardBBox = box2(vec2(1,1), boardSize)
 red = 2
 green = 7
 
+
+-- tx1 ty1 tx2 ty2 in tiles
+boardRect = |tx1,ty1,tx2,ty2,border, ...|do
+	border ??= nil
+	local x = tileSize * (tx1 - 1) + border
+	local y = tileSize * (ty1 - 1) + border
+	local w = tileSize * (tx2 - tx1 + 1) - 2 * border - 2
+	local h = tileSize * (ty2 - ty1 + 1) - 2 * border - 2
+	rect(x,y,w,h,...)
+	rectb(x,y,w,h,12)
+end
+
+
 Rect=class()
 Rect.init=|:,args|do
 	self.bbox = args!.bbox:clone()
@@ -56,12 +69,7 @@ Rect.size=|:| self.bbox:size()+1
 Rect.area=|:| self:size():product()
 Rect.draw=|:|do
 	local b = self.bbox
-	local x = tileSize * (b.min.x - 1) + 2
-	local y = tileSize * (b.min.y - 1) + 2
-	local w = tileSize * (b.max.x - b.min.x + 1) - 6
-	local h = tileSize * (b.max.y - b.min.y + 1) - 6
-	rect(x, y, w, h, self.color)
-	rectb(x, y, w, h, 12)
+	boardRect(b.min.x, b.min.y, b.max.x, b.max.y, 2, self.color)
 end
 
 newGame=||do
@@ -142,18 +150,7 @@ update=||do
 	blend(1)
 	for y=1,boardSize.y do
 		for x=1,boardSize.x do
-			rect(
-				tileSize * (x-1),
-				tileSize * (y-1),
-				tileSize - 2,
-				tileSize - 2,
-				8)
-			rectb(
-				tileSize * (x-1),
-				tileSize * (y-1),
-				tileSize - 2,
-				tileSize - 2,
-				12)
+			boardRect(x,y,x,y,0,8)
 		end
 	end
 
@@ -204,8 +201,7 @@ update=||do
 		if not newRectColor then
 			newRectColor = foundArea == area and green or red
 		end
-		rect(x, y, w, h, newRectColor)
-		rectb(x, y, w, h, 12)
+		boardRect(b.min.x, b.min.y, b.max.x, b.max.y, 2, newRectColor)
 	end
 
 	blend(-1)
