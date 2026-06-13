@@ -46,16 +46,60 @@ boardBBox = box2(vec2(1,1), boardSize)
 red = 2
 green = 7
 
+roundRect=|x,y,w,h,r,color|do
+	r = math.min(r, w/2, h/2)
+	local d = 2 * r
+	elli(x,y,d,d,color)
+	elli(x+w-d,y,d,d,color)
+	elli(x,y+h-d,d,d,color)
+	elli(x+w-d,y+h-d,d,d,color)
+	rect(x+r,y,w-d,h,color)
+	rect(x,y+r,w,h-d,color)
+end
+
+-- get upper-left screen position of the board
+getUpperLeftPos = ||do
+	local screenWidth, screenHeight = getScreenSize()
+	local ulx = (screenWidth - math.min(screenWidth, screenHeight)) * .5
+	local uly = (screenHeight - math.min(screenWidth, screenHeight)) * .5
+	return ulx, uly
+end
+
+screenToTilePos = |sx, sy| do
+	local ulx, uly = getUpperLeftPos()
+	return
+		math.floor((sx - ulx) / tileSize) + 1,
+		math.floor((sy - uly) / tileSize) + 1
+end
+
+tileToScreenPos = |tx,ty|do
+	local ulx, uly = getUpperLeftPos()
+	local x = tileSize * (tx - 1) + ulx
+	local y = tileSize * (ty - 1) + uly
+	return x, y
+end
 
 -- tx1 ty1 tx2 ty2 in tiles
-boardRect = |tx1,ty1,tx2,ty2,border, ...|do
+boardRect = |tx1,ty1,tx2,ty2,border, color, ...|do
 	border ??= nil
-	local x = tileSize * (tx1 - 1) + border
-	local y = tileSize * (ty1 - 1) + border
+	local x, y = tileToScreenPos(tx1, ty1)
+	x += border
+	y += border
 	local w = tileSize * (tx2 - tx1 + 1) - 2 * border - 2
 	local h = tileSize * (ty2 - ty1 + 1) - 2 * border - 2
-	rect(x,y,w,h,...)
+	--[[ plain rect
+	rect(x,y,w,h,color, ...)
 	rectb(x,y,w,h,12)
+	--]]
+	--[[ circles?
+	ellib(x,y,w,h,12)
+	elli(x+1,y+1,w-2,h-2,color)
+	--]]
+	-- [[ round rects?
+	local radius = tileSize / 3
+	roundRect(x,y,w,h,radius,12)
+	roundRect(x+1,y+1,w-2,h-2,radius,color)
+	--]]
 end
 
 
@@ -138,14 +182,11 @@ newGame()
 
 update=||do
 	local screenWidth, screenHeight = getScreenSize()
-	tileSize = screenHeight / boardSize.y
+	tileSize = math.min(screenWidth / boardSize.x, screenHeight / boardSize.y)
 	cls()
 
 	local mouseX, mouseY = mouse()
-	local mouseTilePos = || vec2(
-		math.floor(mouseX / tileSize) + 1,
-		math.floor(mouseY / tileSize) + 1
-	)
+	local mouseTilePos = || screenToTilePos(mouseX, mouseY)
 
 	blend(1)
 	for y=1,boardSize.y do
@@ -168,12 +209,8 @@ update=||do
 
 	-- show user-creating bbox
 	if pressPos then
-		local dragPos = mouseTilePos():clamp(boardBBox)
+		local dragPos = vec2(mouseTilePos()):clamp(boardBBox)
 		local b = box2(pressPos):stretch(dragPos)
-		local x = tileSize * (b.min.x-1) + 2
-		local y = tileSize * (b.min.y-1) + 2
-		local w = tileSize * (b.max.x - b.min.x + 1) - 6
-		local h = tileSize * (b.max.y - b.min.y + 1) - 6
 		local area = (b:size()+1):product()
 		-- b's color is green if it touches one showPos and the areas match
 		-- b's color is red otherwise (and throw it away upon release?)
@@ -208,10 +245,11 @@ update=||do
 
 	for i,r in ipairs(solnRects) do
 		local s = tostring(r.area)
+		local x, y = tileToScreenPos(r.showPos.x, r.showPos.y)
 		text(
 			s,
-			tileSize * (r.showPos.x - .5) - 8*#s/2,
-			tileSize * (r.showPos.y - .5) - 4,
+			x + tileSize/2 - #s*tileSize/8,
+			y + tileSize/4,
 			nil,
 			nil,
 			tileSize/16,
@@ -222,7 +260,15 @@ update=||do
 	text('X', mouseX - 4, mouseY - 4)
 
 	if youWonTime then
-		text('YOU WON', 20, 100, 12, -1, 5, 5)
+		tmp ??= 0
+		tmp = text('YOU WON',
+			screenWidth/2 - tmp/2,
+			screenHeight/2,
+			12,
+			0,
+			tileSize/8,
+			tileSize/8
+		)
 		if time() - youWonTime > 10 then
 			newGame()
 		end
@@ -230,7 +276,7 @@ update=||do
 	end
 
 	if keyp'mouse_left' then
-		pressPos = mouseTilePos()
+		pressPos = vec2(mouseTilePos())
 		if not boardBBox:contains(pressPos) then
 			pressPos = nil
 		end
@@ -242,7 +288,7 @@ update=||do
 			end
 		end
 	elseif keyr'mouse_left' then
-		local releasePos = mouseTilePos():clamp(boardBBox)
+		local releasePos = vec2(mouseTilePos()):clamp(boardBBox)
 		if pressPos
 		and newRectColor == green
 		then
