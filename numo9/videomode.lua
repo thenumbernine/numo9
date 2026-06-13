@@ -1698,12 +1698,12 @@ end ?>
 	uint colorIndex = texture(sheetTex, tc).r;
 
 	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
+	colorIndex &= uint(spriteMask);
 
 	// if you discard based on alpha here then the bilinear interpolation that samples this 4x will cause unnecessary discards
-	bool forceTransparent = colorIndex == transparentIndex;
+	bool forceTransparent = colorIndex == uint(transparentIndex);
 
-	colorIndex += paletteOffset;
+	colorIndex += uint(paletteOffset);
 	colorIndex &= 0xFFu;
 
 	<?=fragType?> resultColor = colorIndexToFragColor(colorIndex);
@@ -1870,6 +1870,18 @@ void main() {
 	if (fragColor.a < .5) discard;
 <? end ?>
 
+/*
+TODO
+what about when we are rendering the blending of unlit polys
+with a previously-lit scene?
+In such a case you would not want to update the fragNormal.w == HD2DFlags ...
+So I should have another flag for HD2DFlags to update the flags...
+
+Instead of adding one new flag, I could just have it so if lighting is disabled then don't write ...
+That means blending will only preserve the buffer if you are blending your lit scene with an unlit object ...
+Manual control would be better in the long run ...
+*/
+	if (HD2DFlags == 0) return;
 
 // position
 
