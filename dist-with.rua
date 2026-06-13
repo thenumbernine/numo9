@@ -1,7 +1,8 @@
 #!/bin/env rua
 
-local n9fn = path(cmdline[1])
+local n9fn = path(cmdline[2])	-- TODO this should be 1, rua needs args bumped
 assert(n9fn:exists(), "couldn't find "..n9fn)
+assert.eq(select(2, n9fn:getext()), 'n9', "expected a .n9 file")
 assert.eq(n9fn:getdir(), path'.')	-- only cwd .n9's.  TODO pick off the dirpart for copying-to?
 n9fn = path(n9fn:getname())	-- trim off dir part
 assert.eq('"'..n9fn..'"', n9fn:escape())	-- assert no string-escaping (since i have to paste the filename into strings in the launch scripts)
@@ -12,13 +13,13 @@ os.exec('../dist/run.lua Windows-x64 dontZip')
 os.exec('../dist/run.lua Linux-x64 dontZip')	-- why not Linux-x64?
 
 -- next, copy our desired .n9 into the data/numo9/ folder of each
-(path'dist/numo9-Linux-x64/data/numo9'/n9fn):write(n9fn:read())
-(path'dist/numo9-Windows-x64/data/numo9'/n9fn):write(n9fn:read())
+tmp = (path'dist/numo9-Linux-x64/data/numo9'/n9fn):write(n9fn:read())
+tmp = (path'dist/numo9-Windows-x64/data/numo9'/n9fn):write(n9fn:read())
 
 -- modify the run scripts...
 local fixscript = |runfn|
 	assert(runfn:write((
-		assert(runfn:read)
+		assert(runfn:read())
 		:gsub('run.lua', 'run.lua '..n9fn)
 	)))
 fixscript(path'dist/numo9-Linux-x64/run-Linux-x64.sh')
