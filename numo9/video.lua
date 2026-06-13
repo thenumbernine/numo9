@@ -3806,6 +3806,9 @@ end
 AppVideo.lightDebugDraw = 0
 
 function AppVideo:updateHD2DPass()
+	-- if we're not using lighting then don't bother with lighting
+	if self.ram.HD2DFlags == 0 and not self.haveCapturedDrawMatsForLightingThisFrame then return end
+
 	assert(not self.inUpdateCallback)
 
 --[=[ trying to read the depth buffer
@@ -3870,7 +3873,6 @@ print()
 		calcLightTex.width = videoMode.width
 		calcLightTex.height = videoMode.height
 	end
-
 
 	calcLightTex:swap()
 	calcLightFB
