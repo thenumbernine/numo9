@@ -800,7 +800,6 @@ function EditSheet:init(args)
 				self:popUndo(shift)
 			end
 		end
-
 	end)
 
 	require 'numo9.ui.addgetset'(self, {
@@ -816,18 +815,14 @@ function EditSheet:init(args)
 		},
 		sheetBlobIndex = {
 			set = function(private, self, k, v)
-				local oldvalue = private[k]
-
+				if private[k] == v then return end
 				private[k] = v
+				-- on self.sheetBlobIndex change...
+				self.sheetBlobSelect.textfield.value = tostring(v)
 
-				if private[k] ~= oldvalue then
-					-- on self.sheetBlobIndex change...
-					self.sheetBlobSelect.textfield.value = tostring(v)
-
-					-- refresh palette stuff too?
-					if self.paletteBlobIndex then	-- if it's been initialized...
-						self:updatePaletteSelIndexColor()
-					end
+				-- refresh palette stuff too?
+				if self.paletteBlobIndex then	-- if it's been initialized...
+					self:updatePaletteSelIndexColor()
 				end
 			end,
 		},
@@ -1063,8 +1058,6 @@ function EditSheet:putpixel(tx,ty, putValue)
 	-- if not then pushing the undo content wont matter
 	self.undo:pushContinuous()
 end
-
-
 
 function EditSheet:update()
 	local app = self.app

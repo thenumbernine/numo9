@@ -31,41 +31,18 @@ function EditSFX:init(args)
 	self:newUI_setup()
 
 	local x, y = 80, 0
-	self:addChild(UIBlobSelect{
+	self.sfxBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
 		blobName = 'sfx',
 		valueTable = self,
 		valueKey = 'sfxBlobIndex',
 		setValue = function(value)
-			stop()
+			self:stopPlaying()
 		end,
-	})
+	}
+	self:addChild(self.sfxBlobSelect)
 	x = x + 16
-
-	self:addChild(UILabel{
-		owner = self,
-		pos = {x, y},
-		text = '#',
-		fgColorIndex = 0xfc,
-		bgColorIndex = -1,
-	})
-	x = x + 6
-
-	self:addChild(UITextField{
-		owner = self,
-		pos = {x, y},
-		width = 24,
-		events = {
-			change = function(target, e)
-				stop()
-				self.sfxBlobIndex = (tonumber(target.value) or self.sfxBlobIndex) % #app.blobs.sfx
-			end,
-		},
-		tooltip = function()
-			return 'sfx #'..self.sfxBlobIndex
-		end,
-	})
 
 	local xlhs = 48
 	local xrhs = 200
@@ -77,7 +54,8 @@ function EditSFX:init(args)
 		bgColorIndex = -1,
 	}
 	self:addChild(self.memLabel)
-	self.updateMemLabel = function(self)
+	function self:updateMemLabel()
+		local app = self.app
 		local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
 		if not sfxBlob then return end
 		self.memLabel.text = 'mem:  '
@@ -94,7 +72,8 @@ function EditSFX:init(args)
 		bgColorIndex = -1,
 	}
 	self:addChild(self.offsetLabel)
-	self.updateOffsetLabel = function(self)
+	function self:updateOffsetLabel()
+		local app = self.app
 		local channel = app.ram.channels+0
 		local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 		self.offsetLabel.text = ('@$%04x b'):format(offset)
@@ -107,7 +86,8 @@ function EditSFX:init(args)
 		bgColorIndex = -1,
 	}
 	self:addChild(self.playLenLabel)
-	self.updatePlayLenLabel = function(self)
+	function self:updatePlayLenLabel()
+		local app = self.app
 		local channel = app.ram.channels+0
 		local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 		local playLen = offset * secondsPerByte
@@ -121,7 +101,10 @@ function EditSFX:init(args)
 		bgColorIndex = -1,
 	}
 	self:addChild(self.lengthInSecondsLabel)
-	self.updateLengthInSecondsLabel = function(self)
+	function self:updateLengthInSecondsLabel()
+		local app = self.app
+		local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
+		if not sfxBlob then return end
 		local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 		local lengthInSeconds = sfxLen * secondsPerByte
 		self.lengthInSecondsLabel.text = ('len:  $%04x b / %02.3fs'):format(sfxLen, lengthInSeconds)
@@ -135,6 +118,9 @@ function EditSFX:init(args)
 	}
 	self:addChild(self.loopInSecondsLabel)
 	function self:updateLoopInSecondsLabel()
+		local app = self.app
+		local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
+		if not sfxBlob then return end
 		local sfxLoopOffset = ffi.cast(loopOffsetPtrType, sfxBlob.ramptr)[0]
 		local loopInSeconds = sfxLoopOffset * secondsPerByte
 		self.loopInSecondsLabel.text = ('loop: $%04x b / %02.3fs'):format(sfxLoopOffset, loopInSeconds)
@@ -147,8 +133,11 @@ function EditSFX:init(args)
 		tooltip = 'play',
 		events = {
 			click = function()
+				local app = self.app
+				local channel = app.ram.channels+0
+				local isPlaying = channel.flags.isPlaying == 1
 				if isPlaying then
-					stop()
+					self:stopPlaying()
 				else
 					app:playSound(self.sfxBlobIndex, 0, self.pitch, nil, nil, true)
 				end
@@ -157,6 +146,7 @@ function EditSFX:init(args)
 	}
 	self:addChild(self.isPlayingButton)
 	function self:updateIsPlayingButton()
+		local app = self.app
 		local channel = app.ram.channels+0
 		local isPlaying = channel.flags.isPlaying == 1
 		self.isPlayingButton.text = isPlaying and '||' or '=>'
@@ -181,18 +171,42 @@ function EditSFX:init(args)
 	}
 	self:addChild(self.pitchTextField)
 
+	require 'numo9.ui.addgetset'(self, {
+		sfxBlobIndex = {
+			set = function(private, self, k, v)
+				if private[k] == v then return end
+				private[k] = v
+				self.sfxBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		pitch = {
+			set = function(private, self, k, v)
+				if private[k] == v then return end
+				private[k] = v
+				self.pitchTextField.value = tostring(v)
+			end,
+		},
+	})
+
 	self:onCartLoad()
 end
 
 function EditSFX:onCartLoad()
-	self:setPitch(bit.lshift(1, pitchPrec))
+	self.pitch = bit.lshift(1, pitchPrec)
+
 	self.sfxBlobIndex = 0	-- this is 0 based.  all my other BlobIndex's are 1-based.  maybe they should be 0-based too?
 	self.offsetScrollX = 0
 end
 
-function EditSFX:setPitch(newPitch)
-	if self.pitch == newPitch then return end
-	self.pitchTextField.value = tostring(self.pitch)
+function EditSFX:stopPlaying()
+	local app = self.app
+	self.offsetScrollX = 0
+	for i=0,audioMixChannels-1 do
+		app.ram.channels[i].flags.isPlaying = 0
+	end
+	for i=0,audioMusicPlayingCount-1 do
+		app.ram.musicPlaying[i].isPlaying = 0
+	end
 end
 
 function EditSFX:update()
@@ -208,33 +222,19 @@ function EditSFX:update()
 
 	EditSFX.super.update(self)
 
-	local function stop()
-		self.offsetScrollX = 0
-		for i=0,audioMixChannels-1 do
-			app.ram.channels[i].flags.isPlaying = 0
-		end
-		for i=0,audioMusicPlayingCount-1 do
-			app.ram.musicPlaying[i].isPlaying = 0
-		end
-	end
-
 	local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
 	if not sfxBlob then return end
 	local sfxLoopOffset = ffi.cast(loopOffsetPtrType, sfxBlob.ramptr)[0]
-	local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
+	--local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
 	local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 
 	local channel = app.ram.channels+0
-	local isPlaying = channel.flags.isPlaying == 1
-
-	local xlhs = 48
-	local xrhs = 200
 
 	-- TODO only when necessary
 	self:updateMemLabel()
 	self:updateOffsetLabel()
 	self:updatePlayLenLabel()
-	self:updateLengthInSeconds()
+	self:updateLengthInSecondsLabel()
 	self:updateLoopInSecondsLabel()
 	self:updateIsPlayingButton()
 
@@ -292,6 +292,8 @@ function EditSFX:update()
 			self.draggingScroll = false
 		end
 	end
+
+	local isPlaying = channel.flags.isPlaying == 1
 	if isPlaying then
 		self.offsetScrollX = bit.rshift(channel.offset, pitchPrec-1)
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
@@ -300,7 +302,7 @@ function EditSFX:update()
 
 	if isPlaying then
 		if app:keyr'space' then
-			stop()
+			self:stopPlaying()
 		end
 	else
 		if app:key'space' then
@@ -309,10 +311,10 @@ function EditSFX:update()
 	end
 
 	if app:keyp('left', 30, 15) then
-		stop()
+		self:stopPlaying()
 		self.sfxBlobIndex = (self.sfxBlobIndex - 1) % #self.blobs.sfx
 	elseif app:keyp('right', 30, 15) then
-		stop()
+		self:stopPlaying()
 		self.sfxBlobIndex = (self.sfxBlobIndex + 1) % #self.blobs.sfx
 	end
 

@@ -18,6 +18,12 @@ local sampleFramesPerSecond = numo9_rom.audioSampleRate
 local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
+local UIButton = require 'numo9.ui.button'
+local UILabel = require 'numo9.ui.label'
+local UITextField = require 'numo9.ui.textfield'
+local UISpinner = require 'numo9.ui.spinner'
+local UIBlobSelect = require 'numo9.ui.blobselect'
+
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -32,8 +38,182 @@ local EditMusic = require 'numo9.ui':subclass()
 function EditMusic:init(args)
 	EditMusic.super.init(self, args)
 
-	self.musicBlobIndex = 0
+	self:newUI_setup()
 
+	local x, y = 80, 0
+	self:addChild(UIBlobSelect{
+		owner = self,
+		pos = {x,  y},
+		blobName = 'music',
+		valueTable = self,
+		valueKey = 'musicBlobIndex',
+	})
+	x = x + 16
+
+	self:addChild(UILabel{
+		owner = self,
+		pos = {x, y},
+		text = '#',
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	})
+	x = x + 6
+
+	self:addChild(UITextField{
+		owner = self,
+		pos = {x, y},
+		width = 24,
+		events = {
+			change = function(target, e)
+				self.musicBlobIndex = tonumber(target.value) or self.musicBlobIndex
+			end,
+		},
+		tooltip = function()
+			return 'music #'..self.musicBlobIndex
+		end,
+	})
+	x = x + 24
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		tooltip = function()
+			return 'channel='..self.selectedChannel
+		end,
+		setValue = function(dx)
+			self.selectedChannel = math.clamp(self.selectedChannel + dx, 0, audioMixChannels-1)
+		end,
+	})
+	x = x + 16
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'X',
+		isset = function()
+			return self.showText
+		end,
+		tooltip = function()
+			return self.showText
+				and 'cmd display'
+				or 'vol/pitch display'
+		end,
+		events = {
+			click = function()
+				self.showText = not self.showText
+			end,
+		},
+	})
+
+	y = 10
+
+	self.memLabel = UILabel{
+		owner = self,
+		pos = {64, y},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.memLabel)
+	function self:updateMemLabel()
+		local app = self.app
+		local selMusicBlob = app.blobs.music[self.musicBlobIndex+1]
+		if not selMusicBlob then return end
+		local endAddr = selMusicBlob.addrEnd
+		self.menuLabel.text = ('mem: $%04x-$%04x'):format(selMusicBlob.addr, endAddr)
+	end
+
+	self.playAddrLabel = UILabel{
+		owner = self,
+		pos = {160, y},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.playAddrLabel)
+	function self:updatePlayAddrLabel()
+		local app = self.app
+		local musicPlaying = app.ram.musicPlaying+0
+		local playaddr = musicPlaying.addr
+		self.playAddrLabel.text = ('$%04x'):format(playaddr)
+	end
+	y = y + 10
+
+	self.trackingLabel = UILabel{
+		owner = self,
+		pos = {128, y},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.trackingLabel)
+	function self:updateTrackingLabel()
+		local app = self.app
+		local musicPlaying = app.ram.musicPlaying+0
+		local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
+		--local beatsPerSecond = tonumber(ffi.cast(uint16_t_p, app.ram.v + musicPlaying.addr)[0])
+		self.trackingLabel.text = ('%d frame / %.3f s'):format(
+			numSampleFramesPlayed,
+			tonumber(numSampleFramesPlayed) / sampleFramesPerSecond
+		)
+	end
+
+	self.bpsLabel = UILabel{
+		owner = self,
+		pos = {20, y},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.bpsLabel)
+	function self:updateBPSLabel()
+		self.bpsLabel.text = ('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1)
+	end
+	y = y + 10
+
+	self.isPlayingButton = UIButton{
+		owner = self,
+		pos = {0, 20},
+		text = '=>',
+		tooltip = 'play',
+		events = {
+			click = function()
+				local app = self.app
+				local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
+				if isPlaying then
+					for i=0,audioMixChannels-1 do
+						app.ram.channels[i].flags.isPlaying = 0
+					end
+					for i=0,audioMusicPlayingCount-1 do
+						app.ram.musicPlaying[i].isPlaying = 0
+					end
+				else
+					app:playMusic(self.musicBlobIndex, 0)
+					self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
+				end
+			end,
+		},
+	}
+	function self:updateIsPlayingButton()
+		local app = self.app
+		local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
+		self.isPlayingButton.text = isPlaying and '||' or '=>'
+	end
+
+	require 'numo9.ui.addgetset'(self, {
+		musicBlobIndex = {
+			set = function(private, self, k, v)
+				local app = self.app
+				v = v % math.max(1, #app.blobs.music)
+				if private[k] == v then return end
+				private[k] = v
+				self:stopPlaying()
+				self:refreshSelectedMusic()
+			end,
+		},
+	})
+
+	self:onCartLoad()
+end
+
+function EditMusic:onCartLoad()
+	self.musicBlobIndex = 0
 	self.startSampleFrameIndex = 0
 	self.frameStart = 1
 	self.selectedChannel = 0
@@ -147,77 +327,60 @@ function EditMusic:encodeMusicFromFrames()
 	ffi.copy(vec.v, newMusicData, #newMusicData)
 end
 
+function EditMusic:stopPlaying()
+	local app = self.app
+	self.offsetScrollX = 0
+	for i=0,audioMixChannels-1 do
+		app.ram.channels[i].flags.isPlaying = 0
+	end
+	for i=0,audioMusicPlayingCount-1 do
+		app.ram.musicPlaying[i].isPlaying = 0
+	end
+end
+
 function EditMusic:update()
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
+
 	EditMusic.super.update(self)
 	local app = self.app
-
-	local function stop()
-		self.offsetScrollX = 0
-		for i=0,audioMixChannels-1 do
-			app.ram.channels[i].flags.isPlaying = 0
-		end
-		for i=0,audioMusicPlayingCount-1 do
-			app.ram.musicPlaying[i].isPlaying = 0
-		end
-	end
 
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
-	local x, y = 80, 0
-	self:guiBlobSelect(x, y, 'music', self, 'musicBlobIndex', function(dx)
-		stop()
-	end)
-	x = x + 16
-
-	app:drawMenuText('#', x, y, 0xfc, 0)
-	x = x + 6
-	self:guiTextField(x, y, 24, self, 'musicBlobIndex', function(index)
-		self.musicBlobIndex = (tonumber(index) or self.musicBlobIndex) % #app.blobs.music
-		self:refreshSelectedMusic()
-	end, 'music #'..self.musicBlobIndex)
-	x = x + 24
-
-	self:guiSpinner(x, y, function(dx)
-		self.selectedChannel = math.clamp(self.selectedChannel + dx, 0, audioMixChannels-1)
-	end, 'channel='..self.selectedChannel)
-	x = x + 16
-
-	if self:guiButton('X', x, y, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
-		self.showText = not self.showText
-	end
-
 	local selMusicBlob = app.blobs.music[self.musicBlobIndex+1]
 	if not selMusicBlob then return end
+
 	local musicPlaying = app.ram.musicPlaying+0
 
+	local x, y = 80, 0
+	x = x + 16
+	x = x + 6
+	x = x + 24
+	x = x + 16
+
+	self:updateMemLabel()
+	self:updatePlayAddrLabel()
+	self:updateTrackingLabel()
+	self:updateBPSLabel()
+
 	local y = 10
-
-	local endAddr = selMusicBlob.addrEnd
-	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusicBlob.addr, endAddr), 64, y, 0xfc, 0xf0)
-
-	local playaddr = musicPlaying.addr
-	app:drawMenuText(('$%04x'):format(playaddr), 160, y, 0xfc, 0xf0)
 	y = y + 10
-
-	--local playLen = (playaddr - selMusicBlob.addr) * secondsPerByte
-	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
-	local beatsPerSecond = tonumber(ffi.cast(uint16_t_p, app.ram.v + musicPlaying.addr)[0])
-	app:drawMenuText(
-		('%d frame / %.3f s'):format(
-			numSampleFramesPlayed,
-			tonumber(numSampleFramesPlayed) / sampleFramesPerSecond
-		), 128, y, 0xfc, 0xf0)
-
-	app:drawMenuText(('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1), 20, y, 0xfc, 0xf0)
 	y = y + 10
 
 	-- TODO headers
 
 	y = y + 10
 
+	-- TODO multiple panels with children and toggle them accordingly
 	local thisFrame = self.selectedTrack and self.selectedTrack.frames[1]
 	if self.showText then
 
@@ -389,22 +552,6 @@ function EditMusic:update()
 	end
 
 	local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
-	if self:guiButton(isPlaying and '||' or '=>', 0, 20, nil, 'play') then
-		if isPlaying then
-			for i=0,audioMixChannels-1 do
-				app.ram.channels[i].flags.isPlaying = 0
-			end
-			for i=0,audioMusicPlayingCount-1 do
-				app.ram.musicPlaying[i].isPlaying = 0
-			end
-		else
-			app:playMusic(self.musicBlobIndex, 0)
-			self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
-		end
-	end
-
-	self:drawTooltip()
-
 	if isPlaying then
 		if app:keyr'space' then
 			for i=0,audioMixChannels-1 do
@@ -423,11 +570,15 @@ function EditMusic:update()
 
 	if app:keyp('left', 30, 15) then
 		self.musicBlobIndex = (self.musicBlobIndex - 1) % #app.blobs.music
-		self:refreshSelectedMusic()
 	elseif app:keyp('right', 30, 15) then
 		self.musicBlobIndex = (self.musicBlobIndex + 1) % #app.blobs.music
-		self:refreshSelectedMusic()
 	end
+
+	self:newUI_update()
+end
+
+function EditMusic:event(e)
+	return self:newUI_event(e)
 end
 
 return EditMusic
