@@ -31,11 +31,19 @@ do
 	end
 end
 
--- [[ beginner?
+--[[ https://www.nikoli.co.jp/en/puzzles/shikaku/
+boardSize = vec2(7, 7)
+numPieces = 12
+--]]
+--[[ beginner?
 boardSize = vec2(8, 8)
 numPieces = 8
 --]]
---[[ expert?
+--[[ normal?  wikipedia example
+boardSize = vec2(12, 12)
+numPieces = 23
+--]]
+-- [[ expert?
 boardSize = vec2(20, 20)
 numPieces = 64
 --]]
@@ -285,11 +293,13 @@ update=||do
 		if not boardBBox:contains(pressPos) then
 			pressPos = nil
 		end
-		for i,r in ipairs(userRects) do
-			if r.bbox:contains(pressPos) then
-				userRects:remove(i)
-				pressPos = nil
-				break
+		if pressPos then
+			for i,r in ipairs(userRects) do
+				if r.bbox:contains(pressPos) then
+					userRects:remove(i)
+					pressPos = nil
+					break
+				end
 			end
 		end
 	elseif keyr'mouse_left' then
