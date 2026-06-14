@@ -119,7 +119,7 @@ files = {
 	"numo9/videomode.lua",
 	"numo9/view.lua",
 	"pong.n9",
-	"rectangle-number-game.n9",
+	"shikaku.n9",
 	"run.lua",
 	"s-type.n9",
 	"snake.n9",

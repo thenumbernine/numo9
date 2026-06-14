@@ -702,7 +702,7 @@ function UI:updateBlobChanges()
 	app:resetVideo()
 --]]
 -- [[  but I need to update all pointers from their addresses ...
-local framebufferAddr = numo9_rom.framebufferAddr
+	local framebufferAddr = numo9_rom.framebufferAddr
 	local ram = app.ram
 
 	app:allRAMRegionsCheckDirtyGPU()

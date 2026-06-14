@@ -12,6 +12,12 @@ local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local pitchPrec = numo9_rom.pitchPrec
 local loopOffsetType = numo9_rom.loopOffsetType
+local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
+
+local UIButton = require 'numo9.ui.button'
+local UILabel = require 'numo9.ui.label'
+local UITextField = require 'numo9.ui.textfield'
+local UIBlobSelect = require 'numo9.ui.blobselect'
 
 
 local audioSamplePtrType = ffi.typeof('$*', audioSampleType)
@@ -21,17 +27,186 @@ local EditSFX = require 'numo9.ui':subclass()
 
 function EditSFX:init(args)
 	EditSFX.super.init(self, args)
-	
+
 	self:newUI_setup()
 
-	self.pitch = bit.lshift(1, pitchPrec)
+	local x, y = 80, 0
+	self:addChild(UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'sfx',
+		valueTable = self,
+		valueKey = 'sfxBlobIndex',
+		setValue = function(value)
+			stop()
+		end,
+	})
+	x = x + 16
+
+	self:addChild(UILabel{
+		owner = self,
+		pos = {x, y},
+		text = '#',
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	})
+	x = x + 6
+
+	self:addChild(UITextField{
+		owner = self,
+		pos = {x, y},
+		width = 24,
+		events = {
+			change = function(target, e)
+				stop()
+				self.sfxBlobIndex = (tonumber(target.value) or self.sfxBlobIndex) % #app.blobs.sfx
+			end,
+		},
+		tooltip = function()
+			return 'sfx #'..self.sfxBlobIndex
+		end,
+	})
+
+	local xlhs = 48
+	local xrhs = 200
+
+	self.memLabel = UILabel{
+		owner = self,
+		pos = {xlhs, 10},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.memLabel)
+	self.updateMemLabel = function(self)
+		local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
+		if not sfxBlob then return end
+		self.memLabel.text = 'mem:  '
+			..(sfxBlob
+				and ('$%04x-$%04x'):format(sfxBlob.addr, sfxBlob.addrEnd)
+				or ''
+			)
+	end
+
+	self.offsetLabel = UILabel{
+		owner = self,
+		pos = {xrhs, 10},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.offsetLabel)
+	self.updateOffsetLabel = function(self)
+		local channel = app.ram.channels+0
+		local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
+		self.offsetLabel.text = ('@$%04x b'):format(offset)
+	end
+
+	self.playLenLabel = UILabel{
+		owner = self,
+		pos = {xrhs, 18},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.playLenLabel)
+	self.updatePlayLenLabel = function(self)
+		local channel = app.ram.channels+0
+		local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
+		local playLen = offset * secondsPerByte
+		self.playLenLabel.text = ('@%02.3fs'):format(playLen)
+	end
+
+	self.lengthInSecondsLabel = UILabel{
+		owner = self,
+		pos = {xlhs, 18},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.lengthInSecondsLabel)
+	self.updateLengthInSecondsLabel = function(self)
+		local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
+		local lengthInSeconds = sfxLen * secondsPerByte
+		self.lengthInSecondsLabel.text = ('len:  $%04x b / %02.3fs'):format(sfxLen, lengthInSeconds)
+	end
+
+	self.loopInSecondsLabel = UILabel{
+		owner = self,
+		pos = {xlhs, 26},
+		fgColorIndex = 0xfc,
+		bgColorIndex = -1,
+	}
+	self:addChild(self.loopInSecondsLabel)
+	function self:updateLoopInSecondsLabel()
+		local sfxLoopOffset = ffi.cast(loopOffsetPtrType, sfxBlob.ramptr)[0]
+		local loopInSeconds = sfxLoopOffset * secondsPerByte
+		self.loopInSecondsLabel.text = ('loop: $%04x b / %02.3fs'):format(sfxLoopOffset, loopInSeconds)
+	end
+
+	self.isPlayingButton = UIButton{
+		owner = self,
+		pos = {64, 128},
+		text = '=>',	-- isPlaying and '||' or '=>'
+		tooltip = 'play',
+		events = {
+			click = function()
+				if isPlaying then
+					stop()
+				else
+					app:playSound(self.sfxBlobIndex, 0, self.pitch, nil, nil, true)
+				end
+			end,
+		},
+	}
+	self:addChild(self.isPlayingButton)
+	function self:updateIsPlayingButton()
+		local channel = app.ram.channels+0
+		local isPlaying = channel.flags.isPlaying == 1
+		self.isPlayingButton.text = isPlaying and '||' or '=>'
+	end
+
+	self:addChild(UILabel{
+		owner = self,
+		pos = {8, 136},
+		text = 'play pitch:',
+		fgColorIndex = 0xf7,
+		bgColorIndex = 0xf0,
+	})
+	self.pitchTextField = UITextField{
+		owner = self,
+		pos = {60, 136},
+		width = 80,
+		events = {
+			change = function(target, e)
+				self.pitch = tonumber(target.value) or self.pitch
+			end,
+		},
+	}
+	self:addChild(self.pitchTextField)
+
+	self:onCartLoad()
+end
+
+function EditSFX:onCartLoad()
+	self:setPitch(bit.lshift(1, pitchPrec))
 	self.sfxBlobIndex = 0	-- this is 0 based.  all my other BlobIndex's are 1-based.  maybe they should be 0-based too?
 	self.offsetScrollX = 0
 end
 
+function EditSFX:setPitch(newPitch)
+	if self.pitch == newPitch then return end
+	self.pitchTextField.value = tostring(self.pitch)
+end
+
 function EditSFX:update()
-	EditSFX.super.update(self)
 	local app = self.app
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
+
+	EditSFX.super.update(self)
 
 	local function stop()
 		self.offsetScrollX = 0
@@ -43,21 +218,6 @@ function EditSFX:update()
 		end
 	end
 
-	local x, y = 80, 0
-
-	self:guiBlobSelect(x, y, 'sfx', self, 'sfxBlobIndex', function(dx)
-		stop()
-	end)
-
-	x = x + 16
-
-	app:drawMenuText('#', x, y, 0xfc, 0)
-	x = x + 6
-	self:guiTextField(x, y, 24, self, 'sfxBlobIndex', function(index)
-		stop()
-		self.sfxBlobIndex = (tonumber(index) or self.sfxBlobIndex) % #app.blobs.sfx
-	end, 'sfx #'..self.sfxBlobIndex)
-
 	local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
 	if not sfxBlob then return end
 	local sfxLoopOffset = ffi.cast(loopOffsetPtrType, sfxBlob.ramptr)[0]
@@ -66,24 +226,19 @@ function EditSFX:update()
 
 	local channel = app.ram.channels+0
 	local isPlaying = channel.flags.isPlaying == 1
-	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
 
 	local xlhs = 48
 	local xrhs = 200
 
-	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, sfxBlob.addrEnd), xlhs, 10, 0xfc, 0)
+	-- TODO only when necessary
+	self:updateMemLabel()
+	self:updateOffsetLabel()
+	self:updatePlayLenLabel()
+	self:updateLengthInSeconds()
+	self:updateLoopInSecondsLabel()
+	self:updateIsPlayingButton()
 
 	local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
-	app:drawMenuText(('@$%04x b'):format(offset), xrhs, 10, 0xfc, 0)
-
-	local playLen = offset * secondsPerByte
-	app:drawMenuText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
-
-	local lengthInSeconds = sfxLen * secondsPerByte
-	app:drawMenuText(('len:  $%04x b / %02.3fs'):format(sfxLen, lengthInSeconds), xlhs, 18, 0xfc, 0)
-
-	local loopInSeconds = sfxLoopOffset * secondsPerByte
-	app:drawMenuText(('loop: $%04x b / %02.3fs'):format(sfxLoopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
 
 	-- TODO render the wave ...
 	local prevAmpl
@@ -142,21 +297,6 @@ function EditSFX:update()
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 	end
-
-	if self:guiButton(isPlaying and '||' or '=>', 64, 128, nil, 'play') then
-		if isPlaying then
-			stop()
-		else
-			app:playSound(self.sfxBlobIndex, 0, self.pitch, nil, nil, true)
-		end
-	end
-
-	app:drawMenuText('play pitch:', 8, 136, 0xf7, 0xf0)
-	self:guiTextField(60, 136, 80, self, 'pitch', function(result)
-		self.pitch = tonumber(result) or self.pitch
-	end)
-
-	self:drawTooltip()
 
 	if isPlaying then
 		if app:keyr'space' then

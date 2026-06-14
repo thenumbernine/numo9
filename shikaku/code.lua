@@ -1,3 +1,8 @@
+-- title = shikaku
+-- saveid = shikaku
+-- author = Chris Moore
+-- description = shikaku
+
 math.randomseed(tstamp())
 class = require 'ext.class'
 range = require 'ext.range'
