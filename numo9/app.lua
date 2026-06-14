@@ -2941,9 +2941,13 @@ end
 
 local net_pokeCode = [[
 local ffi = require 'ffi'
+local numo9_net = require 'numo9.net'
+local netcmds = numo9_net.netcmds
+
 local uint8_t = ffi.typeof'uint8_t'
 local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
+
 return function(self, addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
 	local server = self.server
@@ -2966,10 +2970,14 @@ App.net_poke = assert(load(net_pokeCode))()
 
 local net_pokewCode = [[
 local ffi = require 'ffi'
+local numo9_net = require 'numo9.net'
+local netcmds = numo9_net.netcmds
+
 local uint16_t = ffi.typeof'uint16_t'
 local uint16_t_p = ffi.typeof'uint16_t*'
 local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
+
 return function(self, addr, value)
 	local server = self.server
 	if server then
@@ -2990,9 +2998,13 @@ App.net_pokew = assert(load(net_pokewCode))()
 
 local net_pokelCode = [[
 local ffi = require 'ffi'
+local numo9_net = require 'numo9.net'
+local netcmds = numo9_net.netcmds
+
 local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 local uint32_t_p = ffi.typeof'uint32_t*'
+
 return function(self, addr, value)
 	local server = self.server
 	if server then
@@ -3012,10 +3024,14 @@ App.net_pokel = assert(load(net_pokelCode))()
 
 local net_pokefCode = [[
 local ffi = require 'ffi'
+local numo9_net = require 'numo9.net'
+local netcmds = numo9_net.netcmds
+
 local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 local float = ffi.typeof'float'
 local float_p = ffi.typeof'float*'
+
 return function(self, addr, value)
 	local server = self.server
 	if server then
