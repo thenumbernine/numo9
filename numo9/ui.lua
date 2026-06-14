@@ -86,6 +86,7 @@ function UI:init(args)
 	end)
 end
 
+-- TODO REMOVEME and use numo9.ui.button
 function UI:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
@@ -131,6 +132,7 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	return result
 end
 
+-- TODO REMOVEME and use numo9.ui.spinner
 function UI:guiSpinner(x, y, cb, tooltip)
 	if self:guiButton('<', x, y, nil, tooltip) then
 		cb(-1)
@@ -143,6 +145,7 @@ function UI:guiSpinner(x, y, cb, tooltip)
 	end
 end
 
+-- TODO REMOVEME and use numo9.ui.radio
 function UI:guiRadio(x, y, options, selected, cb)
 	for _,name in ipairs(options) do
 		if self:guiButton(
@@ -158,6 +161,7 @@ function UI:guiRadio(x, y, options, selected, cb)
 	end
 end
 
+-- TODO REMOVEME and use numo9.ui.textfield
 function UI:guiTextField(
 	x, y, w,
 	t, k,	-- provide t and k to just read and write to t[k].  provide just 't' to use it as a value and then write with 'write' next.
@@ -298,6 +302,7 @@ function UI:guiTextField(
 	return changed
 end
 
+-- TODO REMOVEME and use numo9.ui.blobselect
 function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb, generator)
 	local app = self.app
 	local blobsOfType = app.blobs[blobName]
