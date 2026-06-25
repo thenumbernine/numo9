@@ -8,6 +8,7 @@ class=|...|do
 	local t=table(...)
 	t.super=...
 	--t.supers=table{...}
+	t.class=t	-- necessary? hmm...
 	t.__index=t
 	t.subclass=class
 	t.isaSet=table(table{...}
