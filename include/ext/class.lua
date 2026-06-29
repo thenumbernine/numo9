@@ -1,7 +1,7 @@
-local isa=|cl,o|o.isaSet[cl]
-local classmeta = {__call=|cl,...|do
+local isa=|cl,o|type(o)=='table'and o.isaSet?[cl]
+local classmeta={__call=|cl,...|do
 	local o=setmetatable({},cl)
-	return o, o?:init(...)
+	return o,o?:init(...)
 end}
 local class
 class=|...|do
