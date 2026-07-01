@@ -1013,7 +1013,7 @@ local getTime = require 'ext.timer'.getTime
 local dummyNormalMapTex
 local dummyNormalMapImage
 
-local normalMapCacheSize = 32
+local normalMapCacheSize = 64
 AppVideo.normalMapCache = table()
 function AppVideo:getNormalMapTex(sheetTex, paletteTex)
 	local normalMapCache = self.normalMapCache
