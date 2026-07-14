@@ -3696,6 +3696,8 @@ function App:keyr(keycode)
 	and self:keyForBuffer(keycode, self.ram.lastKeyPressFlags)
 end
 
+local numButtons = #buttonNames
+
 -- TODO - just use key/p/r, and just use extra flags
 -- TODO dont use keyboard keycode for determining fake-joypad button keycode
 -- instead do this down in the SDL event handling ...
@@ -3705,12 +3707,12 @@ function App:btn(buttonCode, player, ...)
 			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
-	if buttonCode < 0 or buttonCode >= 8 then return end
+	if buttonCode < 0 or buttonCode >= numButtons then return end
 
 	player = player or 0
 	if player < 0 or player >= maxPlayersTotal then return end
 
-	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
+	local buttonKeyCode = buttonCode + numButtons * player + firstJoypadKeyCode
 	return self:key(buttonKeyCode, ...)
 end
 function App:btnp(buttonCode, player, ...)
@@ -3719,12 +3721,12 @@ function App:btnp(buttonCode, player, ...)
 			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
-	if buttonCode < 0 or buttonCode >= 8 then return end
+	if buttonCode < 0 or buttonCode >= numButtons then return end
 
 	player = player or 0
 	if player < 0 or player >= maxPlayersTotal then return end
 
-	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
+	local buttonKeyCode = buttonCode + numButtons * player + firstJoypadKeyCode
 	return self:keyp(buttonKeyCode, ...)
 end
 function App:btnr(buttonCode, player, ...)
@@ -3733,12 +3735,12 @@ function App:btnr(buttonCode, player, ...)
 			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
-	if buttonCode < 0 or buttonCode >= 8 then return end
+	if buttonCode < 0 or buttonCode >= numButtons then return end
 
 	player = player or 0
 	if player < 0 or player >= maxPlayersTotal then return end
 
-	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
+	local buttonKeyCode = buttonCode + numButtons * player + firstJoypadKeyCode
 	return self:keyr(buttonKeyCode, ...)
 end
 
@@ -3964,10 +3966,16 @@ looks like I'm a Snes9x-default-keybinding fan.
 			setPlayer1Default(buttonCodeForName.down, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_DOWN})
 			setPlayer1Default(buttonCodeForName.left, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_LEFT})
 			setPlayer1Default(buttonCodeForName.up, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_UP})
-			setPlayer1Default(buttonCodeForName.a, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_S})
-			setPlayer1Default(buttonCodeForName.b, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_X})
-			setPlayer1Default(buttonCodeForName.x, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_A})
-			setPlayer1Default(buttonCodeForName.y, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_Z})
+			setPlayer1Default(buttonCodeForName.a, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_D})
+			setPlayer1Default(buttonCodeForName.b, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_C})
+			setPlayer1Default(buttonCodeForName.x, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_S})
+			setPlayer1Default(buttonCodeForName.y, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_X})
+			setPlayer1Default(buttonCodeForName.start, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_LCTRL})
+			setPlayer1Default(buttonCodeForName.select, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_LSHIFT})
+			setPlayer1Default(buttonCodeForName.l, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_W})
+			setPlayer1Default(buttonCodeForName.r, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_E})
+			setPlayer1Default(buttonCodeForName.l2, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_Q})
+			setPlayer1Default(buttonCodeForName.r2, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_R})
 			self:buildPlayerEventsMap()
 		elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
 		or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
@@ -3989,6 +3997,12 @@ looks like I'm a Snes9x-default-keybinding fan.
 			setPlayer1Default(buttonCodeForName.b, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_SOUTH})
 			setPlayer1Default(buttonCodeForName.x, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_NORTH})
 			setPlayer1Default(buttonCodeForName.y, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_WEST})
+			-- TODO buttonCodeForName.start
+			-- TODO buttonCodeForName.select
+			-- TODO buttonCodeForName.l
+			-- TODO buttonCodeForName.r
+			-- TODO buttonCodeForName.l2
+			-- TODO buttonCodeForName.r2
 			self:buildPlayerEventsMap()
 		end
 	end
@@ -4163,7 +4177,7 @@ function App:processButtonEvent(down, ...)
 			end
 
 			if match then
-				local buttonCode = buttonIndex + bit.lshift(playerIndex, 3)
+				local buttonCode = bit.bor(buttonIndex, bit.lshift(playerIndex, 4))
 				local keycode = buttonCode + firstJoypadKeyCode
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)

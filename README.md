@@ -644,19 +644,23 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 
 |                  |                  |                  |                  |                  |                  |                  |                  |
 |------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
-|`a=0`             |`b=1`             |`c=2`             |`d=3`             |`e=4`             |`f=5`             |`g=6`             |`h=7`             |
-|`i=8`             |`j=9`             |`k=10`            |`l=11`            |`m=12`            |`n=13`            |`o=14`            |`p=15`            |
-|`q=16`            |`r=17`            |`s=18`            |`t=19`            |`u=20`            |`v=21`            |`w=22`            |`x=23`            |
-|`y=24`            |`z=25`            |`0=26`            |`1=27`            |`2=28`            |`3=29`            |`4=30`            |`5=31`            |
-|`6=32`            |`7=33`            |`8=34`            |`9=35`            |`minus=36`        |`equals=37`       |`leftbracket=38`  |`rightbracket=39` |
-|`backslash=40`    |`semicolon=41`    |`apostrophe=42`   |`grave=43`        |`comma=44`        |`period=45`       |`slash=46`        |`space=47`        |
-|`tab=48`          |`return=49`       |`backspace=50`    |`right=51`        |`down=52`         |`left=53`         |`up=54`           |`capslock=55`     |
-|`lctrl=56`        |`rctrl=57`        |`lshift=58`       |`rshift=59`       |`lalt=60`         |`ralt=61`         |`lgui=62`         |`rgui=63`         |
-|`delete=64`       |`insert=65`       |`pageup=66`       |`pagedown=67`     |`home=68`         |`end=69`          |`mouse_left=70`   |`mouse_right=71`  |
-|`jp0_up=72`       |`jp0_down=73`     |`jp0_left=74`     |`jp0_right=75`    |`jp0_a=76`        |`jp0_b=77`        |`jp0_x=78`        |`jp0_y=79`        |
-|`jp1_up=80`       |`jp1_down=81`     |`jp1_left=82`     |`jp1_right=83`    |`jp1_a=84`        |`jp1_b=85`        |`jp1_x=86`        |`jp1_y=87`        |
-|`jp2_up=88`       |`jp2_down=89`     |`jp2_left=90`     |`jp2_right=91`    |`jp2_a=92`        |`jp2_b=93`        |`jp2_x=94`        |`jp2_y=95`        |
-|`jp3_up=96`       |`jp3_down=97`     |`jp3_left=98`     |`jp3_right=99`    |`jp3_a=100`       |`jp3_b=101`       |`jp3_x=102`       |`jp3_y=103`       |
+|`a=0             `|`b=1             `|`c=2             `|`d=3             `|`e=4             `|`f=5             `|`g=6             `|`h=7             `|
+|`i=8             `|`j=9             `|`k=10            `|`l=11            `|`m=12            `|`n=13            `|`o=14            `|`p=15            `|
+|`q=16            `|`r=17            `|`s=18            `|`t=19            `|`u=20            `|`v=21            `|`w=22            `|`x=23            `|
+|`y=24            `|`z=25            `|`0=26            `|`1=27            `|`2=28            `|`3=29            `|`4=30            `|`5=31            `|
+|`6=32            `|`7=33            `|`8=34            `|`9=35            `|`minus=36        `|`equals=37       `|`leftbracket=38  `|`rightbracket=39 `|
+|`backslash=40    `|`semicolon=41    `|`apostrophe=42   `|`grave=43        `|`comma=44        `|`period=45       `|`slash=46        `|`space=47        `|
+|`tab=48          `|`return=49       `|`backspace=50    `|`right=51        `|`down=52         `|`left=53         `|`up=54           `|`capslock=55     `|
+|`lctrl=56        `|`rctrl=57        `|`lshift=58       `|`rshift=59       `|`lalt=60         `|`ralt=61         `|`lgui=62         `|`rgui=63         `|
+|`delete=64       `|`insert=65       `|`pageup=66       `|`pagedown=67     `|`home=68         `|`end=69          `|`mouse_left=70   `|`mouse_right=71  `|
+|`jp0_right=72    `|`jp0_down=73     `|`jp0_left=74     `|`jp0_up=75       `|`jp0_a=76        `|`jp0_b=77        `|`jp0_x=78        `|`jp0_y=79        `|
+|`jp0_start=80    `|`jp0_select=81   `|`jp0_l=82        `|`jp0_r=83        `|`jp0_l2=84       `|`jp0_r2=85       `|`jp0_p=86        `|`jp0_q=87        `|
+|`jp1_right=88    `|`jp1_down=89     `|`jp1_left=90     `|`jp1_up=91       `|`jp1_a=92        `|`jp1_b=93        `|`jp1_x=94        `|`jp1_y=95        `|
+|`jp1_start=96    `|`jp1_select=97   `|`jp1_l=98        `|`jp1_r=99        `|`jp1_l2=100      `|`jp1_r2=101      `|`jp1_p=102       `|`jp1_q=103       `|
+|`jp2_right=104   `|`jp2_down=105    `|`jp2_left=106    `|`jp2_up=107      `|`jp2_a=108       `|`jp2_b=109       `|`jp2_x=110       `|`jp2_y=111       `|
+|`jp2_start=112   `|`jp2_select=113  `|`jp2_l=114       `|`jp2_r=115       `|`jp2_l2=116      `|`jp2_r2=117      `|`jp2_p=118       `|`jp2_q=119       `|
+|`jp3_right=120   `|`jp3_down=121    `|`jp3_left=122    `|`jp3_up=123      `|`jp3_a=124       `|`jp3_b=125       `|`jp3_x=126       `|`jp3_y=127       `|
+|`jp3_start=128   `|`jp3_select=129  `|`jp3_l=130       `|`jp3_r=131       `|`jp3_l2=132      `|`jp3_r2=133      `|`jp3_p=134       `|`jp3_q=135       `|
 ...
 etc up to `jp63`
 
@@ -666,9 +670,10 @@ Keyboard state is read from the local machine.  Remote connections can only send
 This is a compatability/convenience function that remaps the button+player codes to the corresponding `jpX_YYY` key codes.
 The button codes are as follows:
 
-|                  |                  |                  |                  |                  |                  |                  |                  |
-|------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
-|`right=0`         |`down=1`          |`left=2`          |`up=3`            |`a=4`             |`b=5`             |`x=6`             |`y=7`             |
+|          |           |         |       |        |        |      |      |
+|----------|-----------|---------|-------|--------|--------|------|------|
+|`right=0` |`down=1`   |`left=2` |`up=3` |`a=4`   |`b=5`   |`x=6` |`y=7` |
+|`start=8` |`select=9` |`l=10`   |`r=11` |`l2=12` |`r2=13` |      |      |
 
 - `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.
 `scrollX` is positive for right, negative for left.  `scrollY` is positive for down, negative for up.

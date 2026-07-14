@@ -99,16 +99,41 @@ keyCodeNames:append{
 assert.eq(#keyCodeNames % 8, 0)
 
 local firstJoypadKeyCode = #keyCodeNames
-assert(bit.band(firstJoypadKeyCode, 7) == 0)	-- make sure we are 8-aligned so the keyflag bits are byte-aligned, for net reflection
+assert.eq(bit.band(firstJoypadKeyCode, 7), 0)	-- make sure we are 8-aligned so the keyflag bits are byte-aligned, for net reflection
 
 -- indexed code+1 because 1-based array...
 -- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
 -- fun fact, SNES's keys in-order are:
 -- B Y Sel Start Up Down Left Right A X L R
-local buttonNames = table{'right', 'down', 'left', 'up', 'a', 'b', 'x', 'y'}
+local buttonNames = table{
+	'right', 'down', 'left', 'up', 'a', 'b', 'x', 'y',
+	'start', 'select', 'l', 'r', 'l2', 'r2', 'p', 'q',
+}
 
 -- these are single-chars in our font that correspond to button labels ... letters match, but we also have some arrow font chars ...
-local buttonSingleCharLabels = table{string.char(174), string.char(175), string.char(173), string.char(176), 'A', 'B', 'X', 'Y'}
+local buttonSingleCharLabels = table{
+	-- byte-1
+	string.char(174),	-- right arrow
+	string.char(175),	-- down arrow
+	string.char(173),	-- left arrow
+	string.char(176),	-- up arrow
+	'A',
+	'B',
+	'X',
+	'Y',
+	-- byte-2
+	string.char(194),	-- white dot
+	string.char(195),	-- black dot
+	'L',
+	'R',
+	string.char(181),	-- diagonal up-left
+	string.char(182),	-- diagonal up-right
+	'P',				--string.char(155),	-- upper-left rect double outline
+	'Q',				--string.char(156),	-- upper-right rect double outline
+}
+
+assert.eq(#buttonNames, #buttonSingleCharLabels)
+assert.eq(bit.band(#buttonNames, 7), 0, "need to be byte-aligned for networking at least to work")
 
 -- key = name, value = 0-based index
 local buttonCodeForName = buttonNames:mapi(function(name,indexPlusOne)
@@ -135,6 +160,8 @@ for keyCodePlusOne,name in ipairs(keyCodeNames) do
 	if keyCodePlusOne % 8 == 0 then print'`|' end
 end
 if #keyCodeNames % 8 ~= 0 then print() end
+print()
+error('comment here to continue')
 --]]
 
 -- map from the keycode name to its 0-based index

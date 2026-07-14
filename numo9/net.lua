@@ -67,7 +67,7 @@ local bool = ffi.typeof'bool'
 local int8_t = ffi.typeof'int8_t'
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
-local uint8_t_4 = ffi.typeof'uint8_t[4]'
+local uint8_t_8 = ffi.typeof'uint8_t[8]'	-- 2 bytes per player x 4 players, for input buffer
 local int16_t = ffi.typeof'int16_t'
 local uint16_t = ffi.typeof'uint16_t'
 local uint32_t = ffi.typeof'uint32_t'
@@ -804,7 +804,9 @@ function RemoteServerConn:init(args)
 		if info then info.hostPlayerIndex = nil end
 	end
 
-	self.remoteButtonIndicator = range(8 * self.numLocalPlayers):mapi(function(i) return 1 end)
+	-- this is just bitflags of all buttons being sent across
+	-- 8 bits x 2 bytes = 16 buttons per-player ... x # local players
+	self.remoteButtonIndicator = range(8 * 2 * self.numLocalPlayers):mapi(function(i) return 1 end)
 
 	-- keep a list of everything we have to send
 	self.toSend = table()
@@ -853,16 +855,21 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			-- TODO do this here or in the server's updateCoroutine?  or do I have too mnay needless coroutines?
 
 			local bytep = ffi.cast(uint8_t_p, data)
-			local index, value = bytep[0], bytep[1]
+			local index, value = bytep[0], bytep[1]	-- byte-offset, byte-value
 
-			-- if we're sending 4 bytes of button flag press bits ...
+			-- index is byte-offset, 2 bytes per player
+			local destPlayerIndex = bit.rshift(index, 1)
+
+			-- if we're sending 8 bytes of button flag press bits ...
 			-- welp ... not many possible entries
 			-- or less even?
 			-- one player = 8 keys = 1 byte = 8 bits, addresible by 3 bits.
-			-- 4 players = 32 keys = 4 bytes = 32 bits, addressible by 5 bits.
+			-- 8 players = 64 keys = 8 bytes = 64 bits, addressible by 6 bits.
 			-- and just 1 value byte ...
-			local dest = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
-			if index < 0 or index >= self.numLocalPlayers then	-- max # players / # of button key bitflag bytes in a row
+			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+			if destPlayerIndex < 0
+			or destPlayerIndex >= self.numLocalPlayers
+			then	-- max # players / # of button key bitflag bytes in a row
 				print('server got oob delta compressed input:', ('$%02x'):format(index), ('$%02x'):format(value))
 			else
 				-- store the latest input times on the server regardless of if it's mapped to a local player
@@ -875,9 +882,9 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 					end
 				end
 
-				local hostPlayerIndex = self.playerInfos[index+1].hostPlayerIndex
+				local hostPlayerIndex = self.playerInfos[destPlayerIndex+1].hostPlayerIndex
 				if hostPlayerIndex then
-					dest[hostPlayerIndex] = value
+					buttonPtr[bit.bor(bit.lshift(hostPlayerIndex, 1), bit.band(index, 1))] = value
 				end
 			end
 		end
@@ -1257,7 +1264,7 @@ function ClientConn:init(args)
 
 	-- send only joypad keys
 	-- the server will overwrite whatever player position with it
-	self.lastButtons = uint8_t_4()	-- flag of our joypad keypresses
+	self.lastButtons = uint8_t_8()	-- flag of our joypad keypresses
 	ffi.fill(self.lastButtons, ffi.sizeof(self.lastButtons))
 	self.inputMsgVec = vector(uint8_t)	-- for sending cmds to server
 
@@ -1332,9 +1339,6 @@ print'begin client listen loop...'
 		while sock
 		and sock:getsockname()
 		do
-
-
-
 
 --DEBUG(@5):print'LISTENING...'
 --local receivedSize = 0
@@ -1513,12 +1517,10 @@ assert.len(deltaStr, deltaBufLen)
 			until not data
 
 
-
-
 			-- TODO send any input button changes ...
 			self.inputMsgVec:resize(0)
 --DEBUG(@5):print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
---DEBUG(@5):print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
+--DEBUG(@5):print('PREV', string.hexdump(ffi.string(self.lastButtons, 8)))
 			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
 --DEBUG(@5):print('delta compressing...')
 			deltaCompress(
@@ -1533,7 +1535,9 @@ assert.len(deltaStr, deltaBufLen)
 				send(sock, data)
 			end
 --DEBUG(@5):print'saving last buttons...'
-			ffi.copy(self.lastButtons, buttonPtr, 4)
+			-- # buttonNames == 16 bits == 2 bytes
+			-- x 4 local players = 8 bytes
+			ffi.copy(self.lastButtons, buttonPtr, 8)
 
 --DEBUG(@5):io.write'recvcmds:'
 --DEBUG(@5):for i=0,self.nextCmds.size-1 do
