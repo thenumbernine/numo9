@@ -218,7 +218,7 @@ elseif cmd == 'a' or cmd == 'r' then
 				local code = assert(fn:read())
 				code = '-- filename = '..relfn..'\n'..code
 				local codeBlob = BlobCode(code)
-print('adding src/ file', fn, 'rel', relfn)
+--DEBUG:print('adding src/ file', fn, 'rel', relfn)
 				blobs.code:insert(codeBlob)
 			end
 		end
@@ -274,7 +274,7 @@ print('adding src/ file', fn, 'rel', relfn)
 							if fn:sub(1,#include) == include then
 								local relfn = fn:sub(#include+1)
 								if not requireSet[relfn] then
-print('adding required', req, 'full fn', fn, 'relfn', relfn)
+--DEBUG:print('adding required', req, 'full fn', fn, 'relfn', relfn)
 									-- if it's an include file then now we have to package this include file extra
 									requireSet[relfn] = true
 

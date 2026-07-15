@@ -46,7 +46,6 @@ local netcmds = numo9_net.netcmds
 
 local numo9_rom = require 'numo9.rom'
 local versionStr = numo9_rom.versionStr
-local updateHz = numo9_rom.updateHz
 local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
@@ -1729,7 +1728,9 @@ conn.receivesPerSecond = 0
 	lastTime = thisTime	-- TODO this at end of update in case someone else needs this var
 	--]==]
 
-	if thisTime > lastUpdateTime + updateIntervalInSeconds then
+	if self.fastfwd
+	or thisTime > lastUpdateTime + updateIntervalInSeconds
+	then
 		--[[ Doing this means we need to reset lastUpdateTime when resuming from the app being paused
 		-- and indeed the in-console fps first readout is high (67), then drops back down to 60 consistently
 		-- Also, there's a massive fast-forward that goes on for the first second or two of the console running.
@@ -3933,9 +3934,13 @@ function App:event(e)
 		then
 			self:toggleConsole()
 			return
+		-- TODO configure these somehow... or remove their hotkeys ...
+		-- and/or don't let the player bind other buttons to them.
+		elseif e[0].key.key == sdl.SDLK_TAB then
+			self.fastfwd = e[0].type == sdl.SDL_EVENT_KEY_DOWN
+			return
 		end
 	end
-
 
 	-- now, if the player hasn't touched anything for the very first time ever,
 	-- determine what kind of default keys to give them
@@ -3947,17 +3952,6 @@ function App:event(e)
 		then -- default to keyboard
 			self.cfg.initializingConfig = nil
 			print('initializing for keyboard...')
---[[
-Some default keys options:
-	Snes9x	ZSNES	LibRetro
-A	D		X		X
-B	C		Z		Z
-X	S		S		S
-Y	X		A		A
-L	A/V		D		Q
-R	Z		C		W
-looks like I'm a Snes9x-default-keybinding fan.
---]]
 			local function setPlayer1Default(buttonCode, ev)
 				ev.name = self:getEventName(table.unpack(ev))
 				self.cfg.playerInfos[1].buttonBinds[buttonCode] = ev
