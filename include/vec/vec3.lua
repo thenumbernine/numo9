@@ -123,6 +123,7 @@ vec3=class{
 	distSq=|a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
 	dist=|a,b| math.sqrt(vec3.distSq(a,b)),
 	distL1=|a,b| math.abs(a.x-b.x) + math.abs(a.y-b.y) + math.abs(a.z-b.z),
+	distLInf=|a,b| math.max(math.abs(a.x-b.x), math.abs(a.y-b.y), math.abs(a.z-b.z)),
 	unit=|v,res|do
 		local s = 1 / math.max(1e-15, v:len())
 		return res
