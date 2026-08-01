@@ -5,7 +5,7 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 
 local UITextArea = require 'numo9.ui.textarea'
-local UIButton = require 'numo9.ui.button'
+local UICheckbox = require 'numo9.ui.checkbox'
 local UIBlobSelect = require 'numo9.ui.blobselect'
 
 local numo9_rom = require 'numo9.rom'
@@ -34,20 +34,16 @@ function EditCode:init(args)
 	}
 	self:addChild(self.uiTextArea)
 
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		text = 'N',
 		pos = {120, 0},
 		tooltip = 'line numbers',
 		-- `isset` makes it more like a checkbox I admit...
-		isset = function()
-			return self.uiTextArea.useLineNumbers
-		end,
-		events = {
-			click = function()
-				self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
-			end,
-		},
+		-- might need an update if self.uiTextAreaChanges ...
+		-- good argument for getChecked/setChecked...
+		valueTable = self.uiTextArea,
+		valueKey = 'useLineNumbers',
 	})
 
 	self:addChild(UIBlobSelect{

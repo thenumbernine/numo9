@@ -27,6 +27,10 @@ local frameBufferSize = numo9_rom.frameBufferSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local Stamp = numo9_rom.Stamp
 
+local UICheckbox = require 'numo9.ui.checkbox'
+local UISpinner = require 'numo9.ui.spinner'
+local UIBlobSelect = require 'numo9.ui.blobselect'
+
 -- returns highest-to-lowest indexes of the selected keys found in stamps
 local function getSelIndexes(selected, stamps)
 	return table.map(selected, function(_,sel,t)
@@ -41,6 +45,157 @@ local EditBrushmap = require 'numo9.ui':subclass()
 
 function EditBrushmap:init(args)
 	EditBrushmap.super.init(self, args)
+
+	self:newUI_setup()
+
+	local x, y = 50, 0
+
+	self.brushmapBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'brushmap',
+		valueTable = self,
+		valueKey = 'brushmapBlobIndex',
+		setValue = function()
+			-- assume we already wrote it as soon as a changed happened
+			self:readSelBrushmapBlob()
+		end,
+	}
+	self:addChild(self.brushmapBlobSelect)
+	x = x + 12
+
+	self.tilemapBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'tilemap',
+		valueTable = self,
+		valueKey = 'tilemapBlobIndex',
+	}
+	self:addChild(self.tilemapBlobSelect)
+	x = x + 12
+
+	self.sheetBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'sheet',
+		valueTable = self,
+		valueKey = 'sheetBlobIndex',
+	}
+	self:addChild(self.sheetBlobSelect)
+	x = x + 12
+
+	self.paletteBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'palette',
+		valueTable = self,
+		valueKey = 'paletteBlobIndex',
+	}
+	self:addChild(self.paletteBlobSelect)
+	x = x + 12
+
+	--if brushmapBlob then...
+
+	-- title controls
+	x = x + 2
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		tooltop = function()
+			return 'previewSize='..tostring(self.brushPreviewSize)
+		end,
+		setValue = function(dx)
+			self.brushPreviewSize = math.max(1, self.brushPreviewSize + dx)
+		end,
+	})
+	x = x + 16
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		tooltop = function()
+			return 'brush='..self.selBrushIndex
+		end,
+		setValue = function(dx)
+			self.selBrushIndex = math.clamp(self.selBrushIndex + dx, 1, #brushes)
+		end,
+	})
+	x = x + 8
+
+	self:addChild(UICheckbox{
+		owner = self,
+		text = 'T',
+		pos = {x, y},
+		tooltip = 'tile',
+		valueTable = self,
+		valueKey = 'pickOpen',
+	})
+	x = x + 8
+
+	-- TODO this across here and the tilemap editor, and maybe from a memory address in the game...
+	self:addChild(UICheckbox{
+		owner = self,
+		text = 'X',
+		pos = {x, y},
+		tooltip = function()
+			return self.draw16Sprites and '16x16' or '8x8'
+		end,
+		valueTable = self,
+		valueKey = 'draw16Sprites',
+	})
+	x = x + 8
+
+	self:addChild(UICheckbox{
+		owner = self,
+		text = 'G',
+		pos = {x, y},
+		tooltip = 'grid',
+		valueTable = self,
+		valueKey = 'drawGrid',
+	})
+	x = x + 8
+
+	self:addChild(UISpinner{
+		owner = self,
+		pos = {x, y},
+		tooltip = function()
+			return 'orient='..tostring(self.orientation)
+		end,
+		setValue = function(dx)
+			self.orientation = bit.band(7, self.orientation + dx)
+			for stamp in pairs(self.selected) do
+				stamp.orientation = self.orientation
+			end
+		end,
+	})
+	x = x + 16
+
+	require 'numo9.ui.addgetset'(self, {
+		brushmapBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.brushmapBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		tilemapBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.tilemapBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		sheetBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.sheetBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		paletteBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.paletteBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+	})
 
 	self:onCartLoad()
 end
@@ -57,6 +212,15 @@ end
 
 function EditBrushmap:update()
 	local app = self.app
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
+
 
 	EditBrushmap.super.update(self)
 	self:guiSetClipRect(-1000, 0, 3000, 2000)
@@ -408,62 +572,17 @@ function EditBrushmap:update()
 	app:matMenuReset()
 	self:guiSetClipRect(-1000, 0, 3000, 2000)
 
-	local x, y = 50, 0
-	self:guiBlobSelect(x, y, 'brushmap', self, 'brushmapBlobIndex', function()
-		-- assume we already wrote it as soon as a changed happened
-		self:readSelBrushmapBlob()
-	end)
-	x = x + 12
-	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex')
-	x = x + 12
-	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 12
-	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	x = x + 12
-
 	do--if brushmapBlob then
-		-- title controls
-		x = x + 2
-
-		self:guiSpinner(x, y, function(dx)
-			self.brushPreviewSize = math.max(1, self.brushPreviewSize + dx)
-		end, 'previewSize='..tostring(self.brushPreviewSize))
-		x = x + 16
-
-		self:guiSpinner(x, y, function(dx)
-			self.selBrushIndex = math.clamp(self.selBrushIndex + dx, 1, #brushes)
-		end, 'brush='..self.selBrushIndex)
-		x = x + 16
-
-		if self:guiButton('T', x, y, self.pickOpen, 'tile') then
-			self.pickOpen = not self.pickOpen
-		end
-		x = x + 8
-
-		-- TODO this across here and the tilemap editor, and maybe from a memory address in the game...
-		if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
-			self.draw16Sprites = not self.draw16Sprites
-		end
-		x = x + 8
-
-		if self:guiButton('G', x, y, self.drawGrid, 'grid') then
-			self.drawGrid = not self.drawGrid
-		end
-		x = x + 8
-
-		self:guiSpinner(x, y, function(dx)
-			self.orientation = bit.band(7, self.orientation + dx)
-			for stamp in pairs(self.selected) do
-				stamp.orientation = self.orientation
-			end
-		end, 'orient='..tostring(self.orientation))
 		if next(self.selected) then
 			self:writeSelBrushmapBlob()
 		end
-		x = x + 16
 	end
 
-	self:drawTooltip()
+	self:newUI_update()
+end
+
+function EditBrushmap:event(e)
+	return self:newUI_event(e)
 end
 
 function EditBrushmap:readSelBrushmapBlob()
@@ -496,8 +615,6 @@ function EditBrushmap:readSelBrushmapBlob()
 	self.drawGrid = false
 	self.draw16Sprites = false
 	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
-
-
 end
 
 function EditBrushmap:writeSelBrushmapBlob()

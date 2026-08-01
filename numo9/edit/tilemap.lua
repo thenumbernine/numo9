@@ -11,6 +11,7 @@ local sdl = require 'sdl'
 local clip = require 'numo9.clipboard'
 
 local UIButton = require 'numo9.ui.button'
+local UICheckbox = require 'numo9.ui.checkbox'
 local UISpinner = require 'numo9.ui.spinner'
 local UIRadio = require 'numo9.ui.radio'
 local UIBlobSelect = require 'numo9.ui.blobselect'
@@ -168,21 +169,15 @@ function EditTilemap:init(args)
 	})
 	x = x + 12
 
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		pos = {x, y},
 		text = 'X',
-		isset = function()
-			return self.draw16Sprites
-		end,
 		tooltip = function()
 			return self.draw16Sprites and '16x16' or '8x8'
 		end,
-		events = {
-			click = function()
-				self.draw16Sprites = not self.draw16Sprites
-			end,
-		},
+		valueTable = self,
+		valueKey = 'draw16Sprites',
 	})
 	x = x + 6
 
@@ -236,19 +231,13 @@ function EditTilemap:init(args)
 	})
 	x = x + 13
 
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		pos = {x, y},
 		text = 'G',
-		isset = function()
-			return self.drawGrid
-		end,
 		tooltip = 'grid',
-		events = {
-			click = function()
-				self.drawGrid = not self.drawGrid
-			end,
-		},
+		valueTable = self,
+		valueKey = 'drawGrid',
 	})
 	x = x + 6
 
@@ -370,7 +359,6 @@ function EditTilemap:init(args)
 				self.paletteBlobSelect.textfield.value = tostring(v)
 			end,
 		},
-
 	})
 
 	-- start these off before initializing them....

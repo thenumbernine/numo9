@@ -18,6 +18,7 @@ local clip = require 'numo9.clipboard'
 
 local UIWidget = require 'numo9.ui.widget'
 local UIButton = require 'numo9.ui.button'
+local UICheckbox = require 'numo9.ui.checkbox'
 local UISpinner = require 'numo9.ui.spinner'
 local UILabel = require 'numo9.ui.label'
 local UITextField = require 'numo9.ui.textfield'
@@ -215,19 +216,13 @@ function EditSheet:init(args)
 			end,
 		},
 	})
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		text = 'X',
 		pos = {16, 128},
 		tooltip = 'pal swap',
-		isset = function()
-			return self.isPaletteSwapping
-		end,
-		events = {
-			click = function()
-				self.isPaletteSwapping = not self.isPaletteSwapping
-			end,
-		},
+		valueTable = self,
+		valueKey = 'isPaletteSwapping',
 	})
 	-- adjust palette size
 	self:addChild(UISpinner{
@@ -540,37 +535,25 @@ function EditSheet:init(args)
 	}
 	self:addChild(self.alphaLabel)
 
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		pos = {112, 32},
 		text = 'P',
 		tooltip = function()
 			return 'Paste Keeps Pal='..tostring(self.pasteKeepsPalette)
 		end,
-		isset = function()
-			return self.pasteKeepsPalette
-		end,
-		events = {
-			click = function()
-				self.pasteKeepsPalette = not self.pasteKeepsPalette
-			end,
-		},
+		valueTable = self,
+		valueKey = 'pasteKeepsPalette',
 	})
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		pos = {112, 42},
 		text = 'A',
 		tooltip = function()
 			return 'Paste Transparent='..tostring(self.pasteTransparent)
 		end,
-		isset = function()
-			return self.pasteTransparent
-		end,
-		events = {
-			click = function()
-				self.pasteTransparent = not self.pasteTransparent
-			end,
-		},
+		valueTable = self,
+		valueKey = 'pasteTransparent',
 	})
 
 	--[[

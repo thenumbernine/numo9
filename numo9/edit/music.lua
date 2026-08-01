@@ -19,6 +19,7 @@ local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local UIButton = require 'numo9.ui.button'
+local UICheckbox = require 'numo9.ui.checkbox'
 local UILabel = require 'numo9.ui.label'
 local UITextField = require 'numo9.ui.textfield'
 local UISpinner = require 'numo9.ui.spinner'
@@ -86,23 +87,17 @@ function EditMusic:init(args)
 	})
 	x = x + 16
 
-	self:addChild(UIButton{
+	self:addChild(UICheckbox{
 		owner = self,
 		pos = {x, y},
 		text = 'X',
-		isset = function()
-			return self.showText
-		end,
 		tooltip = function()
 			return self.showText
 				and 'cmd display'
 				or 'vol/pitch display'
 		end,
-		events = {
-			click = function()
-				self.showText = not self.showText
-			end,
-		},
+		valueTable = self,
+		valueKey = 'showText',
 	})
 
 	y = 10
