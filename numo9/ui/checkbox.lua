@@ -1,6 +1,7 @@
 --[[
 for when the button is just a toggle on click of some boolean flag...
 --]]
+local assert = require 'ext.assert'
 
 local UIButton = require 'numo9.ui.button'
 
@@ -12,8 +13,8 @@ args:
 	valueKey
 --]]
 function UICheckbox:init(args)
-	self.valueTable = args.valueTable
-	self.valueKey = args.valueKey
+	self.valueTable = assert.index(args, 'valueTable')
+	self.valueKey = assert.index(args, 'valueKey')
 
 	UICheckbox.super.init(self, args)
 

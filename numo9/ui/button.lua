@@ -13,6 +13,7 @@ function UIButton:init(args)
 	UIButton.super.init(self, args)
 
 	assert(self.text, "UIButton expected .text")
+	assert.type(self.text, 'string')
 
 	-- function for determining whether to highlight or not
 	-- makes this into a checkbox ...

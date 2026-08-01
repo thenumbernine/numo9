@@ -91,7 +91,7 @@ function UIRoot:bubbleCallback(o, fieldBubbleIn, fieldBubbleOut, ...)
 		if f then
 			-- return 'true' to stop propagation
 			if f(o, ...) then return true end
-		end	
+		end
 	end
 end
 
@@ -148,12 +148,12 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	if sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 		self:bubbleCallback(self.widgetUnderMouse, 'onMouseDown_bubbleIn', 'onMouseDown', event)
 	elseif sdlEvent.type == sdl.SDL_EVENT_MOUSE_BUTTON_UP then
-		
+
 		if self.widgetUnderMouse
 		and self.widgetUnderMouse.mouseDownOnThis
 		then
 			self:bubbleCallback(self.widgetUnderMouse, 'onClick_bubbleIn', 'onClick', event)
-	
+
 			-- focus doesn't bubble
 			self:setFocusWidget(self.widgetUnderMouse, {sdl=sdlEvent})
 		end

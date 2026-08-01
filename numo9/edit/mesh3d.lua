@@ -14,6 +14,7 @@ local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
 local vec4x4fcol = require 'vec-ffi.vec4x4fcol'
+local sdl = require 'sdl'
 local gl = require 'gl'
 
 local BlobMesh3D = require 'numo9.blob.mesh3d'
@@ -21,10 +22,17 @@ local Orbit = require 'numo9.ui.orbit'
 local Undo = require 'numo9.ui.undo'
 local TileSelect = require 'numo9.ui.tilesel'
 
+local UIBlobSelect = require 'numo9.ui.blobselect'
+local UIButton = require 'numo9.ui.button'
+local UICheckbox = require 'numo9.ui.checkbox'
+local UIRadio = require 'numo9.ui.radio'
+local UITextField = require 'numo9.ui.textfield'
+
 local numo9_rom = require 'numo9.rom'
 local tileSizeInBits = numo9_rom.tileSizeInBits
 local Vertex = numo9_rom.Vertex
 local Vertex_p = ffi.typeof('$*', Vertex)
+
 
 -- truncate stack, useful for ffi ctype ctors that can't have extra args
 local function trunc(i, ...)
@@ -51,6 +59,656 @@ function EditMesh3D:init(args)
 		end,
 	}
 
+	-- still mostly the old UI...
+	self.tileSel = TileSelect{
+		edit = self,
+		getMeshIndex = function(self)
+			return self.edit.mesh3DBlobIndex
+		end,
+	}
+	self.tileSel.pos.x = 2	-- initialize to one 16x16 past the 0,0 tile (which is very often clear)
+
+	self:newUI_setup()
+
+	local x, y = 50, 0
+
+	self.mesh3DBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'mesh3d',
+		valueTable = self,
+		valueKey = 'mesh3DBlobIndex',
+		setValue = function(value)
+			self:resetSelection()
+		end,
+		generator = BlobMesh3D.generateDefaultCube,
+	}
+	self:addChild(self.mesh3DBlobSelect)
+	x = x + 11
+
+	self.sheetBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'sheet',
+		valueTable = self,
+		valueKey = 'sheetBlobIndex',
+	}
+	self:addChild(self.sheetBlobSelect)
+	x = x + 11
+
+	self.paletteBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'palette',
+		valueTable = self,
+		valueKey = 'paletteBlobIndex',
+	}
+	self:addChild(self.paletteBlobSelect)
+	x = x + 11
+
+	self:addChild(UICheckbox{
+		owner = self,
+		pos = {x, y},
+		text = 'F',
+		tooltip = 'draw tris',
+		valueTable = self,
+		valueKey = 'drawFaces',
+	})
+	x = x + 6
+
+	self:addChild(UICheckbox{
+		owner = self,
+		pos = {x, y},
+		text = 'W',
+		tooltip = 'wireframe',
+		valueTable = self,
+		valueKey = 'wireframe',
+	})
+	x = x + 6
+
+	self:addChild(UICheckbox{
+		owner = self,
+		pos = {x, y},
+		text = 'N',
+		tooltip = 'normals',
+		valueTable = self,
+		valueKey = 'drawNormals',
+	})
+	x = x + 6
+
+	self.orthoButton = UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'O',
+		--[[
+		text = function()
+			return self.orbit.ortho and 'O' or 'P'
+		end,
+		isset = function() return false end,	-- maybe it's a button
+		--]]
+		tooltip = function()
+			return self.orbit.ortho and 'ortho' or 'perspective'
+		end,
+		events = {
+			click = function()
+				self.orbit.ortho = not self.orbit.ortho
+				if self.orbit.ortho then
+					self.orthoButton.text = 'O'
+				else
+					self.orthoButton.text = 'P'
+				end
+			end
+		},
+	}
+	self:addChild(self.orthoButton)
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'C',
+		tooltip = function()
+			return 'cull='..self.menuUseCullFace
+		end,
+		events = {
+			click = function()
+				self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(UICheckbox{
+		owner = self,
+		pos = {x, y},
+		text = 'U',
+		tooltip = 'edit texcoords',
+		valueTable = self,
+		valueKey = 'editTexCoords',
+	})
+	x = x + 6
+
+	self:addChild(self.tileSel:makeButton{
+		owner = self,
+		pos = {x, y},
+	})
+	x = x + 7
+
+	self:addChild(UIRadio{
+		owner = self,
+		pos = {x, y},
+		options = {'vertexes', 'edges', 'tris'},
+		getSelected = function()
+			return self.meshEditForm
+		end,
+		setSelected = function(result)
+			self.meshEditForm = result
+		end,
+	})
+	x = x + 6*3 + 1
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = '+',
+		tooltip = 'add cube',
+		events = {
+			click = function()
+				self.undo:push()
+
+				local vs, ts = self:getMeshVtxAndTriList()
+
+				local cubeVtxPoss, cubeTCs, cubeIndexes = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 0-based indexes
+
+				local oldNumVtxs = #vs
+				for i=1,#cubeVtxPoss do
+					local pos = cubeVtxPoss[i]
+					local tc = cubeTCs[i]
+					local newv = Vertex()
+					newv.x, newv.y, newv.z = pos[1], pos[2], pos[3]
+					newv.u, newv.v = tc[1], tc[2]
+					vs:insert(newv)
+				end
+
+				for i=1,#cubeIndexes-2,3 do
+assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i])
+assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+1])
+assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
+					ts:insert{
+						vs[oldNumVtxs + 1 + cubeIndexes[i]],
+						vs[oldNumVtxs + 1 + cubeIndexes[i+1]],
+						vs[oldNumVtxs + 1 + cubeIndexes[i+2]],
+					}
+				end
+
+				self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+
+				-- reset mouseover selection-testing tables to only select the new indexes
+				self.mouseoverVertexIndexSet = {}
+				self.selectedVertexIndexSet = range(oldNumVtxs, oldNumVtxs + #cubeVtxPoss - 1)
+					:mapi(function(i) return true, i end)
+					:setmetatable(nil)	-- select new vtxs only
+				self:refreshSelection()
+			end,
+		}
+	})
+	x = x + 7
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'X',
+		tooltip = 'x-axis',
+		events = {
+			click = function()
+				local orbit = self.orbit
+				if fwd.x < 0 then
+					orbit.angle:set(.5, -.5, -.5, .5)
+				else
+					orbit.angle:set(.5, .5, .5, .5)
+				end
+				local dist = (orbit.pos - orbit.orbit):length()
+				orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
+			end,
+		}
+	})
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'Y',
+		tooltip = 'y-axis',
+		events = {
+			click = function()
+				local orbit = self.orbit
+				if fwd.y < 0 then
+					orbit.angle:set(math.sqrt(.5), 0, 0, math.sqrt(.5))
+				else
+					orbit.angle:set(0, math.sqrt(.5), math.sqrt(.5), 0)
+				end
+				local dist = (orbit.pos - orbit.orbit):length()
+				orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'Z',
+		tooltip = 'z-axis',
+		events = {
+			click = function()
+				local orbit = self.orbit
+				if fwd.z < 0 then	-- looking along z-, toggle to z+
+					orbit.angle:set(0,1,0,0)
+				else
+					orbit.angle:set(0,0,0,1)	-- identity = looking along z-
+				end
+				local dist = (orbit.pos - orbit.orbit):length()
+				orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
+			end,
+		},
+	})
+	x = x + 7
+
+	-- for the following, add/remove them to the UI depending on what edit mode is selected
+	do	-- self.meshEditForm == 'vertexes'
+		self.uiVertexChildren = table()
+		local x, y = x, y
+
+		self.uiVertexChildren:insert(UIButton{
+			owner = self,
+			pos  = {x, y},
+			text = 'T',
+			tooltip = 'add tri',
+			events = {
+				click = function()
+					local orbit = self.orbit
+					local selVtxIndexes = table.keys(self.selectedVertexIndexSet):sort()
+					if #selVtxIndexes ~= 3 then
+						print('need 3 vertexes, got '..#selVtxIndexes..' vertexes')
+					else
+						local vs, ts = self:getMeshVtxAndTriList()
+
+						local v0 = vs[1 + selVtxIndexes[1]]
+						local v1 = vs[1 + selVtxIndexes[2]]
+						local v2 = vs[1 + selVtxIndexes[3]]
+						-- can't use app:transform cuz we're drawing the gui so the matrices are gui matrices...
+						-- so do it in model space
+						local pos0 = vec3d(v0.x, v0.y, v0.z) / 32768
+						local pos1 = vec3d(v1.x, v1.y, v1.z) / 32768
+						local pos2 = vec3d(v2.x, v2.y, v2.z) / 32768
+						local curl = (pos2 - pos1):cross(pos1 - pos0):dot(orbit.pos - (pos0 + pos1 + pos2) / 3)
+
+						-- make a new tri facing the camera
+						if curl < 0 then
+							ts:insert{v0, v1, v2}
+						else
+							ts:insert{v2, v1, v0}
+						end
+
+						self.undo:push()
+						self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+						self:refreshSelection()
+					end
+				end,
+			},
+		})
+		x = x + 6
+
+		-- TODO this is a good reason to add select-by-rect-in-screen-space
+		-- and then shift+select to add to selection, otherwise just only select recent pressed / dragged-box-around
+		self.uiVertexChildren:insert(UIButton{
+			owner = self,
+			pos = {x, y},
+			text = 'M',
+			tooltip = 'merge vtxs',
+			events = {
+				click = function()
+					local visToMerge = table.keys(self.selectedVertexIndexSet):sort()	-- 0-based list of selected vertexes
+					if #visToMerge >= 2 then
+		--DEBUG:print('#visToMerge', #visToMerge)
+						local vs, ts = self:getMeshVtxAndTriList()
+
+						local vsToMerge = visToMerge:mapi(function(vi) return vs[1+vi] end)
+
+						local destv = vsToMerge[1]
+						--[[ average or replace?
+						do
+							local x,y,z,u,v = 0,0,0,0,0
+							for _,srcv in ipairs(vsToMerge) do
+								x = x + tonumber(srcv.x)
+								y = y + tonumber(srcv.y)
+								z = z + tonumber(srcv.z)
+								u = u + tonumber(srcv.u)
+								v = v + tonumber(srcv.v)
+							end
+							destv.x = x / #vsToMerge
+							destv.y = y / #vsToMerge
+							destv.z = z / #vsToMerge
+							destv.u = u / #vsToMerge
+							destv.v = v / #vsToMerge
+						end
+						--]]
+						-- merge into the lowest index
+						-- sort from largest to 2nd-to-smallest
+						for i=2,#vsToMerge do
+							local v = vsToMerge[i]
+							local vp = ffi.cast(Vertex_p, v)
+							for _,t in ipairs(ts) do
+								for j,tv in ipairs(t) do
+									local tvp = ffi.cast(Vertex_p, tv)
+									if tvp == vp then
+										t[j] = destv
+									end
+								end
+							end
+						end
+
+						self.undo:push()
+						self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+						self.mouseoverVertexIndexSet = {}
+						self.selectedVertexIndexSet = {}
+						self:refreshSelection()
+						return
+					end
+				end,
+			},
+		})
+		x = x + 6
+
+		self.uiVertexChildren:insert(UIButton{
+			owner = self,
+			pos = {x, y},
+			text = 'S',
+			tooltip = 'split vtxs',
+			events = {
+				click = function()
+					local vs, ts = self:getMeshVtxAndTriList()
+
+					-- like refs will use the same keys right?
+					-- if not then get their address and use that
+					local selVtxRefSet = table.map(
+						self.selectedVertexIndexSet,
+						function(true_, index) return true, vs[1+index] end
+					)
+
+					for _,tri in ipairs(ts) do
+						for i,tv in ipairs(tri) do
+							if selVtxRefSet[tv] then
+								local newv = Vertex(tv)
+								vs:insert(newv)
+								tri[i] = newv
+							end
+						end
+					end
+
+					-- now automatically pick out unused vtxs and degenerate tris
+					self.undo:push()
+					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+					self.mouseoverVertexIndexSet = {}
+					self.selectedVertexIndexSet = {}
+					self:refreshSelection()
+					return
+				end,
+			},
+		})
+		x = x + 6
+	end
+	do	-- self.meshEditForm == 'edges'
+		self.uiEdgesChildren = table()
+		local x, y = x, y
+
+		self.uiEdgesChildren:insert(UIButton{
+			owner = self,
+			pos = {x, y},
+			text = 'S',
+			tooltip = 'split edges',
+			events = {
+				click = function()
+					-- currently it splits all edges with the selected vertexes
+					-- should I have it operate by selected edges instead?
+
+					local vs, ts = self:getMeshVtxAndTriList()
+
+					for _,e in ipairs(self.selectedEdges) do
+						-- find the tris on either side
+						-- remove the tris on either side
+						-- insert a vertex between these two
+						local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+						local v0 = assert.index(vs, 1+self:getIndex(ei0))
+						local v1 = assert.index(vs, 1+self:getIndex(ei1))
+						local vp0 = ffi.cast(Vertex_p, v0)
+						local vp1 = ffi.cast(Vertex_p, v1)
+						local pos1 = vec3d(v0.x, v0.y, v0.z)
+						local pos2 = vec3d(v1.x, v1.y, v1.z)
+						local tc1 = vec2d(v0.u, v0.v)
+						local tc2 = vec2d(v1.u, v1.v)
+						local newvtxindex = #vs	-- indexes are 0-based
+						local newpos = (pos1 + pos2) * .5
+						local newtc = (tc1 + tc2) * .5
+						local newvtx = Vertex()
+						self.selectedVertexIndexSet[#vs] = true	-- new vertex index selected
+						vs:insert(newvtx)
+						newvtx.x = newpos.x
+						newvtx.y = newpos.y
+						newvtx.z = newpos.z
+						newvtx.u = newtc.x
+						newvtx.v = newtc.y
+						for ti=#ts,1,-1 do
+							local t = ts[ti]
+							for j=0,2 do
+								local tj0 = t[1+j]
+								local tj1 = t[1+(j+1)%3]
+								local tj2 = t[1+(j+2)%3]
+		assert(tj0)
+		assert(tj1)
+		assert(tj2)
+
+								local tjp0 = ffi.cast(Vertex_p, tj0)
+								local tjp1 = ffi.cast(Vertex_p, tj1)
+								if (tjp0 == vp0 and tjp1 == vp1)
+								or (tjp0 == vp1 and tjp1 == vp0)
+								then
+									-- if we are to remove this tri, then add its replacements as well
+									ts:insert{tj0, newvtx, tj2}
+									ts:insert{newvtx, tj1, tj2}
+
+									ts:remove(ti)
+									-- you can only split one edge of one tri
+									-- if you select two edges of the same tri and push 'split', only the first will split
+									-- cuz i dont want to go through the hassle of remapping selections from old tris to newly split tris
+									-- tho if i stored selected edges by vtx ref then this would be easier to do ....
+									-- ... but still there would be conditional behavior based on split order.
+									break
+								end
+							end
+						end
+					end
+
+					self.undo:push()
+					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+					self:refreshSelection()
+				end,
+			}
+		})
+		x = x + 6
+	end
+	do	-- self.meshEditForm == 'tris'
+		self.uiTrisChildren = table()
+		local x, y = x, y
+
+		-- TODO maybe flip-edge should maybe be an edge function?
+		self.uiTrisChildren:insert(UIButton{
+			owner = self,
+			pos = {x, y},
+			text = 'F',
+			tooltip = 'flip',
+			evets = {
+				click = function()
+					-- flip tris ...
+					-- 1) get tris selected
+					-- 2) flip ...
+					-- how to generalize that for any more than two tris that share 1 edge?
+					local selTriInds = table.keys(self.selectedTriIndexSet)
+					if #selTriInds ~= 2 then
+						print('need 2 tris, got '..#selTriInds..' tris')
+					else
+						-- and if # selected vtxs == 4 exactly ...
+						local vs, ts = self:getMeshVtxAndTriList()
+
+						-- find the common edge between the two tris
+						-- and exchange tris
+						local found
+						local ti1, ti2 = table.unpack(selTriInds:sort())	-- 0-based-sequential tri indxes
+						local t1 = ts[ti1+1]
+						local t2 = ts[ti2+1]
+		--DEBUG:print('flipping', ti1, ti2)
+		--DEBUG:print(ti1, 'has 1-based vtx indexes', vs:find(t1[1]), vs:find(t1[2]), vs:find(t1[3]))
+		--DEBUG:print(ti2, 'has 1-based vtx indexes', vs:find(t2[1]), vs:find(t2[2]), vs:find(t2[3]))
+						for i=0,2 do
+							for j=0,2 do
+								local a1 = t1[1+i]
+								local a2 = t1[1+(i+1)%3]
+								local a3 = t1[1+(i+2)%3]
+								local b1 = t2[1+j]
+								local b2 = t2[1+(j+1)%3]
+								local b3 = t2[1+(j+2)%3]
+								local ap1 = ffi.cast(Vertex_p, a1)
+								local ap2 = ffi.cast(Vertex_p, a2)
+								local bp1 = ffi.cast(Vertex_p, b1)
+								local bp2 = ffi.cast(Vertex_p, b2)
+								if (ap1 == bp1 and ap2 == bp2)
+								or (ap2 == bp1 and ap1 == bp2)
+								then
+		--DEBUG:print('found at subind', i, j)
+									t1[1], t1[2], t1[3] = a3, b1, b3
+									t2[1], t2[2], t2[3] = b3, b2, a3
+									found = true
+									goto done
+								end
+							end
+						end
+::done::
+						if not found then
+							print"couldn't find, not flipping"
+						else
+							self.undo:push()
+							self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+
+							-- refresh edges and tris, but vtxs shouldn't change
+							self:refreshSelection()
+						end
+					end
+				end,
+			}
+		})
+		x = x + 6
+	end
+
+	-- collect translate/scale/rotate text input ...
+	-- TODO perfect time to use EditMesh3D:event() ........
+	-- don't addChild unless we are in meshEditMode
+	self.meshEditModeTextField = UITextField{
+		owner = self,
+		pos = {0, 48},
+		width = 10,
+		value = tostring(self.meshEditModeText),	-- TODO dynamic
+		events = {
+			change = function(value)
+				-- do this after every change ...
+
+				value = value:gsub('[xyz]', '')
+				-- TODO don't add these to the text at all
+				-- in fact TODO better capture-keyboard-focus overall...
+
+				-- upon enter, right?
+				-- do I even need to write self.meshEditModeText?
+				-- do I even need self.meshEditModeText?
+				self.meshEditModeText = value
+
+				local parts = string.split(value, ','):mapi(function(x)
+					return tonumber(string.trim(x))
+				end)
+
+				if self.meshEditMode == 'translate' then
+					local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
+					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+					if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
+					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
+					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
+					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
+					applyMeshEditMode()
+				elseif self.meshEditMode == 'scale' then
+					self.totalScale = parts[1] or 1
+					applyMeshEditMode()
+				elseif self.meshEditMode == 'rotate' then
+					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
+					-- it should already by set to whatever fixed axis by axisFlags already, right?
+					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
+					applyMeshEditMode()
+				end
+
+				self.meshEditMode = nil
+				self.axisFlags = {}
+				if self:removeDegenTris() then
+					-- TODO just stop using indexes for these...
+					self.mouseoverVertexIndexSet = {}
+					self.selectedVertexIndexSet = {}
+				end
+			end,
+		},
+	}
+
+	require 'numo9.ui.addgetset'(self, {
+		mesh3DBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.mesh3DBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		sheetBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.sheetBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		paletteBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.paletteBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		meshEditForm = {
+			set = function(private, self, k, v)
+				private[k] = v
+				local setsForNames = {
+					vertexes = self.uiVertexChildren,
+					edges = self.uiEdgesChildren,
+					tris = self.uiTrisChildren,
+				}
+				for _,o in pairs(setsForNames) do
+					for _,ch in ipairs(o) do
+						self.uiRoot.children:removeObject(ch)
+					end
+				end
+				local set = setsForNames[v]
+				if set then
+					for _,ch in ipairs(set) do
+						self:addChild(ch)
+					end
+				else
+					print('got unknown meshEditForm', v)
+				end
+			end,
+		},
+	})
+
 	self:onCartLoad()
 end
 
@@ -64,14 +722,6 @@ function EditMesh3D:onCartLoad()
 	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.drawNormals = false
 	self.editTexCoords = false
-
-	self.tileSel = TileSelect{
-		edit = self,
-		getMeshIndex = function(self)
-			return self.edit.mesh3DBlobIndex
-		end,
-	}
-	self.tileSel.pos.x = 2	-- initialize to one 16x16 past the 0,0 tile (which is very often clear)
 
 	self.orbit = Orbit(self.app)
 
@@ -167,9 +817,51 @@ function EditMesh3D:getMeshVtxAndTriList()
 	return vertexes, tris
 end
 
+function EditMesh3D:refreshSelection(skipEdges, skipTris)
+	-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
+	if not skipEdges then
+		self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
+	end
+	if not skipTris then
+		self.selectedTriIndexSet = {}
+		self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
+	end
+
+	for ti=0,self:getNumIndexes()/3-1 do
+		if not skipEdges then
+			for j=0,2 do
+				local i1 = 3*ti+j
+				local i2 = 3*ti+((j+1)%3)
+				if self.selectedVertexIndexSet[self:getIndex(i1)]
+				and self.selectedVertexIndexSet[self:getIndex(i2)]
+				then
+					self.selectedEdges:insert(vec2i(table{i1, i2}:sort():unpack()))
+				end
+			end
+		end
+		if not skipTris then
+			if self.selectedVertexIndexSet[self:getIndex(3*ti)]
+			and self.selectedVertexIndexSet[self:getIndex(3*ti+1)]
+			and self.selectedVertexIndexSet[self:getIndex(3*ti+2)]
+			then
+				self.selectedTriIndexSet[ti] = true
+			end
+		end
+	end
+end
 
 function EditMesh3D:update()
 	local app = self.app
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
+
+
 	local orbit = self.orbit
 	local fwd = -orbit.angle:zAxis()
 
@@ -195,61 +887,6 @@ function EditMesh3D:update()
 	local inds
 
 
-	local function refreshSelection(skipEdges, skipTris)
-		-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
-		if not skipEdges then
-			self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
-		end
-		if not skipTris then
-			self.selectedTriIndexSet = {}
-			self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
-		end
-
-		for ti=0,self:getNumIndexes()/3-1 do
-			if not skipEdges then
-				for j=0,2 do
-					local i1 = 3*ti+j
-					local i2 = 3*ti+((j+1)%3)
-					if self.selectedVertexIndexSet[self:getIndex(i1)]
-					and self.selectedVertexIndexSet[self:getIndex(i2)]
-					then
-						self.selectedEdges:insert(vec2i(table{i1, i2}:sort():unpack()))
-					end
-				end
-			end
-			if not skipTris then
-				if self.selectedVertexIndexSet[self:getIndex(3*ti)]
-				and self.selectedVertexIndexSet[self:getIndex(3*ti+1)]
-				and self.selectedVertexIndexSet[self:getIndex(3*ti+2)]
-				then
-					self.selectedTriIndexSet[ti] = true
-				end
-			end
-		end
-	end
-	local function calcSelVtxCOM()
-		self.selVtxCOM = vec3d()
-		self.selTexCoordCOM = vec2d()
-		local count = 0
-		for i in pairs(self.selectedVertexIndexSet) do
-			if i >= 0 and i < numVtxs then
-				local v = vtxs + i
-				self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
-				self.selTexCoordCOM = self.selTexCoordCOM + vec2d(v.u, v.v)
-				count = count + 1
-			end
-		end
-		if count == 0 then
-			self.meshEditMode = nil
-		else
-			self.selVtxCOM = self.selVtxCOM / count
-			self.selTexCoordCOM = self.selTexCoordCOM / count
-		end
-	end
-
-	local function setVtxEditPos()
-		self.vtxOrig = self:getMeshVertexList()
-	end
 	local function resetVtxEditPos()
 		for i=0,numVtxs-1 do
 			local v = vtxs + i
@@ -668,7 +1305,7 @@ function EditMesh3D:update()
 							end
 						end
 						self.mouseLeftButtonDown = nil	-- clear mousedown pos
-						refreshSelection()
+						self:refreshSelection()
 					elseif self.meshEditForm == 'edges' then
 						if not shift then
 							self.selectedVertexIndexSet = {}
@@ -723,7 +1360,7 @@ function EditMesh3D:update()
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
-						refreshSelection(true)	-- true = don't also rebuild selectedEdges
+						self:refreshSelection(true)	-- true = don't also rebuild selectedEdges
 					elseif self.meshEditForm == 'tris' then
 						if not shift then
 							self.selectedVertexIndexSet = {}
@@ -767,7 +1404,7 @@ function EditMesh3D:update()
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
-						refreshSelection(nil, true)	-- second true = don't also rebuild selectedTriIndexSet
+						self:refreshSelection(nil, true)	-- second true = don't also rebuild selectedTriIndexSet
 					else
 						error'here'
 					end
@@ -989,678 +1626,8 @@ function EditMesh3D:update()
 		end
 	end
 
-	local x, y = 50, 0
-
-	self:guiBlobSelect(
-		x, y, 						-- widget screen x,y
-		'mesh3d', 					-- blobName
-		self, 'mesh3DBlobIndex', 	-- table, indexKey
-		function() 					-- callback upon text change or spinner click
-			self:resetSelection()
-		end,
-		BlobMesh3D.generateDefaultCube				-- new blob generator:
-	)
-	x = x + 11
-	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 11
-	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	x = x + 11
-
-	if self:guiButton('F', x, y, self.drawFaces, 'draw tris') then
-		self.drawFaces = not self.drawFaces
-	end
-	x = x + 6
-
-	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
-		self.wireframe = not self.wireframe
-	end
-	x = x + 6
-
-	if self:guiButton('N', x, y, self.drawNormals, 'normals') then
-		self.drawNormals = not self.drawNormals
-	end
-	x = x + 6
-
-	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'perspective') then
-		orbit.ortho = not orbit.ortho
-	end
-	x = x + 6
-
-	if self:guiButton('C', x, y, false, 'cull='..self.menuUseCullFace) then
-		self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
-	end
-	x = x + 6
-
-	if self:guiButton('U', x, y, self.editTexCoords, 'edit texcoords') then
-		self.editTexCoords = not self.editTexCoords
-	end
-	x = x + 6
-
-	self.tileSel:button(x,y)
-	x = x + 7
-
-	self:guiRadio(x, y, {'vertexes', 'edges', 'tris'}, self.meshEditForm, function(result)
-		self.meshEditForm = result
-	end)
-	x = x + 6*3 + 1
-
-	if self:guiButton('+', x, y, false, 'add cube') then
-		self.undo:push()
-
-		local vs, ts = self:getMeshVtxAndTriList()
-
-		local cubeVtxPoss, cubeTCs, cubeIndexes = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 0-based indexes
-
-		local oldNumVtxs = #vs
-		for i=1,#cubeVtxPoss do
-			local pos = cubeVtxPoss[i]
-			local tc = cubeTCs[i]
-			local newv = Vertex()
-			newv.x, newv.y, newv.z = pos[1], pos[2], pos[3]
-			newv.u, newv.v = tc[1], tc[2]
-			vs:insert(newv)
-		end
-
-		for i=1,#cubeIndexes-2,3 do
-assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i])
-assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+1])
-assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
-			ts:insert{
-				vs[oldNumVtxs + 1 + cubeIndexes[i]],
-				vs[oldNumVtxs + 1 + cubeIndexes[i+1]],
-				vs[oldNumVtxs + 1 + cubeIndexes[i+2]],
-			}
-		end
-
-		self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-
-		-- reset mouseover selection-testing tables to only select the new indexes
-		self.mouseoverVertexIndexSet = {}
-		self.selectedVertexIndexSet = range(oldNumVtxs, oldNumVtxs + #cubeVtxPoss - 1)
-			:mapi(function(i) return true, i end)
-			:setmetatable(nil)	-- select new vtxs only
-		refreshSelection()
-	end
-	x = x + 7
-
-	if self:guiButton('X', x, y, false, 'x-axis') then
-		if fwd.x < 0 then
-			orbit.angle:set(.5, -.5, -.5, .5)
-		else
-			orbit.angle:set(.5, .5, .5, .5)
-		end
-		local dist = (orbit.pos - orbit.orbit):length()
-		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
-	end
-	x = x + 6
-	if self:guiButton('Y', x, y, false, 'y-axis') then
-		if fwd.y < 0 then
-			orbit.angle:set(math.sqrt(.5), 0, 0, math.sqrt(.5))
-		else
-			orbit.angle:set(0, math.sqrt(.5), math.sqrt(.5), 0)
-		end
-		local dist = (orbit.pos - orbit.orbit):length()
-		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
-	end
-	x = x + 6
-	if self:guiButton('Z', x, y, false, 'z-axis') then
-		if fwd.z < 0 then	-- looking along z-, toggle to z+
-			orbit.angle:set(0,1,0,0)
-		else
-			orbit.angle:set(0,0,0,1)	-- identity = looking along z-
-		end
-		local dist = (orbit.pos - orbit.orbit):length()
-		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
-	end
-	x = x + 7
-
-	if self.meshEditForm == 'vertexes' then
-		if self:guiButton('T', x, y, false, 'add tri') then
-			local selVtxIndexes = table.keys(self.selectedVertexIndexSet):sort()
-			if #selVtxIndexes ~= 3 then
-				print('need 3 vertexes, got '..#selVtxIndexes..' vertexes')
-			else
-				local vs, ts = self:getMeshVtxAndTriList()
-
-				local v0 = vs[1 + selVtxIndexes[1]]
-				local v1 = vs[1 + selVtxIndexes[2]]
-				local v2 = vs[1 + selVtxIndexes[3]]
-				-- can't use app:transform cuz we're drawing the gui so the matrices are gui matrices...
-				-- so do it in model space
-				local pos0 = vec3d(v0.x, v0.y, v0.z) / 32768
-				local pos1 = vec3d(v1.x, v1.y, v1.z) / 32768
-				local pos2 = vec3d(v2.x, v2.y, v2.z) / 32768
-				local curl = (pos2 - pos1):cross(pos1 - pos0):dot(orbit.pos - (pos0 + pos1 + pos2) / 3)
-
-				-- make a new tri facing the camera
-				if curl < 0 then
-					ts:insert{v0, v1, v2}
-				else
-					ts:insert{v2, v1, v0}
-				end
-
-				self.undo:push()
-				self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-				refreshSelection()
-			end
-		end
-		x = x + 6
-
-		-- TODO this is a good reason to add select-by-rect-in-screen-space
-		-- and then shift+select to add to selection, otherwise just only select recent pressed / dragged-box-around
-		if self:guiButton('M', x, y, false, 'merge vtxs') then
-			local visToMerge = table.keys(self.selectedVertexIndexSet):sort()	-- 0-based list of selected vertexes
-			if #visToMerge >= 2 then
---DEBUG:print('#visToMerge', #visToMerge)
-				local vs, ts = self:getMeshVtxAndTriList()
-
-				local vsToMerge = visToMerge:mapi(function(vi) return vs[1+vi] end)
-
-				local destv = vsToMerge[1]
-				--[[ average or replace?
-				do
-					local x,y,z,u,v = 0,0,0,0,0
-					for _,srcv in ipairs(vsToMerge) do
-						x = x + tonumber(srcv.x)
-						y = y + tonumber(srcv.y)
-						z = z + tonumber(srcv.z)
-						u = u + tonumber(srcv.u)
-						v = v + tonumber(srcv.v)
-					end
-					destv.x = x / #vsToMerge
-					destv.y = y / #vsToMerge
-					destv.z = z / #vsToMerge
-					destv.u = u / #vsToMerge
-					destv.v = v / #vsToMerge
-				end
-				--]]
-				-- merge into the lowest index
-				-- sort from largest to 2nd-to-smallest
-				for i=2,#vsToMerge do
-					local v = vsToMerge[i]
-					local vp = ffi.cast(Vertex_p, v)
-					for _,t in ipairs(ts) do
-						for j,tv in ipairs(t) do
-							local tvp = ffi.cast(Vertex_p, tv)
-							if tvp == vp then
-								t[j] = destv
-							end
-						end
-					end
-				end
-
-				self.undo:push()
-				self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-				self.mouseoverVertexIndexSet = {}
-				self.selectedVertexIndexSet = {}
-				refreshSelection()
-				return
-			end
-		end
-		x = x + 6
-
-		if self:guiButton('S', x, y, false, 'split vtxs') then
-			local vs, ts = self:getMeshVtxAndTriList()
-
-			-- like refs will use the same keys right?
-			-- if not then get their address and use that
-			local selVtxRefSet = table.map(
-				self.selectedVertexIndexSet,
-				function(true_, index) return true, vs[1+index] end
-			)
-
-			for _,tri in ipairs(ts) do
-				for i,tv in ipairs(tri) do
-					if selVtxRefSet[tv] then
-						local newv = Vertex(tv)
-						vs:insert(newv)
-						tri[i] = newv
-					end
-				end
-			end
-
-			-- now automatically pick out unused vtxs and degenerate tris
-			self.undo:push()
-			self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-			self.mouseoverVertexIndexSet = {}
-			self.selectedVertexIndexSet = {}
-			refreshSelection()
-			return
-		end
-		x = x + 6
-
-
-	elseif self.meshEditForm == 'edges' then
-		if self:guiButton('S', x, y, false, 'split edge') then
-			-- currently it splits all edges with the selected vertexes
-			-- should I have it operate by selected edges instead?
-
-			local vs, ts = self:getMeshVtxAndTriList()
-
-			for _,e in ipairs(self.selectedEdges) do
-				-- find the tris on either side
-				-- remove the tris on either side
-				-- insert a vertex between these two
-				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
-				local v0 = assert.index(vs, 1+self:getIndex(ei0))
-				local v1 = assert.index(vs, 1+self:getIndex(ei1))
-				local vp0 = ffi.cast(Vertex_p, v0)
-				local vp1 = ffi.cast(Vertex_p, v1)
-				local pos1 = vec3d(v0.x, v0.y, v0.z)
-				local pos2 = vec3d(v1.x, v1.y, v1.z)
-				local tc1 = vec2d(v0.u, v0.v)
-				local tc2 = vec2d(v1.u, v1.v)
-				local newvtxindex = #vs	-- indexes are 0-based
-				local newpos = (pos1 + pos2) * .5
-				local newtc = (tc1 + tc2) * .5
-				local newvtx = Vertex()
-				self.selectedVertexIndexSet[#vs] = true	-- new vertex index selected
-				vs:insert(newvtx)
-				newvtx.x = newpos.x
-				newvtx.y = newpos.y
-				newvtx.z = newpos.z
-				newvtx.u = newtc.x
-				newvtx.v = newtc.y
-				for ti=#ts,1,-1 do
-					local t = ts[ti]
-					for j=0,2 do
-						local tj0 = t[1+j]
-						local tj1 = t[1+(j+1)%3]
-						local tj2 = t[1+(j+2)%3]
-assert(tj0)
-assert(tj1)
-assert(tj2)
-
-						local tjp0 = ffi.cast(Vertex_p, tj0)
-						local tjp1 = ffi.cast(Vertex_p, tj1)
-						if (tjp0 == vp0 and tjp1 == vp1)
-						or (tjp0 == vp1 and tjp1 == vp0)
-						then
-							-- if we are to remove this tri, then add its replacements as well
-							ts:insert{tj0, newvtx, tj2}
-							ts:insert{newvtx, tj1, tj2}
-
-							ts:remove(ti)
-							-- you can only split one edge of one tri
-							-- if you select two edges of the same tri and push 'split', only the first will split
-							-- cuz i dont want to go through the hassle of remapping selections from old tris to newly split tris
-							-- tho if i stored selected edges by vtx ref then this would be easier to do ....
-							-- ... but still there would be conditional behavior based on split order.
-							break
-						end
-					end
-				end
-			end
-
-			self.undo:push()
-			self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-			refreshSelection()
-		end
-		x = x + 6
-	elseif self.meshEditForm == 'tris' then
-		-- TODO maybe flip-edge should maybe be an edge function?
-		if self:guiButton('F', x, y, false, 'flip') then
-			-- flip tris ...
-			-- 1) get tris selected
-			-- 2) flip ...
-			-- how to generalize that for any more than two tris that share 1 edge?
-			local selTriInds = table.keys(self.selectedTriIndexSet)
-			if #selTriInds ~= 2 then
-				print('need 2 tris, got '..#selTriInds..' tris')
-			else
-				-- and if # selected vtxs == 4 exactly ...
-				local vs, ts = self:getMeshVtxAndTriList()
-
-				-- find the common edge between the two tris
-				-- and exchange tris
-				local found
-				local ti1, ti2 = table.unpack(selTriInds:sort())	-- 0-based-sequential tri indxes
-				local t1 = ts[ti1+1]
-				local t2 = ts[ti2+1]
---DEBUG:print('flipping', ti1, ti2)
---DEBUG:print(ti1, 'has 1-based vtx indexes', vs:find(t1[1]), vs:find(t1[2]), vs:find(t1[3]))
---DEBUG:print(ti2, 'has 1-based vtx indexes', vs:find(t2[1]), vs:find(t2[2]), vs:find(t2[3]))
-				for i=0,2 do
-					for j=0,2 do
-						local a1 = t1[1+i]
-						local a2 = t1[1+(i+1)%3]
-						local a3 = t1[1+(i+2)%3]
-						local b1 = t2[1+j]
-						local b2 = t2[1+(j+1)%3]
-						local b3 = t2[1+(j+2)%3]
-						local ap1 = ffi.cast(Vertex_p, a1)
-						local ap2 = ffi.cast(Vertex_p, a2)
-						local bp1 = ffi.cast(Vertex_p, b1)
-						local bp2 = ffi.cast(Vertex_p, b2)
-						if (ap1 == bp1 and ap2 == bp2)
-						or (ap2 == bp1 and ap1 == bp2)
-						then
---DEBUG:print('found at subind', i, j)
-							t1[1], t1[2], t1[3] = a3, b1, b3
-							t2[1], t2[2], t2[3] = b3, b2, a3
-							found = true
-							goto done
-						end
-					end
-				end
-::done::
-				if not found then
-					print"couldn't find, not flipping"
-				else
-					self.undo:push()
-					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-
-					-- refresh edges and tris, but vtxs shouldn't change
-					refreshSelection()
-				end
-			end
-		end
-		x = x + 6
-	end
-
-
 	app:drawMenuText(('fwd {%.3f, %.3f, %.3f}'):format(fwd:unpack()), 0, 240)
 	app:drawMenuText(('q {%.3f, %.3f, %.3f, %.3f}'):format(orbit.angle:unpack()), 0, 248)
-
-	---------------- KEYBOARD ----------------
-
-	local handledKey
-	if mesh3DBlob then
-		-- TODO if meshEditMode == 'translate' then
-		-- accept input like a textarea for a number string, and let that be the amount to translate or rotate or whatever
-
-		local uikey
-		if ffi.os == 'OSX' then
-			uikey = app:key'lgui' or app:key'rgui'
-		else
-			uikey = app:key'lctrl' or app:key'rctrl'
-		end
-
-		if uikey then
-			if app:keyp'z' then
-				self:popUndo(shift)
-			end
-		else	-- non-ctrl:
-
-			if app:keyp'backspace'
-			or app:keyp'delete'
-			then
-				-- if we're in an edit mode then reset it
-				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
-				if self.meshEditMode then
-
-					--[[
-					if #self.meshEditModeText > 0 then
-						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
-					else
-						resetVtxEditPos()
-						self.meshEditMode = nil
-					end
-					--]]
-
-				else
-					-- if we're not in an edit mode then delete vertexes
-					-- and then regen blobs or something
-					-- hmm
-					local vs, ts = self:getMeshVtxAndTriList()
-					-- delete selected vertexes
-					-- delete touching triangles
-
-					local selVtxRefSet = table.map(
-						self.selectedVertexIndexSet,
-						function(true_, index) return true, vs[1+index] end
-					)
-
-					if self.meshEditForm == 'vertexes' then
-						-- delete selected vertexes
-						for i=#vs,1,-1 do
-							if selVtxRefSet[vs[i]] then
-								vs:remove(i)
-							end
-						end
-
-						-- delete any tris that use it
-						for ti=#ts,1,-1 do
-							local t = ts[ti]
-							if selVtxRefSet[t[1]]
-							or selVtxRefSet[t[2]]
-							or selVtxRefSet[t[3]]
-							then
-								ts:remove(ti)
-							end
-						end
-					elseif self.meshEditForm == 'edges' then
-						-- currently edge-sel is based on tri edge, not based on vtxs.
-						-- so just delete the tri that the edge is on.
-						local trisToRemove = table()
-						for _,e in ipairs(self.selectedEdges) do
-							local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
-							for ti=#ts,1,-1 do
-								for j=0,2 do
-									local tj0 = 3*(ti-1) + j
-									local tj1 = 3*(ti-1) + (j+1)%3
-									if (tj0 == ei0 and tj1 == ei1)
-									or (tj0 == ei1 and tj1 == ei0)
-									then
-										trisToRemove[ti] = true	-- keys are 1-based indexes
-										break
-									end
-								end
-							end
-						end
-						for _,ti in ipairs(trisToRemove:keys():sort():reverse()) do
-							ts:remove(ti)
-						end
-					elseif self.meshEditForm == 'tris' then
-						-- delete the face, and then remove/remap any unused vtxs
-						-- self.selectedTriIndexSet is 0-based mod-3 index of the start of a triangle in our index buffer
-						-- so traverse in reverse order and remove-3 per tri we want to remove
-						for _,ti in ipairs(
-							table.keys(self.selectedTriIndexSet)
-							:sort()
-							:reverse()
-						) do
-							ts:remove(ti+1)	-- selectedTriIndexSet keys are 0-based-sequential
-						end
-					else
-						error'here'
-					end
-
-					self.undo:push()
-					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-
-					-- reset mouseover selection-testing tables
-					self.mouseoverVertexIndexSet = {}
-					-- select-none
-					self.selectedVertexIndexSet = {}
-					refreshSelection()
-
-					-- return and don't let anything else use the invalidated mesh functions until we refresh things
-					return
-				end
-			end
-
-			if app:keyp'a' then
-				if next(self.selectedVertexIndexSet) == nil then
-					-- select all
-					self.selectedVertexIndexSet = {}
-					for i=0,numVtxs-1 do
-						self.selectedVertexIndexSet[i] = true
-					end
-				else
-					-- select none
-					self.selectedVertexIndexSet = {}
-				end
-				refreshSelection()
-				handledKey = true
-			end
-
-			if app:keyp'g' then
-				if self.meshEditMode ~= nil then
-					-- TODO maybe even pop the last undo push?
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.meshEditMode = 'translate'
-					self.meshEditModeText = ''
-					setVtxEditPos()
-					calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
-					self.totalTranslation:set(0,0,0)
-					self.undo:push()
-				end
-				handledKey = true
-			end
-			if app:keyp's' then
-				if self.meshEditMode ~= nil then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.meshEditMode = 'scale'
-					self.meshEditModeText = ''
-					setVtxEditPos()
-					calcSelVtxCOM()
-					self.totalScreenTranslate:set(0,0)
-					self.undo:push()
-				end
-				handledKey = true
-			end
-			if app:keyp'r' then
-				if self.meshEditMode ~= nil then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.meshEditMode = 'rotate'
-					self.meshEditModeText = ''
-					setVtxEditPos()
-					calcSelVtxCOM()
-					self.undo:push()
-					self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
-					self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
-					self.screenRotateAngle = quatd(0,0,1,0)	-- angle-axis
-
-					local drawViewInvMat = vec4x4fcol()
-					drawViewInvMat:inv4x4(app.ram.viewMat)
-					self.selRotFwdDir = vec3d(
-						drawViewInvMat.ptr[8],
-						drawViewInvMat.ptr[9],
-						drawViewInvMat.ptr[10]
-					):normalize()
-				end
-				handledKey = true
-			end
-
-			-- TODO or maybe use this for flipping common edge between two tris?
-			if app:keyp'f' then
-				self.drawFaces = not self.drawFaces
-				handledKey = true
-			end
-			if app:keyp'n' then
-				self.drawNormals = not self.drawNormals
-				handledKey = true
-			end
-			if app:keyp'w' then
-				self.wireframe = not self.wireframe
-				handledKey = true
-			end
-			if app:keyp'o' then
-				orbit.ortho = not orbit.ortho
-				handledKey = true
-			end
-
-			if app:keyp'v' then
-				self.meshEditForm = 'vertexes'
-				handledKey = true
-			end
-			if app:keyp'e' then
-				self.meshEditForm = 'edges'
-				handledKey = true
-			end
-			if app:keyp't' then
-				self.meshEditForm = 'tris'
-				handledKey = true
-			end
-
-			if app:keyp'x' then
-				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
-				resetVtxEditPos()
-				handledKey = true
-			end
-			if app:keyp'y' then
-				self.axisFlags.y = not self.axisFlags.y or nil
-				resetVtxEditPos()
-				handledKey = true
-			end
-			if app:keyp'z' then
-				self.axisFlags.z = not self.axisFlags.z or nil
-				resetVtxEditPos()
-				handledKey = true
-			end
-		end
-	end
-
-
-	-- this is a bit of a mess of order but ...
-	-- handle the keyboard *before* handling the guiTextField of the input
-	-- so that the keyboard shortcut keys don't get added
-
-	-- collect translate/scale/rotate text input ...
-	-- TODO perfect time to use EditMesh3D:event() ........
-	if self.meshEditMode
-	and not handledKey
-	then
-		-- TODO make sure this is selected so all keys go here ...
-		self.menuTabIndex = self.menuTabCounter
-		self:guiTextField(
-			0, 48, 10,					-- x, y, w
-			self, 'meshEditModeText', 	-- t, k
-			function(value)			-- write
-				-- TODO do this after every change ...
-
-				value = value:gsub('[xyz]', '')
-				-- TODO don't add these to the text at all
-				-- in fact TODO better capture-keyboard-focus overall...
-
-				-- upon enter, right?
-				-- do I even need to write self.meshEditModeText?
-				-- do I even need self.meshEditModeText?
-				self.meshEditModeText = value
-
-				local parts = string.split(value, ','):mapi(function(x)
-					return tonumber(string.trim(x))
-				end)
-
-				if self.meshEditMode == 'translate' then
-					local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
-					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
-					if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
-					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
-					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
-					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
-					applyMeshEditMode()
-				elseif self.meshEditMode == 'scale' then
-					self.totalScale = parts[1] or 1
-					applyMeshEditMode()
-				elseif self.meshEditMode == 'rotate' then
-					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
-					-- it should already by set to whatever fixed axis by axisFlags already, right?
-					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
-					applyMeshEditMode()
-				end
-
-				self.meshEditMode = nil
-				self.axisFlags = {}
-				if self:removeDegenTris() then
-					-- TODO just stop using indexes for these...
-					self.mouseoverVertexIndexSet = {}
-					self.selectedVertexIndexSet = {}
-				end
-				return
-			end
-		)
-	end
-
 
 	self:guiSetClipRect(-1000, 0, 3000, 256)
 
@@ -1684,7 +1651,7 @@ assert(tj2)
 
 	app:matMenuReset()
 
-	self:drawTooltip()
+	self:newUI_update()
 end
 
 function EditMesh3D:popUndo(redo)
@@ -1822,6 +1789,258 @@ function EditMesh3D:invalidateVoxelmaps()
 			chunk.dirtyCPU = true
 		end
 	end
+end
+
+function EditMesh3D:event(e)
+	local app = self.app
+	local mesh3DBlob = assert.index(app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	if not mesh3DBlob then return end
+
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local vtxs = mesh3DBlob:getVertexPtr()
+
+	-- TODO if meshEditMode == 'translate' then
+	-- accept input like a textarea for a number string, and let that be the amount to translate or rotate or whatever
+	local function setVtxEditPos()
+		self.vtxOrig = self:getMeshVertexList()
+	end
+	local function calcSelVtxCOM()
+		self.selVtxCOM = vec3d()
+		self.selTexCoordCOM = vec2d()
+		local count = 0
+		for i in pairs(self.selectedVertexIndexSet) do
+			if i >= 0 and i < numVtxs then
+				local v = vtxs + i
+				self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
+				self.selTexCoordCOM = self.selTexCoordCOM + vec2d(v.u, v.v)
+				count = count + 1
+			end
+		end
+		if count == 0 then
+			self.meshEditMode = nil
+		else
+			self.selVtxCOM = self.selVtxCOM / count
+			self.selTexCoordCOM = self.selTexCoordCOM / count
+		end
+	end
+
+	if e[0].type == sdl.SDL_EVENT_KEY_DOWN then
+		local uikey
+		if ffi.os == 'OSX' then
+			uikey = app:key'lgui' or app:key'rgui'
+		else
+			uikey = app:key'lctrl' or app:key'rctrl'
+		end
+
+		if uikey then
+			if e[0].key.key == sdl.SDLK_Z then
+				local shift = app:key'lshift' or app:key'rshift'
+				self:popUndo(shift)
+			end
+		else	-- non-ctrl:
+
+			if e[0].key.key == sdl.SDLK_BACKSPACE
+			or e[0].key.key == sdl.SDLK_DELETE
+			then
+				-- if we're in an edit mode then reset it
+				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
+				if self.meshEditMode then
+
+					--[[
+					if #self.meshEditModeText > 0 then
+						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
+					else
+						resetVtxEditPos()
+						self.meshEditMode = nil
+					end
+					--]]
+
+				else
+					-- if we're not in an edit mode then delete vertexes
+					-- and then regen blobs or something
+					-- hmm
+					local vs, ts = self:getMeshVtxAndTriList()
+					-- delete selected vertexes
+					-- delete touching triangles
+
+					local selVtxRefSet = table.map(
+						self.selectedVertexIndexSet,
+						function(true_, index) return true, vs[1+index] end
+					)
+
+					if self.meshEditForm == 'vertexes' then
+						-- delete selected vertexes
+						for i=#vs,1,-1 do
+							if selVtxRefSet[vs[i]] then
+								vs:remove(i)
+							end
+						end
+
+						-- delete any tris that use it
+						for ti=#ts,1,-1 do
+							local t = ts[ti]
+							if selVtxRefSet[t[1]]
+							or selVtxRefSet[t[2]]
+							or selVtxRefSet[t[3]]
+							then
+								ts:remove(ti)
+							end
+						end
+					elseif self.meshEditForm == 'edges' then
+						-- currently edge-sel is based on tri edge, not based on vtxs.
+						-- so just delete the tri that the edge is on.
+						local trisToRemove = table()
+						for _,e in ipairs(self.selectedEdges) do
+							local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+							for ti=#ts,1,-1 do
+								for j=0,2 do
+									local tj0 = 3*(ti-1) + j
+									local tj1 = 3*(ti-1) + (j+1)%3
+									if (tj0 == ei0 and tj1 == ei1)
+									or (tj0 == ei1 and tj1 == ei0)
+									then
+										trisToRemove[ti] = true	-- keys are 1-based indexes
+										break
+									end
+								end
+							end
+						end
+						for _,ti in ipairs(trisToRemove:keys():sort():reverse()) do
+							ts:remove(ti)
+						end
+					elseif self.meshEditForm == 'tris' then
+						-- delete the face, and then remove/remap any unused vtxs
+						-- self.selectedTriIndexSet is 0-based mod-3 index of the start of a triangle in our index buffer
+						-- so traverse in reverse order and remove-3 per tri we want to remove
+						for _,ti in ipairs(
+							table.keys(self.selectedTriIndexSet)
+							:sort()
+							:reverse()
+						) do
+							ts:remove(ti+1)	-- selectedTriIndexSet keys are 0-based-sequential
+						end
+					else
+						error'here'
+					end
+
+					self.undo:push()
+					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+
+					-- reset mouseover selection-testing tables
+					self.mouseoverVertexIndexSet = {}
+					-- select-none
+					self.selectedVertexIndexSet = {}
+					self:refreshSelection()
+
+					-- return and don't let anything else use the invalidated mesh functions until we refresh things
+					return
+				end
+			elseif e[0].key.key == sdl.SDLK_A then
+				if next(self.selectedVertexIndexSet) == nil then
+					local numVtxs = mesh3DBlob:getNumVertexes()
+					-- select all
+					self.selectedVertexIndexSet = {}
+					for i=0,numVtxs-1 do
+						self.selectedVertexIndexSet[i] = true
+					end
+				else
+					-- select none
+					self.selectedVertexIndexSet = {}
+				end
+				self:refreshSelection()
+				return
+			elseif e[0].key.key == sdl.SDLK_G then
+				if self.meshEditMode ~= nil then
+					-- TODO maybe even pop the last undo push?
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				else
+					self.meshEditMode = 'translate'
+					self.meshEditModeText = ''
+					setVtxEditPos()
+					calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
+					self.totalTranslation:set(0,0,0)
+					self.undo:push()
+				end
+				return
+			elseif e[0].key.key == sdl.SDLK_S then
+				if self.meshEditMode ~= nil then
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				else
+					self.meshEditMode = 'scale'
+					self.meshEditModeText = ''
+					setVtxEditPos()
+					calcSelVtxCOM()
+					self.totalScreenTranslate:set(0,0)
+					self.undo:push()
+				end
+				return
+			elseif e[0].key.key == sdl.SDLK_R then
+				if self.meshEditMode ~= nil then
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				else
+					self.meshEditMode = 'rotate'
+					self.meshEditModeText = ''
+					setVtxEditPos()
+					calcSelVtxCOM()
+					self.undo:push()
+					self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
+					self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
+					self.screenRotateAngle = quatd(0,0,1,0)	-- angle-axis
+
+					local drawViewInvMat = vec4x4fcol()
+					drawViewInvMat:inv4x4(app.ram.viewMat)
+					self.selRotFwdDir = vec3d(
+						drawViewInvMat.ptr[8],
+						drawViewInvMat.ptr[9],
+						drawViewInvMat.ptr[10]
+					):normalize()
+				end
+				return
+
+			-- TODO or maybe use this for flipping common edge between two tris?
+			elseif e[0].key.key == sdl.SDLK_F then
+				self.drawFaces = not self.drawFaces
+				return
+			elseif e[0].key.key == sdl.SDLK_N then
+				self.drawNormals = not self.drawNormals
+				return
+			elseif e[0].key.key == sdl.SDLK_W then
+				self.wireframe = not self.wireframe
+				return
+			elseif e[0].key.key == sdl.SDLK_O then
+				orbit.ortho = not orbit.ortho
+				return
+
+			elseif e[0].key.key == sdl.SDLK_V then
+				self.meshEditForm = 'vertexes'
+				return
+			elseif e[0].key.key == sdl.SDLK_E then
+				self.meshEditForm = 'edges'
+				return
+			elseif e[0].key.key == sdl.SDLK_T then
+				self.meshEditForm = 'tris'
+				return
+
+			elseif e[0].key.key == sdl.SDLK_X then
+				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
+				resetVtxEditPos()
+				return
+			elseif e[0].key.key == sdl.SDLK_Y then
+				self.axisFlags.y = not self.axisFlags.y or nil
+				resetVtxEditPos()
+				return
+			elseif e[0].key.key == sdl.SDLK_Z then
+				self.axisFlags.z = not self.axisFlags.z or nil
+				resetVtxEditPos()
+				return
+			end
+		end
+	end
+
+	return self:newUI_event(e)
 end
 
 return EditMesh3D
