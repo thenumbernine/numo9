@@ -15,6 +15,13 @@ local Undo = require 'numo9.ui.undo'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 
+local UIBlobSelect = require 'numo9.ui.blobselect'
+local UIButton = require 'numo9.ui.button'
+local UISpinner = require 'numo9.ui.spinner'
+local UITextField = require 'numo9.ui.textfield'
+local UICheckbox = require 'numo9.ui.checkbox'
+local UIRadio = require 'numo9.ui.radio'
+
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local tileSizeInBits = numo9_rom.tileSizeInBits
@@ -59,7 +66,370 @@ function EditVoxelMap:init(args)
 		end,
 	}
 
+	self.tileSel = TileSelect{
+		edit = self,
+		getMeshIndex = function(self)
+			return self.edit.voxCurSel.mesh3DIndex
+		end,
+		onSetTile = function(self)
+			local edit = self.edit
+			-- update the voxCurSel tile XY
+			edit.voxCurSel.tileXOffset = edit.tileSel.pos.x
+			edit.voxCurSel.tileYOffset = edit.tileSel.pos.y
+			self:updateVoxCurSel()
+		end,
+	}
+
+	self:newUI_setup()
+
+	local x, y = 48, 0
+
+	self.voxelmapBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'voxelmap',
+		valueTable = self,
+		valueKey = 'voxelmapBlobIndex',
+		setValue = function(value)
+			self.undo:clear()
+		end,
+	}
+	self:addChild(self.voxelmapBlobSelect)
+	x = x + 11
+
+	self.sheetBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'sheet',
+		valueTable = self,
+		valueKey = 'sheetBlobIndex',
+		setValue = function(value)
+			self.undo:clear()
+		end,
+	}
+	self:addChild(self.sheetBlobSelect)
+	x = x + 11
+
+	self.paletteBlobSelect = UIBlobSelect{
+		owner = self,
+		pos = {x, y},
+		blobName = 'palette',
+		valueTable = self,
+		valueKey = 'paletteBlobIndex',
+		setValue = function(value)
+			self.undo:clear()
+		end,
+	}
+	self:addChild(self.paletteBlobSelect)
+	x = x + 11
+
+	-- it's a checkbox but I want the events to fire in order...
+	-- TODO text input also for just the mesh portion? or handle it in the voxel index?
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'M',
+		tooltip = function() return 'mesh='..self.voxCurSel.mesh3DIndex end,
+		isset = function() return self.meshPickOpen end,
+		events = {
+			click = function()
+				self.meshPickOpen = not self.meshPickOpen
+
+				-- show orientation in mesh pick as you would in view
+				-- allow rotations in mesh pick, but dont let rotations affect view
+				self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'O',
+		isset = function() return self.orientationPickOpen end,
+		tooltip = function() return 'orientation='..self.voxCurSel.orientation end,
+		events = {
+			click = function()
+				self.orientationPickOpen = not self.orientationPickOpen
+
+				-- show orientation in mesh pick as you would in view
+				-- allow rotations in mesh pick, but dont let rotations affect view
+				if not self.meshPickOpen then
+					self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
+				end
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(self.tileSel:makeButton{
+		owner = self,
+		pos = {x, y},
+	})
+	x = x + 6
+
+	do	-- if voxelmap then ... should I hide/show with valid voxelmap blob or nah?
+		self:addChild(UISpinner{
+			owner = self,
+			pos = {x, y},
+			setValue = function(dx)
+				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				self:resizeVoxelmap(
+					math.max(1, mapsize.x + dx),
+					mapsize.y,
+					mapsize.z
+				)
+			end,
+			tooltip = function()
+				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return '' end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				return 'width='..mapsize.x
+			end,
+		})
+		x = x + 11
+
+		self:addChild(UISpinner{
+			owner = self,
+			pos = {x, y},
+			setValue = function(dx)
+				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				self:resizeVoxelmap(
+					mapsize.x,
+					math.max(1, mapsize.y + dx),
+					mapsize.z
+				)
+			end,
+			tooltip = function()
+				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return '' end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				return 'height='..mapsize.y
+			end,
+		})
+		x = x + 11
+
+		self:addChild(UISpinner{
+			owner = self,
+			pos = {x, y},
+			tooltip = function()
+				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return '' end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				return 'depth='..mapsize.z
+			end,
+			setValue = function(dx)
+				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				self:resizeVoxelmap(
+					mapsize.x,
+					mapsize.y,
+					math.max(1, mapsize.z + dx)
+				)
+			end,
+		})
+		x = x + 11
+
+		self.voxCurSelTextField = UITextField{
+			owner = self,
+			pos = {189, 0},
+			width = 20,
+			--value = ('%08X'):format(self.voxCurSel.intval),
+			events = {
+				focus = function(target, e)
+					target.value = ('%08X'):format(self.voxCurSel.intval)
+				end,
+				change = function(target, e)
+					local result = target.value
+					result = tonumber(result, 16)
+					if result then
+						self.voxCurSel.intval = result
+						self:updateVoxCurSel()
+						self.tileSel.pos.x = self.voxCurSel.tileXOffset
+						self.tileSel.pos.y = self.voxCurSel.tileYOffset
+					end
+				end,
+			},
+		}
+		self:addChild(self.voxCurSelTextField)
+	end
+
+	self:addChild(UICheckbox{
+		owner = self,
+		pos = {x, y},
+		text = 'W',
+		tooltip = 'wireframe',
+		valueTable = self,
+		valueKey = 'wireframe',
+	})
+	x = x + 6
+
+	self.orthoButton = UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'O',
+		--[[
+		text = function()
+			return self.orbit.ortho and 'O' or 'P'
+		end,
+		isset = function() return false end,	-- maybe it's a button
+		--]]
+		tooltip = function()
+			return self.orbit.ortho and 'ortho' or 'perspective'
+		end,
+		events = {
+			click = function()
+				self.orbit.ortho = not self.orbit.ortho
+				if self.orbit.ortho then
+					self.orthoButton.text = 'O'
+				else
+					self.orthoButton.text = 'P'
+				end
+			end
+		},
+	}
+	self:addChild(self.orthoButton)
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'L',
+		tooltip = function() return 'light='..tostring(self.menuUseLighting) end,
+		events = {
+			click = function()
+				self.menuUseLighting = not self.menuUseLighting
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
+		text = 'C',
+		tooltip = function() return 'cull='..tostring(self.menuCullFace) end,
+		events = {
+			click = function()
+				self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
+			end,
+		},
+	})
+	x = x + 6
+
+	do --if voxelmap then
+		local x = 0
+		local y = 8
+
+		-- tools ... maybe I should put these somewhere else
+		self:addChild(UIRadio{
+			owner = self,
+			pos = {x, y},
+			options = {
+				-- minecraft-place-block style.
+				-- single-click to plop voxels off of the surface.
+				'draw',
+
+				-- plop voxels perpendicular to the click plane.
+				-- lets you click-and-drag, but since penSize is only orthogonal,
+				--  it doesnt immedaitely stack voxels to the view position.
+				'orthodraw',
+
+				-- only changes non-empty voxels on-surface
+				-- click-and-drag
+				-- penSize = paint region.
+				'paint',
+
+				-- rectangle, left click = fill, right click = erase.
+				'rect',
+
+				-- 3D floodfill.
+				'fill',
+
+				-- 2D floodfill.
+				'surfacefill',
+
+				-- cut/copy/paste
+				'select',
+			},
+			getSelected = function()
+				return self.drawMode
+			end,
+			setSelected = function(result)
+				self.drawMode = result
+			end,
+		})
+		x = x + 6*7
+
+		self:addChild(UISpinner{
+			owner = self,
+			pos = {x, y},
+			tooltip = function()
+				return 'pensize='..self.penSize
+			end,
+			setValue = function(dx)
+				self.penSize = math.max(1, self.penSize + dx)
+			end,
+		})
+	end
+
+	require 'numo9.ui.addgetset'(self, {
+		voxelmapBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.voxelmapBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		sheetBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.sheetBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		paletteBlobIndex = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self.paletteBlobSelect.textfield.value = tostring(v)
+			end,
+		},
+		voxCurSel = {
+			set = function(private, self, k, v)
+				private[k] = v
+				self:updateVoxCurSel()
+			end,
+		},
+	})
+
 	self:onCartLoad()
+end
+
+-- call this if voxCurSel or its values change
+function EditVoxelMap:updateVoxCurSel()
+	self.voxCurSelTextField.value = ('%08X'):format(self.voxCurSel.intval)
 end
 
 function EditVoxelMap:onCartLoad()
@@ -79,6 +449,7 @@ function EditVoxelMap:onCartLoad()
 
 	self.voxCurSel = Voxel()
 	self.voxCurSel.intval = 2
+	self:updateVoxCurSel()
 
 	self.mousePickLastClickTime = timer.getTime()
 
@@ -86,19 +457,6 @@ function EditVoxelMap:onCartLoad()
 	self.orientationPickOpen = false
 	self.meshPickOrbit = Orbit(self.app)
 	self.meshPickVoxel= Voxel()
-
-	self.tileSel = TileSelect{
-		edit = self,
-		getMeshIndex = function(self)
-			return self.edit.voxCurSel.mesh3DIndex
-		end,
-		onSetTile = function(self)
-			local edit = self.edit
-			-- update the voxCurSel tile XY
-			edit.voxCurSel.tileXOffset = edit.tileSel.pos.x
-			edit.voxCurSel.tileYOffset = edit.tileSel.pos.y
-		end,
-	}
 
 	self.orbit = Orbit(self.app)
 	-- TODO init to max size of whatever blob is first loaded?
@@ -199,6 +557,15 @@ end
 
 function EditVoxelMap:update()
 	local app = self.app
+
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
+
 	local orbit = self.orbit
 
 	-- this is going to draw the menu
@@ -418,6 +785,7 @@ function EditVoxelMap:update()
 							-- on release so we dont mess with paint mode
 							if app:keyr'mouse_left' then
 								self.voxCurSel.intval = self.meshPickVoxel.intval
+								self:updateVoxCurSel()
 								if self.orientationPickOpen then
 									self.orientationPickOpen = false	-- close orientation on click
 								else
@@ -971,142 +1339,6 @@ function EditVoxelMap:update()
 	self:guiSetClipRect(0, 0, 256, 256)
 	--self:guiSetClipRect(-1000, 0, 3000, 256)
 
-	local x, y = 48, 0
-	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
-		self.undo:clear()
-	end)
-	x = x + 11
-	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 11
-	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	x = x + 11
-
-	-- TODO text input also for just the mesh portion? or handle it in the voxel index?
-	if self:guiButton('M', x, y, self.meshPickOpen, 'mesh='..self.voxCurSel.mesh3DIndex) then
-		self.meshPickOpen = not self.meshPickOpen
-
-		-- show orientation in mesh pick as you would in view
-		-- allow rotations in mesh pick, but dont let rotations affect view
-		self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
-	end
-	x = x + 6
-
-	if self:guiButton('O', x, y, self.orientationPickOpen, 'orientation='..self.voxCurSel.orientation) then
-		self.orientationPickOpen = not self.orientationPickOpen
-
-		-- show orientation in mesh pick as you would in view
-		-- allow rotations in mesh pick, but dont let rotations affect view
-		if not self.meshPickOpen then
-			self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
-		end
-	end
-	x = x + 6
-
-	self.tileSel:button(x,y)
-	x = x + 6
-
-	if voxelmap then
-		self:guiSpinner(x, y, function(dx)
-			self:resizeVoxelmap(
-				math.max(1, mapsize.x + dx),
-				mapsize.y,
-				mapsize.z
-			)
-		end, 'width='..mapsize.x)
-		x = x + 11
-
-		self:guiSpinner(x, y, function(dx)
-			self:resizeVoxelmap(
-				mapsize.x,
-				math.max(1, mapsize.y + dx),
-				mapsize.z
-			)
-		end, 'height='..mapsize.y)
-		x = x + 11
-
-		self:guiSpinner(x, y, function(dx)
-			self:resizeVoxelmap(
-				mapsize.x,
-				mapsize.y,
-				math.max(1, mapsize.z + dx)
-			)
-		end, 'depth='..mapsize.z)
-		x = x + 11
-
-		self:guiTextField(
-			189, 0, 20,
-			('%08X'):format(self.voxCurSel.intval), nil,
-			function(result)
-				result = tonumber(result, 16)
-				if result then
-					self.voxCurSel.intval = result
-					self.tileSel.pos.x = self.voxCurSel.tileXOffset
-					self.tileSel.pos.y = self.voxCurSel.tileYOffset
-				end
-			end
-		)
-	else
-		x = x + 33
-	end
-
-	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
-		self.wireframe = not self.wireframe
-	end
-	x = x + 6
-	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'orbit.ortho' or 'projection') then
-		orbit.ortho = not orbit.ortho
-	end
-	x = x + 6
-	if self:guiButton('L', x, y, false, 'light='..tostring(self.menuUseLighting)) then
-		self.menuUseLighting = not self.menuUseLighting
-	end
-	x = x + 6
-	if self:guiButton('C', x, y, false, 'cull='..self.menuUseCullFace) then
-		self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
-	end
-	x = x + 6
-
-	if voxelmap then
-		local x = 0
-		local y = 8
-
-		-- tools ... maybe I should put these somewhere else
-		self:guiRadio(x, y, {
-			-- minecraft-place-block style.
-			-- single-click to plop voxels off of the surface.
-			'draw',
-
-			-- plop voxels perpendicular to the click plane.
-			-- lets you click-and-drag, but since penSize is only orthogonal,
-			--  it doesnt immedaitely stack voxels to the view position.
-			'orthodraw',
-
-			-- only changes non-empty voxels on-surface
-			-- click-and-drag
-			-- penSize = paint region.
-			'paint',
-
-			-- rectangle, left click = fill, right click = erase.
-			'rect',
-
-			-- 3D floodfill.
-			'fill',
-
-			-- 2D floodfill.
-			'surfacefill',
-
-			-- cut/copy/paste
-			'select'
-
-		}, self.drawMode, function(result)
-			self.drawMode = result
-		end)
-		x = x + 6*7
-
-		self:guiSpinner(x, y, function(dx)
-			self.penSize = math.max(1, self.penSize + dx)
-		end, 'pensize='..self.penSize)
-	end
 
 	---------------- KEYBOARD ----------------
 
@@ -1242,7 +1474,7 @@ function EditVoxelMap:update()
 	---------------- TOOLTIP ----------------
 
 	self:guiSetClipRect(-1000, 0, 3000, 256)
-	self:drawTooltip()
+	self:newUI_update()
 end
 
 function EditVoxelMap:dropper(voxelmap, x,y,z)
@@ -1265,6 +1497,7 @@ function EditVoxelMap:dropper(voxelmap, x,y,z)
 	-- sometimes you want it, i.e. when you're flood-filling empty tiles
 	--if voxval ~= voxelMapEmptyValue then
 	self.voxCurSel.intval = voxval
+	self:updateVoxCurSel()
 	self.tileSel.pos.x = self.voxCurSel.tileXOffset
 	self.tileSel.pos.y = self.voxCurSel.tileYOffset
 	--end
@@ -1318,11 +1551,11 @@ function EditVoxelMap:pasteAtCenter(voxelmap, centerpos, sideIndex)
 	end
 end
 
-
---[[ TODO just use lua.gui ... gui scenegraph ...
 function EditVoxelMap:event(e)
+
+
+	return self:newUI_event(e)
 end
---]]
 
 function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	local app = self.app

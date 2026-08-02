@@ -171,6 +171,18 @@ function EditSFX:init(args)
 	}
 	self:addChild(self.pitchTextField)
 
+	self.scrollPosButton = UIButton{
+		owner = self,
+		pos = {256, 120},
+		text = '#',
+		events = {
+			mousedown = function()
+				self.draggingScroll = true
+			end,
+		},
+	}
+	self:addChild(self.scrollPosButton)
+
 	require 'numo9.ui.addgetset'(self, {
 		sfxBlobIndex = {
 			set = function(private, self, k, v)
@@ -275,9 +287,7 @@ function EditSFX:update()
 
 	app:drawMenuText('|', offset / sfxLen * 248, 120, 0xfc, 0)
 
-	if self:guiButton('#', self.offsetScrollX / sfxLen * 248, 120) then
-		self.draggingScroll = true
-	end
+	self.scrollPosButton.pos:set(self.offsetScrollX / sfxLen * 248, 120)
 
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
