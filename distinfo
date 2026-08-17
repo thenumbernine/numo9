@@ -105,6 +105,7 @@ files = {
 	"numo9/ui/addgetset.lua",
 	"numo9/ui/blobselect.lua",
 	"numo9/ui/button.lua",
+	"numo9/ui/checkbox.lua",
 	"numo9/ui/label.lua",
 	"numo9/ui/orbit.lua",
 	"numo9/ui/radio.lua",
