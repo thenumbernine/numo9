@@ -1346,7 +1346,7 @@ print('package.loaded', package.loaded)
 
 				coolPrint('NuMo-9 ver. '..versionStr)
 				for i=1,30 do env.yield() end
-				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
+				coolPrint'https://github.com/thenumbernine/numo9 (c) 2026'
 				for i=1,30 do env.yield() end
 				coolPrint'...LuaJIT w/5.2 compat'
 				for i=1,30 do env.yield() end
