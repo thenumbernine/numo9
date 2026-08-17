@@ -199,6 +199,10 @@ for i=#cmdline,1,-1 do
 		table.remove(cmdline, i)
 		cmdline.noaudio = true
 	end
+	if cmdline[i] == '-nonet' then
+		table.remove(cmdline, i)
+		cmdline.nonet = true
+	end
 	if cmdline[i] == '-config' then
 		table.remove(cmdline, i)
 		cmdline.config = table.remove(cmdline, i)

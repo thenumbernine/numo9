@@ -760,6 +760,8 @@ luajit run.lua -e "connect'<address>'"
 
 `-noaudio` = don't use audio.
 
+`-nonet` = disable multiplayer / don't initialize luasocket.
+
 `-config <filename>` = use `<filename>` as the location for your config file.  Default is in the user's config's home folder per OS.
 
 ... any other arguments are assumed to be the input cartridge file to load.

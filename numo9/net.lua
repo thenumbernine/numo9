@@ -35,7 +35,6 @@ TODO I'm doubling up the net cmds sent for 2 draw conns ...
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 require 'ffi.req' 'c.string'	-- strlen
-local socket = require 'socket'
 local class = require 'ext.class'
 local table = require 'ext.table'
 local range = require 'ext.range'
@@ -46,6 +45,9 @@ local struct = require 'struct'
 local vector = require 'stl.vector-lua'
 local zlibCompressLua = require 'image.ffi.zlib' .compressLua
 local zlibUncompressLua = require 'image.ffi.zlib' .uncompressLua
+
+-- allow this to turn false if 'socket' is not present
+local socket = not cmdline.nonet and require 'ext.op'.land(pcall, require 'socket')
 
 local numo9_keys = require 'numo9.keys'
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode

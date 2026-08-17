@@ -3,6 +3,10 @@ local table = require 'ext.table'
 local assert = require 'ext.assert'
 local sdl = require 'sdl'
 
+-- matches the test in numo9/net.lua for detecting luasocket
+-- used for disabling the multiplayer menu here
+local socket = not cmdline.nonet and require 'ext.op'.land(pcall, require 'socket')
+
 local numo9_rom = require 'numo9.rom'
 local menuFontWidth = numo9_rom.menuFontWidth
 
@@ -115,7 +119,7 @@ function MainMenu:updateMenuMain()
 		return
 	end
 
-	local disableMultiplayer = app.metainfo and app.metainfo.disableMultiplayer
+	local disableMultiplayer = not socket or (app.metainfo and app.metainfo.disableMultiplayer)
 
 	if not disableMultiplayer then
 		if self:menuButton'multiplayer' then
