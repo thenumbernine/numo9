@@ -449,7 +449,8 @@ struct Light_t {
 };
 
 // spirv doesn't support binding, but I have only managed to get spirv to work with gl for compute, not frag or vert, so who cares about spirv.
-layout(std140, binding=0) uniform fragBlock {
+// webgl2 <-> gles3.0 does not as well
+layout(std140 /*, binding=0 */) uniform fragBlock {
 
 	Light_t lights[maxLights];
 
@@ -697,6 +698,12 @@ if (debugDraw == 4) {	// debug show the first light buffer
 				framebufferPosTex = 1,
 				noiseTex = 2,
 				lightDepthTex = 3,
+			},
+		},
+		-- setup bindings here since GLES3-WebGL2-ANGLE-GLSL doesn't let us set layout(bindings) like Mesa-GLES3 does
+		uniformBlocks = {
+			fragBlock = {
+				binding = 0,
 			},
 		},
 		texs = {
