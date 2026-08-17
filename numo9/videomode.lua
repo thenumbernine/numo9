@@ -222,7 +222,11 @@ function VideoMode:buildFramebuffers()
 	-- make a depth tex per size
 	self.fb:bind()
 	self.framebufferDepthTex = GLTex2D{
-		internalFormat = gl.GL_DEPTH_COMPONENT,
+		--internalFormat = gl.GL_DEPTH_COMPONENT,
+		-- gles3 needs a specific type ...
+		--internalFormat = gl.GL_DEPTH_COMPONENT16,
+		--internalFormat = gl.GL_DEPTH_COMPONENT24,
+		internalFormat = gl.GL_DEPTH_COMPONENT32F,
 		width = self.width,
 		height = self.height,
 		format = gl.GL_DEPTH_COMPONENT,
