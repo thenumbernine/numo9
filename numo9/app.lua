@@ -1617,7 +1617,7 @@ local modelMatPush = matArrType()
 local viewMatPush = matArrType()
 local projMatPush = matArrType()
 function App:update()
-	if not self.hasFocus then
+	if not self.hasFocus and not cmdline.alwaysredraw then
 		-- only pause-on-lost-focus if we're not in multiplayer
 		if not self.server and not self.remoteClient then
 			sdl.SDL_Delay(100)
@@ -2238,12 +2238,10 @@ print('run thread dead')
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
 	end
 
-	if cmdline.alwaysredraw and needDrawCounter == 0 then
-		needDrawCounter = 1
-	end
-
 	if needDrawCounter > 0 then
-		needDrawCounter = needDrawCounter - 1
+		if not cmdline.alwaysredraw then
+			needDrawCounter = needDrawCounter - 1
+		end
 		drawsPerSecond = drawsPerSecond + 1
 
 		local pushHD2DFlags
