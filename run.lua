@@ -211,6 +211,10 @@ for i=#cmdline,1,-1 do
 		table.remove(cmdline, i)
 		cmdline.fps = true
 	end
+	if cmdline[i] == '-alwaysredraw' then
+		table.remove(cmdline, i)
+		cmdline.alwaysredraw = true
+	end
 end
 
 require 'gl.setup'(cmdline.gl)

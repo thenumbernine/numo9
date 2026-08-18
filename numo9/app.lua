@@ -2238,6 +2238,10 @@ print('run thread dead')
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
 	end
 
+	if cmdline.alwaysredraw and needDrawCounter == 0 then
+		needDrawCounter = 1
+	end
+
 	if needDrawCounter > 0 then
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
