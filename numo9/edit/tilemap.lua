@@ -436,13 +436,7 @@ end
 function EditTilemap:update()
 	local app = self.app
 
-	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
-	-- until I switch those immediate-mode radio-buttons
-	-- but to do that I have to switch all editor tabs to the new sytsem.
-	for _,ch in ipairs(self.uiRoot.children) do
-		if not ch.origPosX then ch.origPosX = ch.pos.x end
-		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
-	end
+	self:newUI_realignChildren()
 
 	local draw16As0or1 = self.draw16Sprites and 1 or 0
 

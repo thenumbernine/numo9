@@ -639,7 +639,7 @@ function UI:event(e)
 		and e[0].gaxis.axis == 1
 		and e[0].gaxis.value < -10000)
 	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN 
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN
 	and e[0].key.key == sdl.SDLK_UP)
 	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
 	then
@@ -659,7 +659,7 @@ function UI:event(e)
 		and e[0].gaxis.axis == 1
 		and e[0].gaxis.value > 10000)
 	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN 
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN
 	and e[0].key.key == sdl.SDLK_DOWN)
 	then
 		self.menuTabIndex = self.menuTabIndex + 1
@@ -850,6 +850,17 @@ function UI:newUI_event(sdlEvent, skipSuper)
 	self.uiRoot:rootEvent(sdlEvent, not skipSuper and function()
 		return UI.event(self, sdlEvent)
 	end)
+end
+
+-- this is a pre-update call
+function UI:newUI_realignChildren()
+	-- TODO gotta do this to align children to the the immediate-mode radio-buttons for switching blob type
+	-- until I switch those immediate-mode radio-buttons
+	-- but to do that I have to switch all editor tabs to the new sytsem.
+	for _,ch in ipairs(self.uiRoot.children) do
+		if not ch.origPosX then ch.origPosX = ch.pos.x end
+		ch.pos.x = ch.origPosX - self.uiRoot.pos.x
+	end
 end
 
 function UI:addChild(...)
