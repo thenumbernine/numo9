@@ -68,15 +68,15 @@ function EditVoxelMap:init(args)
 
 	self.tileSel = TileSelect{
 		edit = self,
-		getMeshIndex = function(self)
-			return self.edit.voxCurSel.mesh3DIndex
+		getMeshIndex = function(tilesel)
+			return tilesel.edit.voxCurSel.mesh3DIndex
 		end,
-		onSetTile = function(self)
-			local edit = self.edit
+		onSetTile = function(tilesel)
+			local edit = tilesel.edit
 			-- update the voxCurSel tile XY
 			edit.voxCurSel.tileXOffset = edit.tileSel.pos.x
 			edit.voxCurSel.tileYOffset = edit.tileSel.pos.y
-			self:updateVoxCurSel()
+			edit:updateVoxCurSel()
 		end,
 	}
 
