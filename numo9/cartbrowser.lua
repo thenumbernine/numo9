@@ -67,68 +67,25 @@ function CartBrowser:gainFocus(...)
 				--]]
 			})
 		elseif filename:match'%.n9$' then	-- cart file
+			local focus = function()
+--print('mouse focus', fileObj)
+				-- if the selected file changes ...
+				if fileObj == self.selectedFile then return end
+				self.selectedFile = fileObj
+--print('setting selectedFile', fileObj)
+				self:refreshThumbTex()
+			end
+
 			self:addChild(UIButton{
 				owner = self,
 				pos = {x, y},
 				text = '*'..filename,
 				events = {
+					focus = focus,
 					-- TODO this on mouseover or on tab
-					focus = function()
-						-- if the selected file changes ...
-						if fileObj == self.selectedFile then return end
+					-- why isn't focus() getting called on mouseover?
+					mouseenter = focus,
 
-						-- ... then clear and reload the thumbnail texture
-						self.thumbTex = nil
-						self.selectedFile = fileObj
-
-						xpcall(function()
-							-- load splash tex or something
-							local srcData = assert(fileObj.data)
-
-							-- [[ this is also in numo9/archive.lua cartImageToBlobStr...
-							local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
-							assert(path(tmploc):write(srcData))
-							local romImage = assert(Image(tmploc.path))
-							tmploc:remove()
-							--]]
-							--[[
-							local romImage = require 'image.luajit.png':loadMem(srcData)
-							--]]
-
-							-- load the splash tex here
-							-- I could just create these as I need them and trust gc cleanup to dealloc them
-							-- or if dealloc isn't trustworthy (esp for GPU ram) then I could cache them here (and maybe clear the cache when the folder changes?)
-							self.labelTexCache = self.labelTexCache or {}
-							local selectedFilePath = fileObj:path()
-							self.thumbTex = self.labelTexCache[selectedFilePath]
-							if not self.thumbTex then
-								--local internalFormat = gl.GL_RGBA8I
-								local internalFormat = gl.GL_RGBA8UI
-								--local internalFormat = gl.GL_RGBA8
-								--local internalFormat = gl.GL_RGBA
-								-- TODO don't cache the GPU buffer, just cache the CPU buffer and allocate one GPU buffer and re-upload it ...
-								local tex = GLTex2D{
-									image = romImage,
-									internalFormat = internalFormat,
-									format = GLTex2D.formatInfoForInternalFormat[internalFormat].format,
-									type = GLTex2D.formatInfoForInternalFormat[internalFormat].types[1],
-									wrap = {
-										s = gl.GL_REPEAT,
-										t = gl.GL_REPEAT,
-									},
-									minFilter = gl.GL_NEAREST,
-									magFilter = gl.GL_NEAREST,
-								}:unbind()
-								self.labelTexCache[selectedFilePath] = tex
-								self.thumbTex = tex
-							end
-						end, function(err)
-							print(err..'\n'..debug.traceback())
-							-- store 'false' in cache so we know not to try again
-							self.thumbTex = false
-						end)
-
-					end,
 					-- TODO this on mouse click or enter
 					click = function()
 						local app = self.app
@@ -212,9 +169,70 @@ function CartBrowser:update()
 	self:newUI_update()
 end
 
+function CartBrowser:refreshThumbTex()
+	local fileObj = self.selectedFile
+--print('refreshing thumb of selectedFile', fileObj)
+
+	-- legacy system, this screws up on errors now, fix it by fixing tabstop in new ui
+	if not fileObj then return end
+
+	-- ... then clear and reload the thumbnail texture
+	self.thumbTex = nil
+
+	xpcall(function()
+		-- load splash tex or something
+		local srcData = assert(fileObj.data)
+
+		-- [[ this is also in numo9/archive.lua cartImageToBlobStr...
+		local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
+		assert(path(tmploc):write(srcData))
+		local romImage = assert(Image(tmploc.path))
+		tmploc:remove()
+		--]]
+		--[[
+		local romImage = require 'image.luajit.png':loadMem(srcData)
+		--]]
+
+		-- load the splash tex here
+		-- I could just create these as I need them and trust gc cleanup to dealloc them
+		-- or if dealloc isn't trustworthy (esp for GPU ram) then I could cache them here (and maybe clear the cache when the folder changes?)
+		self.labelTexCache = self.labelTexCache or {}
+		local selectedFilePath = fileObj:path()
+		self.thumbTex = self.labelTexCache[selectedFilePath]
+		if not self.thumbTex then
+			--local internalFormat = gl.GL_RGBA8I
+			local internalFormat = gl.GL_RGBA8UI
+			--local internalFormat = gl.GL_RGBA8
+			--local internalFormat = gl.GL_RGBA
+			-- TODO don't cache the GPU buffer, just cache the CPU buffer and allocate one GPU buffer and re-upload it ...
+			local tex = GLTex2D{
+				image = romImage,
+				internalFormat = internalFormat,
+				format = GLTex2D.formatInfoForInternalFormat[internalFormat].format,
+				type = GLTex2D.formatInfoForInternalFormat[internalFormat].types[1],
+				wrap = {
+					s = gl.GL_REPEAT,
+					t = gl.GL_REPEAT,
+				},
+				minFilter = gl.GL_NEAREST,
+				magFilter = gl.GL_NEAREST,
+			}:unbind()
+			self.labelTexCache[selectedFilePath] = tex
+			self.thumbTex = tex
+		end
+	end, function(err)
+		print(err..'\n'..debug.traceback())
+		-- store 'false' in cache so we know not to try again
+		self.thumbTex = false
+	end)
+end
+
 function CartBrowser:event(e)
-	-- what is causing this?
-	self.menuTabIndex = self.menuTabIndex or 0
+	-- probably needed from legacy system
+	if not self.menuTabIndex then
+--print'TODO - we lost menuTabIndex again...'
+		self.menuTabIndex = 0
+	end
 
 	local lastMenuTabIndex = self.menuTabIndex
 
@@ -222,11 +240,9 @@ function CartBrowser:event(e)
 --	local result = CartBrowser.super.event(self, e)
 	local result = self:newUI_event(e)
 
---[[
 	if self.menuTabIndex ~= lastMenuTabIndex then
-		self.thumbTex = nil	-- clear it and try to regen cache next update
+		self:refreshThumbTex()
 	end
---]]
 
 	return result
 end

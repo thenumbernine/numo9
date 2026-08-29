@@ -15,7 +15,7 @@ local clipMax = numo9_rom.clipMax
 local UIWidget = class()
 
 UIWidget.zIndex = 0
-UIWidget.tag = 'widget' 
+UIWidget.tag = 'widget'
 
 function UIWidget:init(args)
 	args = args or {}
@@ -226,7 +226,7 @@ end
 
 -- why don't I just implement these as events themselves?
 -- atm because browsers don't let you removeEventHandler the default , only on additional callbacks
--- but this owuldn't be the first bad DOM design, 
+-- but this owuldn't be the first bad DOM design,
 -- so TODO maybe I'll just replace all these with events directly...
 
 -- doesn't bubble, is called directly by root
@@ -263,7 +263,7 @@ function UIWidget:onMouseDown_bubbleIn(...)
 	end
 	self:triggerEvents('mousedown', true, ...)
 end
-	
+
 function UIWidget:onMouseDown(...)
 	self:triggerEvents('mousedown', false, ...)
 end
@@ -274,7 +274,7 @@ end
 
 function UIWidget:onMouseUp(...)
 	self:triggerEvents('mouseup', false, ...)
-	-- TODO what if propagation gets stopped?  
+	-- TODO what if propagation gets stopped?
 	-- I should clear the ancestry every time widgetUnderMouse changes...
 	self.mouseDownOnThis = nil
 end
