@@ -26,7 +26,8 @@ function UIRoot:init(args)
 end
 
 function UIRoot:rootUpdateAndDraw()
-	local app = self.owner.app
+	local owner = self.owner
+	local app = owner.app
 
 	app:matMenuReset()
 
@@ -68,8 +69,53 @@ ch.childIndexInParent = i
 	app:setClipRect(0, 0, clipMax, clipMax)
 	app:matMenuReset()
 
+
+	--[[
+	hmm...
+	if we mouseover then we want tooltip to appear...
+	if we tab to a widget then we want its tooltip to appear ...
+	... at least until we move the mouse again,
+		then we want the mouse to take precedence ...
+	maybe I need a 'tooltipWidget' field for owner, that is assigned upon mouseover / focus ...
+	but I would need to only set it if it has a valid tooltip property ...
+
+	if we had hovered over this then clear it
+	also if we had changed tooltipSrc via tabindex then we'd want to clear it
+	but we won't want to clear tooltipSrc if we had just assigned it via mousemove this update ...
+	... hmm ...
+	maybe we should just clear it every frame? or nah?
+
+	focusin will trigger on setfocus with bubble
+	 (but not on mouseover)
+	--]]
+	owner.tooltipSrc = nil
+
 	self:update()
+
+	local tooltipSrc = owner.tooltipSrc
+	if tooltipSrc then
+		-- ram mousePos is relative to matMenuReset()'s matrices
+		-- this will be the root-level modelMatPush
+		-- so handle this outside of draw
+		-- ... or pass mousePos down through draw and constantly inverse-apply matrix transforms to it it as you go ...
+		local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
+		local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
+
+		local tooltip
+		if type(tooltipSrc.tooltip) == 'string' then
+			tooltip = tooltipSrc.tooltip
+		elseif type(tooltipSrc.tooltip) == 'function' then
+			tooltip = tooltipSrc:tooltip()
+		elseif tooltip ~= nil then
+			error("idk how to handle tooltip")
+		end
+
+		if tooltip then
+			owner:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+		end
+	end
 end
+
 
 --[[
 this will call all hierarchy with a member functions

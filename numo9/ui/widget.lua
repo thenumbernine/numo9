@@ -176,7 +176,6 @@ end
 -- a lot like draw except without the successive matrix transformations
 function UIWidget:update()
 	local owner = self.owner
-	local app = owner.app
 
 	-- keep track of which tab index this component is
 	self.menuTabIndex = owner.menuTabCounter
@@ -187,26 +186,10 @@ function UIWidget:update()
 		ch:update()
 	end
 
-	if (self.isMouseOver or self.selfOrChildHasFocus)
-	and self.tooltip
+	if self.tooltip
+	and (self.isMouseOver or self.selfOrChildHasFocus)
 	then
-		-- ram mousePos is relative to matMenuReset()'s matrices
-		-- this will be the root-level modelMatPush
-		-- so handle this outside of draw
-		-- ... or pass mousePos down through draw and constantly inverse-apply matrix transforms to it it as you go ...
-		local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
-		local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
-
-		local tooltip
-		if type(self.tooltip) == 'string' then
-			tooltip = self.tooltip
-		elseif type(self.tooltip) == 'function' then
-			tooltip = self:tooltip()
-		elseif tooltip ~= nil then
-			error("idk how to handle tooltip")
-		end
-
-		owner:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+		owner.tooltipSrc = self
 	end
 end
 
@@ -297,7 +280,7 @@ end
 
 -- doesn't bubble
 function UIWidget:onFocus(e)
-	-- if you mouse over an event thens witch to its tab index...
+	-- if you mouse over an event then switch to its tab index...
 	-- ... TODO only do this when you click?
 	self.owner.menuTabIndex = self.menuTabIndex or self.owner.menuTabIndex
 

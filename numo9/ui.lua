@@ -87,6 +87,11 @@ function UI:init(args)
 end
 
 function UI:setTooltip(s, mouseX, mouseY, fg, bg)
+	if not s then
+		self.tooltip = nil
+		return
+	end
+
 	-- TODO clamp to menu space max, which is setup in the menu transform in numo9/app.lua
 	--mouseX = math.clamp(mouseX, 8, 256-8)
 	mouseY = math.clamp(mouseY, 8, 256-8)
