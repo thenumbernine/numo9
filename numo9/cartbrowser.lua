@@ -50,14 +50,14 @@ function CartBrowser:gainFocus(...)
 	local selY
 	local w = 128	-- how wide .. text length? or fixed button length?
 	local h = 8
-	for i,name in ipairs(fileNames) do
-		local f = fs.cwd.chs[name]
+	for i,filename in ipairs(fileNames) do
+		local fileObj = fs.cwd.chs[filename]
 
-		if f.isdir then 				-- dir
+		if fileObj.isdir then 				-- dir
 			self:addChild(UIButton{
 				owner = self,
 				pos = {x, y},
-				text = '['..name..']',
+				text = '['..filename..']',
 				--[[ TODO make it toggle-able?
 				events = {
 					click = function()
@@ -66,27 +66,24 @@ function CartBrowser:gainFocus(...)
 				},
 				--]]
 			})
-		elseif name:match'%.n9$' then	-- cart file
+		elseif filename:match'%.n9$' then	-- cart file
 			self:addChild(UIButton{
 				owner = self,
 				pos = {x, y},
-				text = '*'..name,
+				text = '*'..filename,
 				events = {
 					-- TODO this on mouseover or on tab
 					focus = function()
-						local selectedFileName = name
-
-						local selectedFile = selectedFileName and fs.cwd.chs[selectedFileName]
 						-- if the selected file changes ...
-						if selectedFile == self.selectedFile then return end
+						if fileObj == self.selectedFile then return end
 
 						-- ... then clear and reload the thumbnail texture
 						self.thumbTex = nil
-						self.selectedFile = selectedFile
+						self.selectedFile = fileObj
 
 						xpcall(function()
 							-- load splash tex or something
-							local srcData = assert(self.selectedFile.data)
+							local srcData = assert(fileObj.data)
 
 							-- [[ this is also in numo9/archive.lua cartImageToBlobStr...
 							local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
@@ -102,7 +99,7 @@ function CartBrowser:gainFocus(...)
 							-- I could just create these as I need them and trust gc cleanup to dealloc them
 							-- or if dealloc isn't trustworthy (esp for GPU ram) then I could cache them here (and maybe clear the cache when the folder changes?)
 							self.labelTexCache = self.labelTexCache or {}
-							local selectedFilePath = self.selectedFile:path()
+							local selectedFilePath = fileObj:path()
 							self.thumbTex = self.labelTexCache[selectedFilePath]
 							if not self.thumbTex then
 								--local internalFormat = gl.GL_RGBA8I
@@ -134,7 +131,6 @@ function CartBrowser:gainFocus(...)
 					end,
 					-- TODO this on mouse click or enter
 					click = function()
-print('click', self.selectedFile.name)
 						local app = self.app
 						-- then run the cart ...
 						--app:setMenu(nil)
@@ -143,9 +139,9 @@ print('click', self.selectedFile.name)
 						-- but if I don't do app:setFocus{...} to load the ROM then I get things like bad video mode and mvmat
 						app:setFocus{
 							thread = coroutine.create(function()
-								-- name, or path / name ?  if path is cwd then we're fine right?
+								-- filename, or path / filename ?  if path is cwd then we're fine right?
 								-- TODO what if we're a server?  then we should do what's in numo9/app.lua's open() function, send RAM snapshot to all clients.
-								app:net_openCart(self.selectedFile.name)
+								app:net_openCart(filename)
 								app:runCart()
 							end),
 						}
@@ -157,7 +153,7 @@ print('click', self.selectedFile.name)
 			self:addChild(UIButton{
 				owner = self,
 				pos = {x, y},
-				text = ' '..name,
+				text = ' '..filename,
 			})
 		end
 
