@@ -15,8 +15,8 @@ function UISpinner:init(args)
 
 	self:addChild(UIButton{
 		owner = args.owner,
-		text = '<',
 		pos = vec2d(0, 0),
+		text = '<',
 		events = {
 			click = function()
 				setValue(-1)
@@ -29,8 +29,8 @@ function UISpinner:init(args)
 
 	self:addChild(UIButton{
 		owner = args.owner,
-		text = '>',
 		pos = vec2d(fontWidth + spacing, 0),
+		text = '>',
 		events = {
 			click = function()
 				setValue(1)

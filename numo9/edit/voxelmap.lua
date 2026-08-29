@@ -174,8 +174,17 @@ function EditVoxelMap:init(args)
 		self:addChild(UISpinner{
 			owner = self,
 			pos = {x, y},
+			tooltip = function()
+				local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return '(you need to create a voxelmap blob first...)' end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				return 'width='..mapsize.x
+			end,
 			setValue = function(dx)
-				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 				if not voxelmap then return end
 				local mapsize = vec3d(
 						voxelmap:getWidth(),
@@ -187,23 +196,23 @@ function EditVoxelMap:init(args)
 					mapsize.z
 				)
 			end,
-			tooltip = function()
-				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-				if not voxelmap then return '' end
-				local mapsize = vec3d(
-						voxelmap:getWidth(),
-						voxelmap:getHeight(),
-						voxelmap:getDepth())
-				return 'width='..mapsize.x
-			end,
 		})
 		x = x + 11
 
 		self:addChild(UISpinner{
 			owner = self,
 			pos = {x, y},
+			tooltip = function()
+				local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return '(you need to create a voxelmap blob first...)' end
+				local mapsize = vec3d(
+						voxelmap:getWidth(),
+						voxelmap:getHeight(),
+						voxelmap:getDepth())
+				return 'height='..mapsize.y
+			end,
 			setValue = function(dx)
-				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 				if not voxelmap then return end
 				local mapsize = vec3d(
 						voxelmap:getWidth(),
@@ -215,15 +224,6 @@ function EditVoxelMap:init(args)
 					mapsize.z
 				)
 			end,
-			tooltip = function()
-				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-				if not voxelmap then return '' end
-				local mapsize = vec3d(
-						voxelmap:getWidth(),
-						voxelmap:getHeight(),
-						voxelmap:getDepth())
-				return 'height='..mapsize.y
-			end,
 		})
 		x = x + 11
 
@@ -231,8 +231,8 @@ function EditVoxelMap:init(args)
 			owner = self,
 			pos = {x, y},
 			tooltip = function()
-				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-				if not voxelmap then return '' end
+				local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				if not voxelmap then return '(you need to create a voxelmap blob first...)' end
 				local mapsize = vec3d(
 						voxelmap:getWidth(),
 						voxelmap:getHeight(),
@@ -240,7 +240,7 @@ function EditVoxelMap:init(args)
 				return 'depth='..mapsize.z
 			end,
 			setValue = function(dx)
-				local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+				local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 				if not voxelmap then return end
 				local mapsize = vec3d(
 						voxelmap:getWidth(),
