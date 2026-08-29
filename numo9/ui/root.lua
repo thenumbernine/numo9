@@ -32,11 +32,18 @@ function UIRoot:rootUpdateAndDraw()
 
 	for i,ch in ipairs(self.children) do
 		self.childrenInOrder[i] = ch
+
+-- TODO this is going to become invalid very quickly
+-- i'm only using it for sorting
+-- and I want it for sorting for preserving original order for when zIndexes equal...
+ch.childIndexInParent = i
+
 	end
 	for i=#self.children+1,#self.childrenInOrder do
 		self.childrenInOrder[i] = nil
 	end
 	self.childrenInOrder:sort(function(a,b)
+		if a.zIndex == b.zIndex then return a.childIndexInParent < b.childIndexInParent end
 		return a.zIndex < b.zIndex
 	end)
 	for i=#self.allWidgetsInOrder,1,-1 do
