@@ -478,27 +478,6 @@ function EditTilemap:update()
 		self.tilemapPanOffset.y = self.tilemapPanOffset.y + dy
 	end
 
---[[
-	local tileSelIndex = bit.bor(
-		self.tileSel.pos.x + spriteSheetSizeInTiles.x * self.tileSel.pos.y,
-		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
-		bit.lshift(bit.band(7, self.orientation), 13)
-	)
-	self:guiTextField(
-		202, 0, 20,
-		('%04X'):format(tileSelIndex), nil,
-		function(result)
-			result = tonumber(result, 16)
-			if result then
-				self.tileSel.pos.x = result % spriteSheetSizeInTiles.x
-				self.tileSel.pos.y = (result - self.tileSel.pos.x) / spriteSheetSizeInTiles.x
-				self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
-				self.orientation = bit.band(7, bit.rshift(result, 13))
-			end
-		end
-	)
---]]
-
 	--self:guiSetClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
 	self:guiSetClipRect(-1000, mapY, 3000, mapSizeInPixels.y-1)
 
