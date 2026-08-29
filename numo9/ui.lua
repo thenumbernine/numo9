@@ -31,6 +31,9 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local minBlobPerType = numo9_blobs.minBlobPerType
 
+local UIRadio = require 'numo9.ui.radio'
+local UIButton = require 'numo9.ui.button'
+
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 local uint16_t = ffi.typeof'uint16_t'
@@ -87,6 +90,7 @@ function UI:init(args)
 end
 
 -- TODO REMOVEME and use numo9.ui.button
+-- last used in common ui below, and in main menu
 function UI:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
@@ -133,6 +137,7 @@ function UI:guiButton(str, x, y, isset, tooltip)
 end
 
 -- TODO REMOVEME and use numo9.ui.spinner
+-- last place: main menu...
 function UI:guiSpinner(x, y, cb, tooltip)
 	if self:guiButton('<', x, y, nil, tooltip) then
 		cb(-1)
@@ -142,22 +147,6 @@ function UI:guiSpinner(x, y, cb, tooltip)
 	x = x + fontWidth + 1
 	if self:guiButton('>', x, y, nil, tooltip) then
 		cb(1)
-	end
-end
-
--- TODO REMOVEME and use numo9.ui.radio
-function UI:guiRadio(x, y, options, selected, cb)
-	for _,name in ipairs(options) do
-		if self:guiButton(
-			name:sub(1,1):upper(),
-			x,
-			y,
-			selected == name,
-			name
-		) then
-			cb(name)
-		end
-		x = x + 6
 	end
 end
 
@@ -302,101 +291,8 @@ function UI:guiTextField(
 	return changed
 end
 
--- TODO REMOVEME and use numo9.ui.blobselect
-function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb, generator)
-	local app = self.app
-	local blobsOfType = app.blobs[blobName]
-	local popupKey = indexKey..'_popupOpen'
-	local buttonMenuTabCounter = self.menuTabCounter
-	local sel = self.menuTabIndex == buttonMenuTabCounter
-
-	generator = generator or function()
-		return blobClassForName[blobName]()
-	end
-
-	local handled
-
---[[ just show selected blob #
-	self:guiButton(
-		#blobsOfType == 0 and '~' or '#'..t[indexKey],
-		x, y, nil, blobName)
---]]
--- [[ allow editing it
-	if self:guiTextField(
-		x, y, 12,
-		t[indexKey], nil,
-		function(newValue)
-			newValue = tonumber(newValue)
-			if newValue then
-				t[indexKey] = math.clamp(newValue, 0, #blobsOfType-1)
-				if cb then cb(dx) end
-			end
-			handled = true
-		end,
-		blobName)
-	then
-		-- ??
-	end
---]]
-
-	if sel then
-		t[popupKey] = true
-	end
-
-	if t[popupKey] then
-		local w = 25
-		local h = 10
-		app:drawBorderRect(x, y + 8, w+2, h+2, 0xc, nil, app.paletteMenuTex)
-		app:drawSolidRect(x+1, y + 9, w, h, 0, nil, nil, app.paletteMenuTex)
-
-		self:guiSpinner(x + 2, y + 10, function(dx)
-			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #blobsOfType-1)
-			if cb then cb(dx) end
-			handled = true
-		end)
-		-- TODO input number selection?
-
-		local changed
-		if self:guiButton('+', x + 14, y + 10, nil) then
-			t[indexKey] = math.clamp(t[indexKey], 0, #blobsOfType-1)
-			if #blobsOfType == 0 then
-				blobsOfType:insert(generator())
-				t[indexKey] = 0
-			else
-				-- insert after this 0-based blob = +2
-				blobsOfType:insert(t[indexKey]+2, generator())
-				t[indexKey] = t[indexKey] + 1
-			end
-			changed = true
-			handled = true
-		end
-
-		local len = #blobsOfType
-		if len > (minBlobPerType[blobName] or 0) then	-- TODO if not then grey out the - sign?
-			if self:guiButton('-', x + 20, y + 10, nil) then
-				t[indexKey] = math.clamp(t[indexKey], 0, #blobsOfType-1)
-				blobsOfType:remove(t[indexKey]+1)
-				changed = true
-				t[indexKey] = math.clamp(t[indexKey] - 1, 0, #blobsOfType-1)
-				handled = true
-			end
-		end
-		-- TODO controls for moving blobs in order?
-
-		if changed then
-			self:updateBlobChanges()
-		end
-	end
-
-	if buttonMenuTabCounter then	-- am I removing this?
-		if self.menuTabIndex < buttonMenuTabCounter
-		or self.menuTabIndex >= self.menuTabCounter
-		then
-			t[popupKey] = false
-		end
-	end
-	return handled
-end
+-- so I got rid of guiBlobSelect
+-- TODO reimplement .menuTabIndex, .menuTabCounter, .menuTabMax ...
 
 function UI:setTooltip(s, mouseX, mouseY, fg, bg)
 	-- TODO clamp to menu space max, which is setup in the menu transform in numo9/app.lua
@@ -412,6 +308,7 @@ function UI:drawTooltip()
 end
 
 -- this and the :gui stuff really is Gui more than UI ...
+-- TODO do this on DOM change and not every frame...
 function UI:initMenuTabs()
 	self.menuTabMax = self.menuTabCounter
 	self.menuTabCounter = 0
@@ -420,79 +317,9 @@ end
 function UI:update()
 	local app = self.app
 
-	local handled
-
 	self:initMenuTabs()
-
 	app:matMenuReset()
-
 	app:clearScreen(0, app.paletteMenuTex)
-
-	do
-		-- TODO if cull face affects this, how much more?
-		-- TODO TODO this isn't it.
-		-- somehow something in voxelmap is affecting cull face and is preventing the grey background when cullface==1 in menu
-		local pushCullFace = app.ram.cullFace
-		app.ram.cullFace = 0
-		if app.ram.cullFace ~= pushCullFace then
-			app:onCullFaceChange()
-		end
-		app:triBuf_flush()
-		app:drawSolidRect(
-			0, 0,	-- x,y,
-			app.ram.screenWidth, app.ram.screenHeight,	-- w, h,
-			0,
-			nil,
-			nil,
-			app.paletteMenuTex
-		)
-		if app.ram.cullFace ~= pushCullFace then
-			app.ram.cullFace = pushCullFace
-			app:onCullFaceChange()
-		end
-		app:triBuf_flush()
-	end
-
-	if self:guiRadio(
-		0,
-		0,
-		UI.editModes,
-		app.editMode,
-		function(x)
-			app.editMode = x
-			if UI.editFieldForMode[x] then
-				app:setMenu(app[UI.editFieldForMode[x]])
-			end
-		end
-	) then
-		handled = true
-	end
-
-	-- TODO current blob vs editing ROM vs editing RAM ...
-	local x = 230
-	if self:guiButton('R', x, 0, nil, 'reset RAM') then
-		handled = true
-		app:checkDirtyGPU()
-		app:copyBlobsToROM()
-		app:setDirtyCPU()
-	end
-	x=x+6
-	if self:guiButton('\223', x, 0, nil, 'run') then
-		handled = true
-		app:runCart()
-	end
-	x=x+6
-	if self:guiButton('S', x, 0, nil, 'save') then
-		handled = true
-		app:saveCart(app.currentLoadedFilename)
-	end
-	x=x+6
-	if self:guiButton('L', x, 0, nil, 'load') then
-		handled = true
-		app:net_openCart(app.currentLoadedFilename)
-	end
-
-	return handled
 end
 
 --[[
@@ -829,6 +656,106 @@ function UI:newUI_setup()
 	self.uiRoot = require 'numo9.ui.root'{
 		owner = self,
 	}
+end
+
+function UI:newUI_addEditTabs()
+	local app = self.app
+
+	--[[ TODO represent a rect with blue background in the UI...
+	do
+		-- TODO if cull face affects this, how much more?
+		-- TODO TODO this isn't it.
+		-- somehow something in voxelmap is affecting cull face and is preventing the grey background when cullface==1 in menu
+		local pushCullFace = app.ram.cullFace
+		app.ram.cullFace = 0
+		if app.ram.cullFace ~= pushCullFace then
+			app:onCullFaceChange()
+		end
+		app:triBuf_flush()
+		app:drawSolidRect(
+			0, 0,	-- x,y,
+			app.ram.screenWidth, app.ram.screenHeight,	-- w, h,
+			0,
+			nil,
+			nil,
+			app.paletteMenuTex
+		)
+		if app.ram.cullFace ~= pushCullFace then
+			app.ram.cullFace = pushCullFace
+			app:onCullFaceChange()
+		end
+		app:triBuf_flush()
+	end
+	--]]
+
+	self:addChild(UIRadio{
+		owner = self,
+		pos = {0, 0},
+		options = UI.editModes,
+		getSelected = function()
+			return app.editMode
+		end,
+		setSelected = function(x)
+			app.editMode = x
+			if UI.editFieldForMode[x] then
+				app:setMenu(app[UI.editFieldForMode[x]])
+			end
+		end,
+	})
+
+	-- TODO current blob vs editing ROM vs editing RAM ...
+	local x = 230
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, 0},
+		text = 'R',
+		tooltip = 'reset RAM',
+		events = {
+			click = function()
+				handled = true
+				app:checkDirtyGPU()
+				app:copyBlobsToROM()
+				app:setDirtyCPU()
+			end,
+		},
+	})
+	x=x+6
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, 0},
+		text = '\223',
+		tooltip = 'run',
+		events = {
+			click = function()
+				handled = true
+				app:runCart()
+			end,
+		},
+	})
+	x=x+6
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, 0},
+		text = 'S',
+		tooltip = 'save',
+		events = {
+			click = function()
+				app:saveCart(app.currentLoadedFilename)
+			end,
+		},
+	})
+	x=x+6
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, 0},
+		text = 'L',
+		tooltip = 'load',
+		events = {
+			click = function()
+				app:net_openCart(app.currentLoadedFilename)
+			end,
+		},
+	})
 end
 
 function UI:newUI_update()

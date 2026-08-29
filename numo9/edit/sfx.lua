@@ -29,6 +29,7 @@ function EditSFX:init(args)
 	EditSFX.super.init(self, args)
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	local x, y = 80, 0
 	self.sfxBlobSelect = UIBlobSelect{

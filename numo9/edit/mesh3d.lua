@@ -69,6 +69,7 @@ function EditMesh3D:init(args)
 	self.tileSel.pos.x = 2	-- initialize to one 16x16 past the 0,0 tile (which is very often clear)
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	local x, y = 50, 0
 

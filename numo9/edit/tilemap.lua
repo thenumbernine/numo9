@@ -71,6 +71,7 @@ function EditTilemap:init(args)
 	}
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	local x = 48
 	local y = 0

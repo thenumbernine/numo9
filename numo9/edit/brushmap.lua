@@ -47,6 +47,7 @@ function EditBrushmap:init(args)
 	EditBrushmap.super.init(self, args)
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	local x, y = 50, 0
 

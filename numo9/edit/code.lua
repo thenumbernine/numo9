@@ -25,6 +25,7 @@ function EditCode:init(args)
 	-- TODO make EditCode a widget
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	-- TODO offset correctly, and handle input correctly
 	self.uiTextArea = UITextArea{

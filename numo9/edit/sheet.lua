@@ -96,6 +96,7 @@ function EditSheet:init(args)
 	}
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	-- hflip, vflip, hrot, vrot
 	self:addChild(UIButton{
@@ -556,12 +557,6 @@ function EditSheet:init(args)
 		valueKey = 'pasteTransparent',
 	})
 
-	--[[
-	self:guiSpinner(96, 52, function(dx)
-		self.pasteTargetNumColors = bit.band(self.pasteTargetNumColors + dx)
-	end, 'paste target # colors='..tostring(self.pasteTargetNumColors))
-	--]]
-	-- [[
 	self:addChild(UITextField{
 		owner = self,
 		pos = {80, 32},
@@ -578,7 +573,6 @@ function EditSheet:init(args)
 			end,
 		},
 	})
-	--]]
 
 	-- TODO button for cut copy and paste as well?
 

@@ -56,16 +56,6 @@ function TileSelect:onCartLoad()
 	self.scale = 1			-- for zooming
 end
 
-function TileSelect:button(x, y)
-	local edit = self.edit
-
-	local tileIndex = bit.bor(self.pos.x, bit.lshift(self.pos.y, 5))
-	if edit:guiButton('T', x, y, self.pickOpen, 'tile='..tileIndex) then
-		self.pickOpen = not self.pickOpen
-		return true
-	end
-end
-
 -- make a new-UI button:
 function TileSelect:makeButton(args)
 	local UIButton = require 'numo9.ui.button'

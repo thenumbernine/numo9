@@ -81,6 +81,7 @@ function EditVoxelMap:init(args)
 	}
 
 	self:newUI_setup()
+	self:newUI_addEditTabs()
 
 	local x, y = 48, 0
 
