@@ -186,10 +186,10 @@ function UIWidget:update()
 		ch:update()
 	end
 
-	if self.tooltip
-	and (self.isMouseOver or self.selfOrChildHasFocus)
+	if self.isMouseOver
+	and self.tooltip
 	then
-		owner.tooltipSrc = self
+		self.owner.tooltipSrc = self
 	end
 end
 
@@ -295,6 +295,9 @@ end
 -- like focus/blur but does bubble
 function UIWidget:onFocusIn_bubbleIn(...)
 	self.selfOrChildHasFocus = true
+	if self.tooltip then
+		self.owner.tooltipSrc = self
+	end
 	self:triggerEvents('focusin', true, ...)
 end
 function UIWidget:onFocusIn(...)
