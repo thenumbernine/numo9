@@ -260,7 +260,6 @@ function UI:event(e)
 		else
 			self.menuTabIndex = 0
 		end
-print('setting menuTabIndex', self.menuTabIndex)
 		local w = self.widgetForTabIndex[self.menuTabIndex]
 		if w then self.uiRoot:setFocusWidget(w) end
 		return true
