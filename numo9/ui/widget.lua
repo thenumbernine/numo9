@@ -180,6 +180,7 @@ function UIWidget:update()
 
 	-- keep track of which tab index this component is
 	self.menuTabIndex = owner.menuTabCounter
+	owner.widgetForTabIndex[self.menuTabIndex] = self
 	owner.menuTabCounter = owner.menuTabCounter + 1
 
 	for _,ch in ipairs(self.childrenInOrder) do
@@ -298,7 +299,7 @@ end
 function UIWidget:onFocus(e)
 	-- if you mouse over an event thens witch to its tab index...
 	-- ... TODO only do this when you click?
-	self.owner.menuTabIndex = self.menuTabIndex
+	self.owner.menuTabIndex = self.menuTabIndex or self.owner.menuTabIndex
 
 	self:triggerEvents('focus', e)
 end

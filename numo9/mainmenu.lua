@@ -38,7 +38,6 @@ function MainMenu:setCurrentMenu(name)
 	local app = self.app
 
 	self.currentMenu = name
-	self.menuTabIndex = 0
 	self.connectStatus = nil
 
 	local cursorX = 80
@@ -455,8 +454,6 @@ function MainMenu:update()
 	self:newUI_realignChildren()
 
 	local app = self.app
-	-- init the tab-order for editor controls
-	self:initMenuTabs()
 
 	-- [[ transparent overlay over our previously drawn cart framebuffer
 	-- TODO make this a DOM element

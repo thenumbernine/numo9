@@ -73,9 +73,6 @@ UI.editFieldForMode = {
 function UI:init(args)
 	self.app = assert.index(args, 'app')
 
-	self.menuTabCounter = 0
-	self.menuTabIndex = 0
-
 	-- thread that busy loops update and yields?
 	-- vs just calling update instead of resuming the thread?
 	-- the thread will store its errors separately
@@ -88,9 +85,6 @@ function UI:init(args)
 		end
 	end)
 end
-
--- so I got rid of guiBlobSelect
--- TODO reimplement .menuTabIndex, .menuTabCounter, .menuTabMax ...
 
 function UI:setTooltip(s, mouseX, mouseY, fg, bg)
 	-- TODO clamp to menu space max, which is setup in the menu transform in numo9/app.lua
@@ -105,17 +99,9 @@ function UI:drawTooltip()
 	self.tooltip = nil
 end
 
--- this and the :gui stuff really is Gui more than UI ...
--- TODO do this on DOM change and not every frame...
-function UI:initMenuTabs()
-	self.menuTabMax = self.menuTabCounter
-	self.menuTabCounter = 0
-end
-
 function UI:update()
 	local app = self.app
 
-	self:initMenuTabs()
 	app:matMenuReset()
 	app:clearScreen(0, app.paletteMenuTex)
 end
@@ -269,9 +255,13 @@ function UI:event(e)
 	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
 	then
 		self.menuTabIndex = self.menuTabIndex - 1
-		if self.menuTabMax and self.menuTabMax > 0 then
-			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+		if self.menuTabCounter and self.menuTabCounter > 0 then
+			self.menuTabIndex = self.menuTabIndex % self.menuTabCounter
+		else
+			self.menuTabIndex = 0
 		end
+		local w = self.widgetForTabIndex[self.menuTabIndex]
+		if w then w:triggerEvents'focus' end
 		return true
 	end
 
@@ -288,9 +278,13 @@ function UI:event(e)
 	and e[0].key.key == sdl.SDLK_DOWN)
 	then
 		self.menuTabIndex = self.menuTabIndex + 1
-		if self.menuTabMax and self.menuTabMax > 0 then
-			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+		if self.menuTabCounter and self.menuTabCounter > 0 then
+			self.menuTabIndex = self.menuTabIndex % self.menuTabCounter
+		else
+			self.menuTabIndex = 0
 		end
+		local w = self.widgetForTabIndex[self.menuTabIndex]
+		if w then w:triggerEvents'focus' end
 		return true
 	end
 
@@ -451,6 +445,11 @@ end
 -- to-be-widget functionality:
 
 function UI:newUI_setup()
+	-- all created widgets need their owner to have menuTabCounter initialized
+	self.menuTabIndex = 0
+	self.menuTabCounter = 0
+	self.widgetForTabIndex = {}
+
 	self.uiRoot = require 'numo9.ui.root'{
 		owner = self,
 	}
@@ -561,12 +560,21 @@ function UI:newUI_update()
 
 	app:matMenuReset()
 
-	self.uiRoot.pos.x, self.uiRoot.pos.y = app:invTransform(0, 0, 0, 0)
-	self.uiRoot.size.x, self.uiRoot.size.y = app:invTransform(app.width, app.height, 0, 0)
-	self.uiRoot.size.x = self.uiRoot.size.x - self.uiRoot.pos.x
-	self.uiRoot.size.y = self.uiRoot.size.y - self.uiRoot.pos.y
+	local uiRoot = self.uiRoot
 
-	self.uiRoot:rootUpdateAndDraw()
+	uiRoot.pos.x, uiRoot.pos.y = app:invTransform(0, 0, 0, 0)
+	uiRoot.size.x, uiRoot.size.y = app:invTransform(app.width, app.height, 0, 0)
+	uiRoot.size.x = uiRoot.size.x - uiRoot.pos.x
+	uiRoot.size.y = uiRoot.size.y - uiRoot.pos.y
+
+	-- reset the menu tab state of 'owner' of all widgets:
+	self.menuTabCounter = 0
+	for k in pairs(self.widgetForTabIndex) do
+		self.widgetForTabIndex[k] = nil
+	end
+
+	-- this will refresh all widgets' .menuTabIndex
+	uiRoot:rootUpdateAndDraw()
 
 	self:drawTooltip()
 end

@@ -123,8 +123,6 @@ function CartBrowser:update()
 
 --	CartBrowser.super.update(self)	-- clears screen, shows the current-editor tab etc
 
-	self:initMenuTabs()
-
 	local app = self.app
 	app:clearScreen(0xf0, app.paletteMenuTex)
 
@@ -228,23 +226,7 @@ function CartBrowser:refreshThumbTex()
 end
 
 function CartBrowser:event(e)
-	-- probably needed from legacy system
-	if not self.menuTabIndex then
---print'TODO - we lost menuTabIndex again...'
-		self.menuTabIndex = 0
-	end
-
-	local lastMenuTabIndex = self.menuTabIndex
-
--- old way I guess? to-be-replaced with newUI_event ?
---	local result = CartBrowser.super.event(self, e)
-	local result = self:newUI_event(e)
-
-	if self.menuTabIndex ~= lastMenuTabIndex then
-		self:refreshThumbTex()
-	end
-
-	return result
+	return self:newUI_event(e)
 end
 
 return CartBrowser
