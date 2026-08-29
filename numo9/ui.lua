@@ -260,8 +260,9 @@ function UI:event(e)
 		else
 			self.menuTabIndex = 0
 		end
+print('setting menuTabIndex', self.menuTabIndex)
 		local w = self.widgetForTabIndex[self.menuTabIndex]
-		if w then w:triggerEvents'focus' end
+		if w then self.uiRoot:setFocusWidget(w) end
 		return true
 	end
 
@@ -284,7 +285,7 @@ function UI:event(e)
 			self.menuTabIndex = 0
 		end
 		local w = self.widgetForTabIndex[self.menuTabIndex]
-		if w then w:triggerEvents'focus' end
+		if w then self.uiRoot:setFocusWidget(w) end
 		return true
 	end
 
