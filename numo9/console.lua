@@ -262,7 +262,7 @@ function Console:event(e)
 					self:runCmdBuf()
 				end, function(err)
 					s = err..'\n'..debug.traceback()
-					print(s)
+					--print(s)	-- don't print here if you're going to print in self:print as well (which is only for debugging.  so is this so meh.)
 				end)
 				if s then
 					self:print(s)
