@@ -3,6 +3,7 @@
 -- author = Chris Moore
 -- description = Number Munchers but with D&D and maybe MMO or something idk
 
+local class = require 'ext.class'
 local vec2 = require 'vec.vec2'
 
 local sprites = {
@@ -41,31 +42,26 @@ require 'obj.sys'.mapwidth = mapwidth
 require 'obj.sys'.mapheight = mapheight
 local objs = require 'obj.sys'.objs
 local Object = require 'obj.sys'.Object
---Object.tileSize:set(3,3)
+Object.tileSize:set(2,2)
 --Object.spriteSize:set(1/3, 1/3)
 
--- hmmm....
-Object.draw=|:|do
-	spr(
-		self.sprite,		-- spriteIndex
-		self.pos.x * 16,
-		self.pos.y * 16,
-		3,	-- tilesWide
-		3,	-- tilesHigh
-		0,	-- orientation2D
-		2/3,	-- scaleX
-		2/3		-- scaleY
-	)
-end
+local solndesc = 'x % 3 == 1'
+local solnfunc = |value| value % 3 == 1
 
-local game = {}
-game.grid = {}
-game.solnfunc = |:,value|do
-	--'value' is cell.value, cell is returned from grid:getCell
-end
-game.grid.getCell = |:,x,y|do
-	-- i guess store a list of cells with values in them?
-	-- and recycle them?
+local cells = table()	-- key = [x][y]
+local getCell = |x,y| cells[x]?[y]
+
+--local Cell = Object:subclass()
+-- don't do O(n) rendering for cells...
+local Cell = class()
+Cell.init = table.union
+Cell.pixelWidth = 16
+Cell.draw = |:|do
+	self.pixelWidth = text(
+		self.valueStr,
+		(self.pos.x + .5) * 16 - .5 * self.pixelWidth,
+		(self.pos.y + .5) * 16 - 4
+	)
 end
 
 local Player = Object:subclass()
@@ -74,6 +70,19 @@ Player.health = 3
 Player.gold = 0
 Player.chompDuration = .2
 
+Player.draw=|:|do
+	spr(
+		self.sprite,		-- spriteIndex
+		16 * self.pos.x,
+		16 * self.pos.y,
+		3,		-- tilesWide
+		3,		-- tilesHigh
+		0,		-- orientation2D
+		2/3,	-- scaleX
+		2/3		-- scaleY
+	)
+end
+
 function Player:update()
 	if self.nextInputTime then
 		if time() <= self.nextInputTime then return end
@@ -81,7 +90,7 @@ function Player:update()
 	end
 
 	if btnp'y' then
-		local cell = game.grid:getCell(self.pos:unpack())
+		local cell = getCell(self.pos:unpack())
 		if cell and cell.value then
 			self.chompCell = cell
 			self.chompTime = time()
@@ -98,7 +107,7 @@ function Player:update()
 			end
 		else
 			local value = self.chompCell.value
-			local canDigest = game.solnfunc(value) == 0
+			local canDigest = solnfunc(value) == 0
 			if canDigest then
 				-- give points or health or something
 				player.gold += cell.gold or 1
@@ -138,6 +147,7 @@ end
 
 local viewPos = vec2()	-- set
 local ulPos = vec2()	-- calculated
+local lrPos = vec2()	-- calculated
 
 
 update=||do
@@ -145,7 +155,7 @@ update=||do
 	--local screenw, screenh = 256,256
 	--local screenw, screenh = 336, 189 mode(18)	-- 16:9 336x189x16bpp-RGB565
 	--local screenw, screenh = 480, 270 mode(42)	-- 16:9 480x270x8bpp-indexed
-	mode(-1)
+	mode(-1)	-- use native res 16bpp
 	local screenw, screenh = tonumber(peekw(ramaddr'screenWidth')), tonumber(peekw(ramaddr'screenHeight'))
 
 	if player then
@@ -157,8 +167,17 @@ update=||do
 
 	local tileSize = 16
 	mattrans(screenw * .5, screenh * .5)
-	matscale(2, 2)
+	local viewScale = screenw / 320
+	matscale(viewScale, viewScale)	-- zoom in on the board
 	mattrans(-viewPos.x * tileSize, -viewPos.y * tileSize)
+	ulPos:set(
+		viewPos.x - screenw * .5 / viewScale,
+		viewPos.y - screenh * .5 / viewScale
+	)
+	lrPos:set(
+		viewPos.x + screenw * .5 / viewScale,
+		viewPos.y + screenh * .5 / viewScale
+	)
 	tilemap(
 		0,0,
 		256,256,
@@ -173,6 +192,18 @@ update=||do
 	for _,o in ipairs(objs) do
 		o:draw()
 	end
+	-- also draw cells
+	for y=math.floor(ulPos.y),math.ceil(lrPos.y) do
+		for x=math.floor(ulPos.x),math.ceil(lrPos.x) do
+			local col = cells[x]
+			if col then
+				local cell = col[y]
+				if cell then
+					cell:draw()
+				end
+			end
+		end
+	end
 
 	matident()
 
@@ -185,6 +216,7 @@ update=||do
 		end
 	end
 
+	text(solndesc, screenw/2, 0, nil, nil, 2, 2)
 	text('$'..player.gold, screenw/2, screenh - 16, nil, nil, 2, 2)
 	text(tostring(viewPos), screenw/2, screenh - 32, nil, nil, 2, 2)
 
@@ -206,11 +238,23 @@ local init=||do
 		end
 	end
 
+	local randomPos = || vec2(math.random(mapwidth),math.random(mapheight))-1
 	player = Player{
 		--pos=playerStarts:pickRandom(),
-		--pos=vec2(math.random(mapwidth),math.random(mapheight))-1,
-		pos=vec2(),
+		pos=randomPos(),
+		--pos=vec2(),
 	}
+
+	for i=1,1000 do
+		local pos = randomPos()
+		cells[pos.x] ??= {}
+		local value = math.random(0,20)
+		cells[pos.x][pos.y] = Cell{
+			pos = pos,
+			value = value,
+			valueStr = tostring(value),
+		}
+	end
 end
 
 init()
