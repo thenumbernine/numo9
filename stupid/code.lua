@@ -423,7 +423,7 @@ BattleObj=GameObj:subclass{
 		local srcInfos=table()
 		srcInfos:append(
 			self.equipFields
-				:filter(|equipField|self[equipField])
+				:filteri(|equipField|self[equipField])
 				:mapi(|equipField|{equip=equipField, src=self[equipField]})
 		)
 		srcInfos:append(
@@ -2376,11 +2376,11 @@ genDungeonLevel=|targetMap,prevMapName,nextMapName,avgRoomSize|do
 
 	--trace("establishing connectivity")
 	while true do
-		local srcRoomOptions = usedRooms:filter(|room|
+		local srcRoomOptions = usedRooms:filteri(|room|
 			--if the room has no rooms that haven't been used,then don't consider it
 			--so keep all of the neighbor's neighbors that haven't been used
 			--if self has any good neighbors then consider it
-			#room.neighbors:filter(|neighborInfo|
+			#room.neighbors:filteri(|neighborInfo|
 				not usedRooms:find(neighborInfo.room)
 			) > 0
 		)
@@ -2391,7 +2391,7 @@ genDungeonLevel=|targetMap,prevMapName,nextMapName,avgRoomSize|do
 		if leafRoomIndex ~= -1 then leafRooms:remove(leafRoomIndex) end
 
 		--self is the same filter as is within the srcRoomOptions filter -=1 so if you want to cache self info, feel free
-		local neighborInfoOptions = srcRoom.neighbors:filter(|neighborInfo|
+		local neighborInfoOptions = srcRoom.neighbors:filteri(|neighborInfo|
 			not usedRooms:find(neighborInfo.room)
 		)
 		local neighborInfo = neighborInfoOptions:pickRandom()
@@ -2623,12 +2623,12 @@ initMaps=||do
 		healer=true,
 		--TODO gen a whole bunch of items, then divy them up (rather than searching through their prototypes and trying to predict their behavior)
 		stores={
-			{signType=WeaponSign, itemClasses=itemClasses:filter(isWeapon), msg='Weapons for sale'},
-			{signType=RelicSign, itemClasses=itemClasses:filter(isRelic), msg='Relics for sale'},
-			{signType=ArmorSign, itemClasses=itemClasses:filter(isArmor), msg='Armor for sale'},
-			{signType=FoodSign, itemClasses=itemClasses:filter(isFood), msg='Welcome to the food library. Foooood liiibraaary.'},
-			{signType=SpellSign, itemClasses=itemClasses:filter(isSpell), msg='Double, double, toil and trouble...'},
-			{signType=ItemSign, itemClasses=itemClasses:filter(isMisc), msg='Items for sale'}
+			{signType=WeaponSign, itemClasses=itemClasses:filteri(isWeapon), msg='Weapons for sale'},
+			{signType=RelicSign, itemClasses=itemClasses:filteri(isRelic), msg='Relics for sale'},
+			{signType=ArmorSign, itemClasses=itemClasses:filteri(isArmor), msg='Armor for sale'},
+			{signType=FoodSign, itemClasses=itemClasses:filteri(isFood), msg='Welcome to the food library. Foooood liiibraaary.'},
+			{signType=SpellSign, itemClasses=itemClasses:filteri(isSpell), msg='Double, double, toil and trouble...'},
+			{signType=ItemSign, itemClasses=itemClasses:filteri(isMisc), msg='Items for sale'}
 		},
 	}
 
@@ -3063,7 +3063,7 @@ doEquipScreen=||do
 		player.equipFields,
 		|:,cmd,index|do
 			local equipField = player.equipFields[index]
-			local equippableItemIndexes = range(#player.items):filter(|itemIndex|
+			local equippableItemIndexes = range(#player.items):filteri(|itemIndex|
 				player:canEquip(equipField, player.items[itemIndex])
 			)
 			equippableItemIndexes:insert(1, 0)
@@ -3093,7 +3093,7 @@ doEquipScreen=||do
 end
 
 doSpellScreen=||do
-	local spells = player.spells:filter(|spell|do
+	local spells = player.spells:filteri(|spell|do
 		return spell:canPayFor(player)	--TODO grey out uncastable spells
 	end)
 	if #spells==0 then
@@ -3110,7 +3110,7 @@ doSpellScreen=||do
 end
 
 doItemScreen=||do
-	local items=player.items:filter(|item| item.use)	--TODO grey out unusable items
+	local items=player.items:filteri(|item| item.use)	--TODO grey out unusable items
 	if #items==0 then
 		clientMessage("You don't have any items that you can use right now")
 		return

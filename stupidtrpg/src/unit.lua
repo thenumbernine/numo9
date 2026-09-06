@@ -197,7 +197,7 @@ Unit.checkBattle=|:|do
 	if self.battle then return end
 	local searchRadius = 3
 	local closeEnts = entsAtPositions(floodFillTiles(self.pos, box2(self.pos-searchRadius,self.pos+searchRadius)))
-	closeEnts = closeEnts:filter(|ent|
+	closeEnts = closeEnts:filteri(|ent|
 		ent.canBattle
 			and not ent.dead
 			and ent.army.affiliation ~= self.army.affiliation
@@ -208,7 +208,7 @@ Unit.checkBattle=|:|do
 		local battlePositions
 		while true do
 			battlePositions = floodFillTiles(self.pos, battleBox)
-			local battleEnts = entsAtPositions(battlePositions):filter(|ent|ent.canBattle and not ent.dead)
+			local battleEnts = entsAtPositions(battlePositions):filteri(|ent|ent.canBattle and not ent.dead)
 			local stretchedBBox
 			armies = table()
 			for _,ent in ipairs(battleEnts) do

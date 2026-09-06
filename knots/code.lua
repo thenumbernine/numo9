@@ -485,7 +485,7 @@ classify=||do
 	-- calc knot stuff
 trace('#snake', #snake)
 	-- this is the indexes of all crossings
-	local crossingIndexes = range(#snake):filter(|i|snake[i].crossingOver~=nil)
+	local crossingIndexes = range(#snake):filteri(|i|snake[i].crossingOver~=nil)
 trace('got crossing indexes', crossingIndexes:mapi(tostring):concat',')
 	if #crossingIndexes & 1 == 1 then
 		trace"somehow you have an odd number of links at crossings..."
@@ -502,7 +502,7 @@ trace('got crossing indexes', crossingIndexes:mapi(tostring):concat',')
 
 	-- key = coord string, value = table of snake link indexes
 	local crossingIndexesForCoords = crossingCoords:mapi(|coord|
- 		(assert.len(crossingIndexes:filter(|i|
+ 		(assert.len(crossingIndexes:filteri(|i|
 			snake[i].x==coord.x
 			and snake[i].y==coord.y
 		), 2), coord.x..','..coord.y)

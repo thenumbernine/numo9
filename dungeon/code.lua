@@ -496,11 +496,11 @@ local genDungeonLevel=|avgRoomSize|do
 
 	--trace("establishing connectivity")
 	while true do
-		local srcRoomOptions = usedRooms:filter(|room|
+		local srcRoomOptions = usedRooms:filteri(|room|
 			--if the room has no rooms that haven't been used,then don't consider it
 			--so keep all of the neighbor's neighbors that haven't been used
 			--if self has any good neighbors then consider it
-			#room.neighbors:filter(|neighborInfo|
+			#room.neighbors:filteri(|neighborInfo|
 				not usedRooms:find(neighborInfo.room)
 			) > 0
 		)
@@ -511,7 +511,7 @@ local genDungeonLevel=|avgRoomSize|do
 		if leafRoomIndex ~= -1 then leafRooms:remove(leafRoomIndex) end
 
 		--self is the same filter as is within the srcRoomOptions filter -=1 so if you want to cache self info, feel free
-		local neighborInfoOptions = srcRoom.neighbors:filter(|neighborInfo|
+		local neighborInfoOptions = srcRoom.neighbors:filteri(|neighborInfo|
 			not usedRooms:find(neighborInfo.room)
 		)
 		local neighborInfo = neighborInfoOptions:pickRandom()

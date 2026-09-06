@@ -20,11 +20,9 @@ local Equipment = Item:subclass{
 		local baseTypeOptions = table(self.baseTypes)
 		local modifierOptions = table(self.modifiers)
 		if maxLevel then
-			local filter = |baseType|do
-				return not baseType.dropLevel or baseType.dropLevel <= maxLevel
-			end
-			baseTypeOptions = baseTypeOptions:filter(filter)
-			modifierOptions = modifierOptions:filter(filter)
+			local filter = |baseType| not baseType.dropLevel or baseType.dropLevel <= maxLevel
+			baseTypeOptions = baseTypeOptions:filteri(filter)
+			modifierOptions = modifierOptions:filteri(filter)
 		end
 		local baseType = baseTypeOptions[math.random(#baseTypeOptions)]
 		local modifier = modifierOptions[math.random(#modifierOptions)]

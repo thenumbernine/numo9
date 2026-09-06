@@ -639,7 +639,7 @@ print('replacing', string.bytes(k):concat',', string.bytes(p8):concat',')
 	end
 
 	local function toImage(ls, _8bpp, name)
-		ls = ls:filter(function(line) return #line > 0 end)
+		ls = ls:filteri(function(line) return #line > 0 end)
 		if #ls == 0 then
 			error("section got no lines: "..tostring(nextSection))
 		end
@@ -1252,7 +1252,7 @@ print("total SFX data size if I'd use BRR: "..(
 						-- btw what are those top 2 bits for?
 						return string.char(tonumber(h, 16))
 					end):byte(1,4)
-				}:filter(function(i)
+				}:filteri(function(i)
 					return i < 64
 				end),
 			}
