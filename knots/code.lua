@@ -122,8 +122,8 @@ popSnakeHist=||do
 	done=false
 end
 countTileSize=||do
-	local numSharedCorners = #table.filter(snake, |link| link.sharedCorner)
-	local numCrossings = #table.filter(snake, |link| link.crossingOver ~= nil)
+	local numSharedCorners = #table.filteri(snake, |link| link.sharedCorner)
+	local numCrossings = #table.filteri(snake, |link| link.crossingOver ~= nil)
 --trace('numCrossings', numCrossings)
 --trace('numSharedCorners', numSharedCorners)
 	-- assert numSharedCorners is even
