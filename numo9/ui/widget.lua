@@ -284,12 +284,12 @@ function UIWidget:onFocus(e)
 	-- ... TODO only do this when you click?
 	self.owner.menuTabIndex = self.menuTabIndex or self.owner.menuTabIndex
 
-	self:triggerEvents('focus', e)
+	self:triggerEvents('focus', false, e)
 end
 
 -- doesn't bubble
 function UIWidget:onBlur(e)
-	self:triggerEvents('blur', e)
+	self:triggerEvents('blur', false, e)
 end
 
 -- like focus/blur but does bubble

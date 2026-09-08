@@ -58,15 +58,15 @@ function UITextField:onKeyDown(e)
 		self.value = self.value:sub(1, self.textFieldCursorLoc - 1) .. self.value:sub(self.textFieldCursorLoc+1)
 		self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
 
-		self:triggerEvents('input', e)
+		self:triggerEvents('input', false, e)
 	elseif keycode == keyCodeForName['return'] then
 		-- change is on 'commit', i.e. key 'enter' or blur
-		self:triggerEvents('change', e)
+		self:triggerEvents('change', false, e)
 	elseif ch then
 		self.value = self.value:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. self.value:sub(self.textFieldCursorLoc+1)
 		self.textFieldCursorLoc = math.min(#self.value, self.textFieldCursorLoc + 1)
 
-		self:triggerEvents('input', e)
+		self:triggerEvents('input', false, e)
 	end
 end
 
@@ -81,7 +81,7 @@ end
 
 function UITextField:onBlur(e)
 	UITextField.super.onBlur(self, e)
-	self:triggerEvents('change', e)
+	self:triggerEvents('change', false, e)
 end
 
 function UITextField:draw(...)
