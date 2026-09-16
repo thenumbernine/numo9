@@ -443,7 +443,15 @@ end
 
 function UITextArea:updateSelMouseCursor(e)
 	local app = self.owner.app
+
+	-- notice this is in coords of the centered screen rect
+	-- so upper-left is gonna have negative-x
+	-- meanwhile the menu coordinates upper-left is (0,0)
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+	local posX, posY = app:invTransform(self.pos.x, self.pos.y)
+	mouseX = mouseX - posX
+	mouseY = mouseY - posY
+	-- you can always use ssbbox do it all in screen-space, but then you need to know font size in screen-space...
 
 	if not self.mouseDownOnThis then return end
 
@@ -455,9 +463,11 @@ function UITextArea:updateSelMouseCursor(e)
 	then
 		local i = self.newlines[y + self.scrollY] + 1
 		local j = self.newlines[y + self.scrollY + 1]
+
 		local x = math.floor((mouseX - self.pos.x - self.scrollX - self.lineNumbersWidth) / menuFontWidth) + i
 		x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
 		self.cursorLoc = x-1
+
 		self:refreshCursorColRowForLoc()	-- just in case?
 	end
 end
