@@ -426,6 +426,7 @@ function App:initGL()
 
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
@@ -440,6 +441,7 @@ function App:initGL()
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, false)
 		end,
 		rectb = function(x, y, w, h, colorIndex)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
@@ -455,6 +457,7 @@ function App:initGL()
 		end,
 		-- choosing tic80's api naming here.  but the rect api: width/height, not radA/radB
 		elli = function(x, y, w, h, colorIndex)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
@@ -469,6 +472,7 @@ function App:initGL()
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, true)
 		end,
 		ellib = function(x, y, w, h, colorIndex)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
@@ -484,6 +488,7 @@ function App:initGL()
 		end,
 
 		tri = function(x1,y1,x2,y2,x3,y3,colorIndex)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidTri
 				cmd.type = netcmds.solidLine
@@ -499,6 +504,7 @@ function App:initGL()
 		end,
 
 		tri3d = function(x1,y1,z1,x2,y2,z2,x3,y3,z3,colorIndex)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidTri3D
 				cmd.type = netcmds.solidLine
@@ -550,6 +556,7 @@ function App:initGL()
 		end,
 
 		line = function(x1,y1,x2,y2,colorIndex,thickness)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidLine
 				cmd.type = netcmds.solidLine
@@ -564,6 +571,7 @@ function App:initGL()
 		end,
 
 		line3d = function(x1,y1,z1,x2,y2,z2,colorIndex,thickness)
+			colorIndex = colorIndex or 12
 			if self.server then
 				local cmd = self.server:pushCmd().solidLine3D
 				cmd.type = netcmds.solidLine3D
