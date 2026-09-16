@@ -1762,9 +1762,17 @@ void tilemapShading(
 
 	// should tilemapOffset affect orientation2D / palHi? no
 	// calculate orientation here first
-	uint palHi = (tileIndex >> 10) & 7u;	// tilemap bits 10..12
-	bool hflip = ((tileIndex >> 13) & 1u) != 0u;	// tilemap bit 13 = hflip
-	uint rot = (tileIndex >> 14) & 3u;		// tilemap bits 14..15 = rotation
+	uint palHi = (
+		// if I add before shifting then the lower bits can carry up ...
+		(tileIndex >> 10)
+		+ (tilemapIndexOffset >> 10)
+	) & 7u;	// tilemap bits 10..12
+	uint orient2D = (
+		(tileIndex >> 13)
+		+ (tilemapIndexOffset >> 13)
+	) & 7u;
+	bool hflip = (orient2D & 1u) != 0u;		// tilemap bit 13 = hflip
+	uint rot = (orient2D >> 1) & 3u;		// tilemap bits 14..15 = rotation
 
 	// should tilemapOffset affect animation?  yes
 	// before animation, consider tilemap offset
