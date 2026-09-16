@@ -149,10 +149,19 @@ function UIRoot:bubbleCallback(o, fieldBubbleIn, fieldBubbleOut, ...)
 end
 
 
+-- global, i.e. single-threaded, no concurrency allowed
+local stopPropagation = function(self)
+	self.stopPropagationValue = true
+end
 
+-- TODO fix this mess between here and UI:newUI_event()
 function UIRoot:rootEvent(sdlEvent, handleUIEvent)
-	local app = self.owner.app
-	local event = {sdl=sdlEvent}
+	local owner = self.owner
+	local app = owner.app
+	local event = {
+		sdl = sdlEvent,
+		stopPropagation = stopPropagation,
+	}
 
 	app:matMenuReset()	-- so mouse coord transforms work
 
@@ -223,7 +232,12 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 		end
 	end
 
+	-- TODO check this more often?
+	if event.stopPropagationValue then return end
+
 	-- old ui system...
+	-- in numo9/ui.lua, calls back to UI.event()
+	-- and is the only thing that calls it I think?
 	if handleUIEvent
 	and handleUIEvent(self, sdlEvent)
 	then

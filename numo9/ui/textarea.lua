@@ -467,7 +467,8 @@ function UITextArea:onKeyDown(e)
 
 	UITextArea.super.onKeyDown(self, e)
 
-	local app = self.owner.app
+	local owner = self.owner
+	local app = owner.app
 
 	-- TODO shift+arrows to select text
 	local uikey
@@ -520,13 +521,13 @@ function UITextArea:onKeyDown(e)
 			end
 			self:refreshNewlines()
 			self:refreshCursorColRowForLoc()
-		elseif sdlkey == sdl.SDLKEY_Z then
+		elseif sdlkey == sdl.SDLK_Z then
 			-- ui+z = undo, shift+ui+z = redo
 			self:popUndo(shift)
-		elseif sdlkey == sdl.SDLKEY_HOME then
+		elseif sdlkey == sdl.SDLK_HOME then
 			self.cursorLoc = 0
 			self:refreshCursorColRowForLoc()
-		elseif sdlkey == sdl.SDLKEY_END then
+		elseif sdlkey == sdl.SDLK_END then
 			self.cursorLoc = self:getTextLen()
 			self:refreshCursorColRowForLoc()
 		end
@@ -625,6 +626,7 @@ function UITextArea:onKeyDown(e)
 			end
 		end
 	end
+	e:stopPropagation()
 end
 
 return UITextArea

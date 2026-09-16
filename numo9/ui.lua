@@ -293,18 +293,19 @@ function UI:event(e)
 		return true
 	end
 
-	-- TODO TODO TODO
 	-- I'm switching to a gui scenegraph
 	-- so now tabbing is broken
 	-- so convert everything to the gui scenegraph to fix it.
-	--[[
+	-- [[
 	-- TODO this is blocking 'return's in the text editors in the menu ...
 	-- tempting to switch all ui controls over to :event()'s
 	-- tempting to just use a tree based ui ... and give them event-capturing and bubble in and out and everything
 	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
 	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
 	then
-		self.execMenuTab = true
+		local w = self.widgetForTabIndex[self.menuTabIndex]
+		-- TODO some day this will need to be an event object like in UIRoot:rootEvent
+		if w then w:onClick{} end
 		return true
 	end
 	--]]
