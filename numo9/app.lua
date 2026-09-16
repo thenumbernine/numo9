@@ -1947,9 +1947,9 @@ print('run thread dead')
 -- but it looks like the lua-gui library needs a lot of extensions to it backported from TacticsLua back into it, like even things like click callbacks and borders.
 
 			-- push matrix
-			ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
-			ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
-			ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
+			ffi.copy(modelMatPush, self.ram.modelMat, 64)--ffi.sizeof(modelMatPush))
+			ffi.copy(viewMatPush, self.ram.viewMat, 64)--ffi.sizeof(viewMatPush))
+			ffi.copy(projMatPush, self.ram.projMat, 64)--ffi.sizeof(projMatPush))
 
 			-- push cull face
 			local pushCullFace = self.ram.cullFace
@@ -2131,11 +2131,11 @@ print('run thread dead')
 			end
 
 			-- pop the matrix
-			ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+			ffi.copy(self.ram.modelMat, modelMatPush, 64)--ffi.sizeof(modelMatPush))
 			self:onModelMatChange()
-			ffi.copy(self.ram.viewMat, viewMatPush, ffi.sizeof(viewMatPush))
+			ffi.copy(self.ram.viewMat, viewMatPush, 64)--ffi.sizeof(viewMatPush))
 			self:onViewMatChange()
-			ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
+			ffi.copy(self.ram.projMat, projMatPush, 64)--ffi.sizeof(projMatPush))
 			self:onProjMatChange()
 
 			-- pop ram dither
@@ -3835,7 +3835,6 @@ function App:toggleMenu()
 end
 
 function App:resize()
-
 	App.super.resize(self)
 	needDrawCounter = drawCounterNeededToRedraw
 

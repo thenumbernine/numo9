@@ -1877,7 +1877,7 @@ function AppVideo:drawSolidRect(
 		borderOnly and 8 or 0
 	)
 
-	colorIndex = math.floor(colorIndex or 0)
+	colorIndex = math.floor(colorIndex or 12)
 
 	self:triBuf_addTri(
 		paletteTex,
@@ -1964,7 +1964,7 @@ function AppVideo:drawSolidTri3D(
 		x3, y3, z3, 0, 1,
 		normalX, normalY, normalZ,
 		tangentX, tangentY, tangentZ,
-		bit.lshift(math.floor(colorIndex or 0), 8), 0, 0, 0,
+		bit.lshift(math.floor(colorIndex or 12), 8), 0, 0, 0,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
@@ -2036,10 +2036,6 @@ function AppVideo:invTransform(x,y,z)
 	return x,y,z,w
 end
 
-local modelMatPush = matArrType()
-local viewMatPush = matArrType()
-local projMatPush = matArrType()
-
 function AppVideo:drawSolidLine3D(
 	x1, y1, z1,
 	x2, y2, z2,
@@ -2066,7 +2062,7 @@ function AppVideo:drawSolidLine3D(
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
-	colorIndex = math.floor(colorIndex or 0)
+	colorIndex = math.floor(colorIndex or 12)
 
 	local fwdX = -self.ram.viewMat.x.z
 	local fwdY = -self.ram.viewMat.y.z

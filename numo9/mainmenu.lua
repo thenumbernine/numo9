@@ -140,8 +140,6 @@ function MainMenu:setCurrentMenu(name)
 		menuButton('resume', function()
 			app:setMenu(nil)
 			app.isPaused = false
-			-- TODO clicking this messes up draw matrices
-			-- meanwhile esc twice does not
 		end)
 		menuButton('new game', function()
 			app:setMenu(nil)
