@@ -510,6 +510,7 @@ local Numo9Cmd_map = struct{
 		{name='tilemapIndexOffset', type=int16_t},	-- only lower 10 bits matter
 		{name='draw16Sprites', type=bool},
 		{name='sheetIndex', type=uint8_t},
+		{name='tilemapIndex', type=uint8_t},
 	},
 }
 
@@ -1596,7 +1597,8 @@ assert.len(deltaStr, deltaBufLen)
 						c.screenX, c.screenY,
 						c.tilemapIndexOffset,
 						c.draw16Sprites,
-						c.sheetIndex)
+						c.sheetIndex,
+						c.tilemapIndex)
 				elseif cmdtype == netcmds.text then
 					local c = cmd[0].text
 					app:drawText(

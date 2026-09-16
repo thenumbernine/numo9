@@ -678,12 +678,13 @@ function App:initGL()
 		end,
 
 		-- TODO maybe make draw16Sprites a poke'd value
-		tilemap = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, tilemapIndexOffset, draw16Sprites, sheetIndex)
+		tilemap = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, tilemapIndexOffset, draw16Sprites, sheetIndex, tilemapIndex)
 			if self.server then
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
 				tilemapIndexOffset = tilemapIndexOffset or 0
 				sheetIndex = sheetIndex or 0
+				tilemapIndex = tilemapIndex or 0
 				local cmd = self.server:pushCmd().map
 				cmd.type = netcmds.map
 				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
@@ -691,8 +692,9 @@ function App:initGL()
 				cmd.tilemapIndexOffset = tilemapIndexOffset
 				cmd.draw16Sprites = draw16Sprites or false
 				cmd.sheetIndex = sheetIndex
+				cmd.tilemapIndex = tilemapIndex
 			end
-			return self:drawTileMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, tilemapIndexOffset, draw16Sprites, sheetIndex)
+			return self:drawTileMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, tilemapIndexOffset, draw16Sprites, sheetIndex, tilemapIndex)
 		end,
 		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 			text = tostring(text)	-- convert?

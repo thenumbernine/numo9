@@ -10,4 +10,5 @@ update=||do
 	tilemapIndex %= tilemapMax
 	tilemap(0,0, 32,32, 0,0, 0,false,0, tilemapIndex)
 	text('tilemap '..tilemapIndex, 0, 0)
+	text('tget(0,0)='..tget(tilemapIndex, 0, 0), 0, 8)
 end
