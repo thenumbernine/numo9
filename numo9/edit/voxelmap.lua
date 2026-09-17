@@ -1546,12 +1546,6 @@ function EditVoxelMap:pasteAtCenter(voxelmap, centerpos, sideIndex)
 	end
 end
 
-function EditVoxelMap:event(e)
-
-
-	return self:newUI_event(e)
-end
-
 function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	local app = self.app
 	local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]

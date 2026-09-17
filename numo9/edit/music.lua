@@ -567,8 +567,4 @@ function EditMusic:update()
 	self:newUI_update()
 end
 
-function EditMusic:event(e)
-	return self:newUI_event(e)
-end
-
 return EditMusic

@@ -326,8 +326,4 @@ function EditSFX:update()
 	self:newUI_update()
 end
 
-function EditSFX:event(e)
-	return self:newUI_event(e)
-end
-
 return EditSFX

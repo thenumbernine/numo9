@@ -149,8 +149,7 @@ function UIRoot:bubbleCallback(o, fieldBubbleIn, fieldBubbleOut, ...)
 	end
 end
 
-
--- TODO fix this mess between here and UI:newUI_event()
+-- hmm should I move all this into UI:event()?
 function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	local owner = self.owner
 	local app = owner.app

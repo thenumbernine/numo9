@@ -518,7 +518,7 @@ function UI:newUI_update()
 	self:drawTooltip()
 end
 
-function UI:newUI_event(sdlEvent)
+function UI:event(sdlEvent)
 	self.uiRoot:rootEvent(sdlEvent)
 end
 

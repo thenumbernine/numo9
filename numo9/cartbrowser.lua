@@ -225,8 +225,4 @@ function CartBrowser:refreshThumbTex()
 	end)
 end
 
-function CartBrowser:event(e)
-	return self:newUI_event(e)
-end
-
 return CartBrowser

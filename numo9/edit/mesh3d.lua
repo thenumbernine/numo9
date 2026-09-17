@@ -2034,7 +2034,7 @@ function EditMesh3D:event(e)
 		end
 	end
 
-	return self:newUI_event(e)
+	return EditMesh3D.super.event(self, e)
 end
 
 return EditMesh3D

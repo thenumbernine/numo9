@@ -914,8 +914,4 @@ function EditTilemap:popUndo(redo)
 	end
 end
 
-function EditTilemap:event(e)
-	return self:newUI_event(e)
-end
-
 return EditTilemap

@@ -1532,8 +1532,4 @@ function EditSheet:popUndo(redo)
 	end
 end
 
-function EditSheet:event(e)
-	return self:newUI_event(e)
-end
-
 return EditSheet

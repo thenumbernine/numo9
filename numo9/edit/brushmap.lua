@@ -575,10 +575,6 @@ function EditBrushmap:update()
 	self:newUI_update()
 end
 
-function EditBrushmap:event(e)
-	return self:newUI_event(e)
-end
-
 function EditBrushmap:readSelBrushmapBlob()
 	local app = self.app
 

@@ -487,7 +487,7 @@ function MainMenu:event(e)
 
 	-- see if we're leaving the menu or changing menu tab index
 	--return MainMenu.super.event(self, e)
-	local result = self:newUI_event(e)
+	local result = MainMenu.super.event(self, e)
 end
 
 return MainMenu
