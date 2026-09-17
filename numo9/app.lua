@@ -3943,13 +3943,20 @@ function App:event(e)
 		elseif e[0].type == sdl.SDL_EVENT_KEY_DOWN
 		and e[0].key.key == sdl.SDLK_GRAVE
 		then
-			self:toggleConsole()
-			return
+			-- IN-GAME SYSTEM HOTKEYS:
+			-- ` only opens console in-game
+			--  (that way it can give texteditor input)
+			-- if you are in-console, ESC will close it
+			--  (that way you can use the ` char in-console)
+			if not self.activeMenu then
+				self:toggleConsole()
+				return
+			end
 		-- TODO configure these somehow... or remove their hotkeys ...
 		-- and/or don't let the player bind other buttons to them.
 		elseif e[0].key.key == sdl.SDLK_TAB then
+			-- IN-GAME SYSTEM HOTKEYS:
 			if not self.activeMenu then
-				-- in-game system hotkeys ...
 				self.fastfwd = e[0].type == sdl.SDL_EVENT_KEY_DOWN
 				return
 			end

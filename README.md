@@ -448,6 +448,23 @@ while still allowing you to turn lights on or off by toggling their `enabled` fi
 0x02d0be - 0x02d0ca = blobEntries
 ```
 
+## System Keys:
+
+There are some default-bound keys to the Fantasy Console gameplay environment.
+They are not yet customizeable.
+
+While running a game the virtual-console can be accessed any time by pushing the `` ` `` key.
+
+- `esc` = open main menu
+- `` ` `` = open virtual console
+- `tab` = fast-forward
+
+## virtual-console:
+
+The virtual console can be accessed from the `console` option of the main menu.
+
+Any code can be run from the virtual-console.
+
 # Language
 
 It uses Lua as the underlying script.
