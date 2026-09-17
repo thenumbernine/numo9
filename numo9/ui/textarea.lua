@@ -4,6 +4,7 @@ local class = require 'ext.class'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
+local vec2d = require 'vec-ffi.vec2d'
 local vector = require 'stl.vector-lua'
 local sdl = require 'sdl'
 
@@ -48,8 +49,11 @@ function UITextArea:init(args)
 	self.cursorLoc = 0	-- 0-based index of our cursor
 	--self.selectDownLoc = 0
 	--self.selectCurLoc = 0
-	self.scrollX = 0
-	self.scrollY = 0
+
+	-- here and uiRoot both have .scroll property
+	-- but this one is measured in lines, uiRoot is in ui coords (x8)
+	self.scroll = vec2d()
+
 	self.useLineNumbers = true
 
 
@@ -181,14 +185,14 @@ function UITextArea:draw()
 
 		-- determine line number width while we draw line numbers
 		for y=1,self.size.y/spriteSize.y-2 do
-			if y + self.scrollY < 1
-			or y + self.scrollY >= #self.newlines
+			if y + self.scroll.y < 1
+			or y + self.scroll.y >= #self.newlines
 			then break end
 
-			local i = self.newlines[y + self.scrollY] + 1
-			local j = self.newlines[y + self.scrollY + 1]
+			local i = self.newlines[y + self.scroll.y] + 1
+			local j = self.newlines[y + self.scroll.y + 1]
 			textareaX = math.max(textareaX, app:drawMenuText(
-				tostring(y + self.scrollY),
+				tostring(y + self.scroll.y),
 				0,
 				(y-1) * spriteSize.y,
 				colors.fg,
@@ -216,15 +220,15 @@ function UITextArea:draw()
 	)
 
 	for y=1,self.size.y/spriteSize.y-2 do
-		if y + self.scrollY < 1
-		or y + self.scrollY >= #self.newlines
+		if y + self.scroll.y < 1
+		or y + self.scroll.y >= #self.newlines
 		then break end
 
-		local i = self.newlines[y + self.scrollY] + 1
-		local j = self.newlines[y + self.scrollY + 1]
+		local i = self.newlines[y + self.scroll.y] + 1
+		local j = self.newlines[y + self.scroll.y + 1]
 
 		-- TODO use scissors and TODO use the mv transform
-		local lineX = textareaX - self.scrollX * menuFontWidth
+		local lineX = textareaX - self.scroll.x * menuFontWidth
 		local lineY = y * spriteSize.y
 		local selLineStart = math.clamp(self.selectStart and self.selectStart or (self:getTextLen()+1), i, j)
 		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (self:getTextLen()+1), i, j)
@@ -259,24 +263,24 @@ function UITextArea:draw()
 	end
 
 	-- if you want variable font width then TODO store cursor x and y pixel as well as row and col
-	if self.cursorRow < self.scrollY+1 then
-		self.scrollY = math.max(0, self.cursorRow-1)
-	elseif self.cursorRow - (self.size.y/spriteSize.y-2) > self.scrollY then
-		self.scrollY = math.max(0, self.cursorRow - (self.size.y/spriteSize.y-2))
+	if self.cursorRow < self.scroll.y+1 then
+		self.scroll.y = math.max(0, self.cursorRow-1)
+	elseif self.cursorRow - (self.size.y/spriteSize.y-2) > self.scroll.y then
+		self.scroll.y = math.max(0, self.cursorRow - (self.size.y/spriteSize.y-2))
 	end
 	local textAreaWidthInLetters = math.ceil(textareaWidth / menuFontWidth)
-	if self.cursorCol < self.scrollX+1 then
-		self.scrollX = math.max(0, self.cursorCol-1)
-	elseif self.cursorCol - textAreaWidthInLetters > self.scrollX then
-		self.scrollX = math.max(0, self.cursorCol - textAreaWidthInLetters)
+	if self.cursorCol < self.scroll.x+1 then
+		self.scroll.x = math.max(0, self.cursorCol-1)
+	elseif self.cursorCol - textAreaWidthInLetters > self.scroll.x then
+		self.scroll.x = math.max(0, self.cursorCol - textAreaWidthInLetters)
 	end
 
 	-- cursor
 
 	if getTime() % 1 < .5 then
 		app:drawSolidRect(
-			textareaX + (self.cursorCol-1 - self.scrollX) * menuFontWidth,
-			(self.cursorRow - self.scrollY - 1) * spriteSize.y,
+			textareaX + (self.cursorCol-1 - self.scroll.x) * menuFontWidth,
+			(self.cursorRow - self.scroll.y - 1) * spriteSize.y,
 			menuFontWidth,
 			spriteSize.y,
 			12,
@@ -424,8 +428,8 @@ function UITextArea:onMouseDown(e)
 
 	local y = math.floor((mouseY - self.pos.y) / spriteSize.y) + 1
 	if y >= 1
-	and y + self.scrollY >= 1
-	and y + self.scrollY < #self.newlines-1
+	and y + self.scroll.y >= 1
+	and y + self.scroll.y < #self.newlines-1
 	then
 		self:startSelect()
 	end
@@ -458,13 +462,13 @@ function UITextArea:updateSelMouseCursor(e)
 	-- find cursor - do this before we start selection
 	local y = math.floor((mouseY - self.pos.y) / spriteSize.y) + 1
 	if y >= 1
-	and y + self.scrollY >= 1
-	and y + self.scrollY < #self.newlines-1
+	and y + self.scroll.y >= 1
+	and y + self.scroll.y < #self.newlines-1
 	then
-		local i = self.newlines[y + self.scrollY] + 1
-		local j = self.newlines[y + self.scrollY + 1]
+		local i = self.newlines[y + self.scroll.y] + 1
+		local j = self.newlines[y + self.scroll.y + 1]
 
-		local x = math.floor((mouseX - self.pos.x - self.scrollX - self.lineNumbersWidth) / menuFontWidth) + i
+		local x = math.floor((mouseX - self.pos.x - self.scroll.x - self.lineNumbersWidth) / menuFontWidth) + i
 		x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
 		self.cursorLoc = x-1
 

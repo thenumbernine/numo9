@@ -506,6 +506,18 @@ function UI:newUI_update()
 	uiRoot.size.x = uiRoot.size.x - uiRoot.pos.x
 	uiRoot.size.y = uiRoot.size.y - uiRoot.pos.y
 
+	--[[
+	TODO TODO TODO
+	mainMenu is gonna scroll its root's .pos
+	but newUI_update already adjusts its .pos on resize
+	so what I really need is a scrollable container under root for mainmenu
+	but until then i'll just be lazy...
+	because I want the ability to do this in all menus - to have tab to scroll the tabbed widget in-view
+	but it is only needed in mainmenu for now.
+	--]]
+	uiRoot.pos.x = uiRoot.pos.x + uiRoot.scroll.x
+	uiRoot.pos.y = uiRoot.pos.y + uiRoot.scroll.y
+
 	-- reset the menu tab state of 'owner' of all widgets:
 	self.menuTabCounter = 0
 	for k in pairs(self.widgetForTabIndex) do
