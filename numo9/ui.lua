@@ -31,6 +31,7 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local minBlobPerType = numo9_blobs.minBlobPerType
 
+local UIEvent = require 'numo9.ui.event'
 local UIRadio = require 'numo9.ui.radio'
 local UIButton = require 'numo9.ui.button'
 
@@ -241,74 +242,6 @@ function UI:edit_tset(tilemapBlobIndex, x, y, value)
 	end
 
 	app:net_pokew(addr, value)
-end
-
--- in any menu, press escape or gamepad start to exit menu
-function UI:event(e)
-	--[[ is it just my controllers that register dpad as axis motion?
-	-- or do they all?
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_UP)
-	--]]
-	-- [[
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
-		and e[0].gaxis.axis == 1
-		and e[0].gaxis.value < -10000)
-	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN
-	and e[0].key.key == sdl.SDLK_UP)
-	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
-	then
-		self.menuTabIndex = self.menuTabIndex - 1
-		if self.menuTabCounter and self.menuTabCounter > 0 then
-			self.menuTabIndex = self.menuTabIndex % self.menuTabCounter
-		else
-			self.menuTabIndex = 0
-		end
-		local w = self.widgetForTabIndex[self.menuTabIndex]
-		if w then self.uiRoot:setFocusWidget(w) end
-		return true
-	end
-
-	--[[
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_DOWN)
-	--]]
-	-- [[
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
-		and e[0].gaxis.axis == 1
-		and e[0].gaxis.value > 10000)
-	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN
-	and e[0].key.key == sdl.SDLK_DOWN)
-	then
-		self.menuTabIndex = self.menuTabIndex + 1
-		if self.menuTabCounter and self.menuTabCounter > 0 then
-			self.menuTabIndex = self.menuTabIndex % self.menuTabCounter
-		else
-			self.menuTabIndex = 0
-		end
-		local w = self.widgetForTabIndex[self.menuTabIndex]
-		if w then self.uiRoot:setFocusWidget(w) end
-		return true
-	end
-
-	-- I'm switching to a gui scenegraph
-	-- so now tabbing is broken
-	-- so convert everything to the gui scenegraph to fix it.
-	-- [[
-	-- TODO this is blocking 'return's in the text editors in the menu ...
-	-- tempting to switch all ui controls over to :event()'s
-	-- tempting to just use a tree based ui ... and give them event-capturing and bubble in and out and everything
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
-	then
-		local w = self.widgetForTabIndex[self.menuTabIndex]
-		-- TODO some day this will need to be an event object like in UIRoot:rootEvent
-		if w then w:onClick{} end
-		return true
-	end
-	--]]
 end
 
 -- editor calsl this when it replaces a blob
@@ -585,10 +518,8 @@ function UI:newUI_update()
 	self:drawTooltip()
 end
 
-function UI:newUI_event(sdlEvent, skipSuper)
-	self.uiRoot:rootEvent(sdlEvent, not skipSuper and function()
-		return UI.event(self, sdlEvent)
-	end)
+function UI:newUI_event(sdlEvent)
+	self.uiRoot:rootEvent(sdlEvent)
 end
 
 -- this is a pre-update call

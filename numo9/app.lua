@@ -3948,8 +3948,11 @@ function App:event(e)
 		-- TODO configure these somehow... or remove their hotkeys ...
 		-- and/or don't let the player bind other buttons to them.
 		elseif e[0].key.key == sdl.SDLK_TAB then
-			self.fastfwd = e[0].type == sdl.SDL_EVENT_KEY_DOWN
-			return
+			if not self.activeMenu then
+				-- in-game system hotkeys ...
+				self.fastfwd = e[0].type == sdl.SDL_EVENT_KEY_DOWN
+				return
+			end
 		end
 	end
 

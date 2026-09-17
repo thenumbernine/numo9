@@ -577,7 +577,7 @@ function UITextArea:onKeyDown(e)
 						--]]
 						-- [[
 						self:removeText(self.selectStart-1, self.selectEnd-1)
-						self:insertText(self.selectStart, tabbedText)
+						self:insertText(self.selectStart-1, tabbedText)
 						--]]
 						self.selectEnd = self.selectEnd + #tabbedText - #oldTabbedText
 						self:refreshNewlines()
@@ -636,7 +636,8 @@ function UITextArea:onKeyDown(e)
 			end
 		end
 	end
-	e:stopPropagation()
+
+	e:preventDefault()
 end
 
 return UITextArea

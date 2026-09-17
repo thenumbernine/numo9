@@ -9,6 +9,7 @@ local numo9_rom = require 'numo9.rom'
 local clipMax = numo9_rom.clipMax
 
 local UIWidget = require 'numo9.ui.widget'
+local UIEvent = require 'numo9.ui.event'
 
 
 local UIRoot = UIWidget:subclass()
@@ -149,18 +150,12 @@ function UIRoot:bubbleCallback(o, fieldBubbleIn, fieldBubbleOut, ...)
 end
 
 
--- global, i.e. single-threaded, no concurrency allowed
-local stopPropagation = function(self)
-	self.stopPropagationValue = true
-end
-
 -- TODO fix this mess between here and UI:newUI_event()
 function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 	local owner = self.owner
 	local app = owner.app
-	local event = {
+	local event = UIEvent{
 		sdl = sdlEvent,
-		stopPropagation = stopPropagation,
 	}
 
 	app:matMenuReset()	-- so mouse coord transforms work
@@ -232,17 +227,84 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 		end
 	end
 
-	-- TODO check this more often?
-	if event.stopPropagationValue then return end
+	--[[
+	preventDefault() prevents default behavior, i.e.
+	- stops tabbing
+	it doesn't prevent propagation of bubbling of events
+	so there is a line drawn between "default behavior" and "default events"
+	--]]
+	if not event.preventDefaultValue then
 
-	-- old ui system...
-	-- in numo9/ui.lua, calls back to UI.event()
-	-- and is the only thing that calls it I think?
-	if handleUIEvent
-	and handleUIEvent(self, sdlEvent)
-	then
-		return true
+		--[[ is it just my controllers that register dpad as axis motion?
+		-- or do they all?
+		if (sdlEvent.type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+			and sdlEvent.gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_UP)
+		--]]
+		-- [[
+		if (sdlEvent.type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+			and sdlEvent.gaxis.axis == 1
+			and sdlEvent.gaxis.value < -10000)
+		--]]
+		or (sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN
+		and sdlEvent.key.key == sdl.SDLK_UP)
+		--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
+		then
+			owner.menuTabIndex = owner.menuTabIndex - 1
+			if owner.menuTabCounter and owner.menuTabCounter > 0 then
+				owner.menuTabIndex = owner.menuTabIndex % owner.menuTabCounter
+			else
+				owner.menuTabIndex = 0
+			end
+			local w = owner.widgetForTabIndex[owner.menuTabIndex]
+			if w then owner.uiRoot:setFocusWidget(w) end
+			return true
+		end
+
+		--[[
+		if (sdlEvent.type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+			and sdlEvent.gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_DOWN)
+		--]]
+		-- [[
+		if (sdlEvent.type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+			and sdlEvent.gaxis.axis == 1
+			and sdlEvent.gaxis.value > 10000)
+		--]]
+		or (sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN
+		and sdlEvent.key.key == sdl.SDLK_DOWN)
+		then
+			owner.menuTabIndex = owner.menuTabIndex + 1
+			if owner.menuTabCounter and owner.menuTabCounter > 0 then
+				owner.menuTabIndex = owner.menuTabIndex % owner.menuTabCounter
+			else
+				owner.menuTabIndex = 0
+			end
+			local w = owner.widgetForTabIndex[owner.menuTabIndex]
+			if w then owner.uiRoot:setFocusWidget(w) end
+			return true
+		end
+
+		-- I'm switching to a gui scenegraph
+		-- so now tabbing is broken
+		-- so convert everything to the gui scenegraph to fix it.
+		-- [[
+		-- TODO this is blocking 'return's in the text editors in the menu ...
+		-- tempting to switch all ui controls over to :event()'s
+		-- tempting to just use a tree based ui ... and give them event-capturing and bubble in and out and everything
+		if (sdlEvent.type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and sdlEvent.gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
+		or (sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN and sdlEvent.key.key == sdl.SDLK_RETURN)
+		then
+			local w = owner.widgetForTabIndex[owner.menuTabIndex]
+			-- TODO some day this will need to be an event object like in UIRoot:rootEvent
+			if w then w:onClick(UIEvent()) end
+			return true
+		end
+		--]]
+
 	end
+
+	-- TODO check this more often?
+	-- TODO TODO stopPropagation proly only cancels bubbling right?
+	if event.stopPropagationValue then return end
 
 	-- ui events:
 	return self:event(sdlEvent)
@@ -266,6 +328,5 @@ function UIRoot:setFocusWidget(widget, ...)
 		self.activeElement:onFocus(...)
 	end
 end
-
 
 return UIRoot

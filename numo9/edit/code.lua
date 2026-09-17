@@ -95,7 +95,7 @@ function EditCode:update()
 end
 
 function EditCode:event(e)
-	return self:newUI_event(e, true)
+	return self:newUI_event(e)
 end
 
 return EditCode
