@@ -1108,7 +1108,7 @@ print("!!! building new normalmap cache tex !!!")
 		normalMapCache:insert(entry)
 		return entry.tex
 	end
-print("!!! replacing old normapmap cache tex !!!")
+print("!!! replacing old normalmap cache tex !!!")
 	-- TODO here, find the oldest and replace it with this stats.
 	local entry = normalMapCache:remove(oldestIndex)	-- worth it to remove/reinsert? which is slower, the loop traversal or the loop rearrangement from overwrite?
 	--local entry = normalMapCache[oldestIndex]
