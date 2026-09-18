@@ -10,12 +10,14 @@ update=||do
 	if btnp'x' or btnp'y' then tilemapIndex -= 1 end
 	tilemapIndex %= tilemapMax
 	tilemap(0,0, 32,32, 0,0, 0,false,0, tilemapIndex)
+	local dx, dy = math.cos(time()), math.sin(time())
+	tilemap(2*dx, 2*dy, 32,32, 0,0, 0,false,0, (tilemapIndex+1)&3)
 	text('tilemap '..tilemapIndex, 0, 0)
 	text('tget(0,0)='..tget(tilemapIndex, 0, 0), 0, 8)
 
 	elli(
-		math.cos(time()) * 120 + 128 - 8,
-		math.sin(time()) * 120 + 128 - 8,
+		dx * 120 + 128 - 8,
+		dy * 120 + 128 - 8,
 		16, 16
 	)
 
