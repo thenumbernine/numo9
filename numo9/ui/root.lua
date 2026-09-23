@@ -335,16 +335,16 @@ function UIRoot:setFocusWidget(widget, ...)
 	local container = self	-- has .scroll
 	--local container = widget.parent
 	if widget.ssbbox.max.x < 0 then
-		container.scroll.x += viewPadding - widget.ssbbox.max.x
+		container.scroll.x = container.scroll.x + viewPadding - widget.ssbbox.max.x
 	end
 	if widget.ssbbox.max.y < 0 then
-		container.scroll.y += viewPadding - widget.ssbbox.max.y
+		container.scroll.y = container.scroll.y + viewPadding - widget.ssbbox.max.y
 	end
 	if widget.ssbbox.min.x >= app.width then
-		container.scroll.x -= widget.ssbbox.max.x - app.width + viewPadding
+		container.scroll.x = container.scroll.x - widget.ssbbox.max.x - app.width + viewPadding
 	end
 	if widget.ssbbox.min.y >= app.height then
-		container.scroll.y -= widget.ssbbox.max.y - app.height + viewPadding
+		container.scroll.y = container.scroll.y - widget.ssbbox.max.y - app.height + viewPadding
 	end
 
 	if self.activeElement then
