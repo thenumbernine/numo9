@@ -1855,7 +1855,7 @@ conn.receivesPerSecond = 0
 
 
 		-- system update refresh timer
-		self.ram.updateCounter = self.ram.updateCounter + 1
+		self.ram.updateCounter = self.ram.updateCounter + 1	-- TODO this counter is still gonna reset when we change ROMs...
 		self.ram.romUpdateCounter = self.ram.romUpdateCounter + 1
 
 		-- tell netplay we have a new frame
@@ -2356,6 +2356,13 @@ sceneObj.texs[3] = videoModeObj.calcLightTex:cur()
 		end
 		self.takeScreenshot = nil
 	end
+
+	if self.runFocus
+	and self.lastPersistWriteTime
+	and thisTime - self.lastPersistWriteTime > 1
+	then
+		self:writePersistent()
+	end
 end
 
 -- ... where to put this ... in video, app, or ui?
@@ -2656,6 +2663,20 @@ local postPokeCode = template([=[
 				and addr < blob.ramgpu.addrEnd
 				then
 					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			do
+				local persistTouched
+				for _,blob in ipairs(self.blobs.persist) do
+					if addrend >= blob.addr
+					and addr < blob.addrEnd
+					then
+						persistTouched =  true
+					end
+				end
+				if persistTouched then
+					local getTime = require 'ext.timer'.getTime
+					self.lastPersistWriteTime = getTime()
 				end
 			end
 			-- TODO if we poked the code
@@ -3323,6 +3344,8 @@ function App:writePersistent()
 		end
 		-- now where does self.cfg get written?
 	end
+
+	self.lastPersistWriteTime = nil
 end
 
 --[[
