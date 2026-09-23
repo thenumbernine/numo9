@@ -47,31 +47,36 @@ function MainMenu:setCurrentMenu(name)
 
 	-- label, but dont inc row pos
 	local function menuLabelDontInc(str, x, y, fg, bg)
-		self:addChild(UILabel{
+		local label = UILabel{
 			owner = self,
 			text = str,
 			pos = {x, y},
 			fgColorIndex = fg,
 			bgColorIndex = bg,
-		})
+		}
+		self:addChild(label)
+		return label
 	end
 
 	local function menuLabel(str)
-		menuLabelDontInc(str, cursorX, cursorY, 0xf7, 0xf0)
+		local label = menuLabelDontInc(str, cursorX, cursorY, 0xf7, 0xf0)
 		cursorY = cursorY + ystep
+		return label
 	end
 
 	local function menuSection(str)
 		-- TODO show a section divider
 		cursorY = cursorY + ysepstep
-		self:addChild(UILabel{
+		local label = UILabel{
 			owner = self,
 			pos = {cursorX + 16, cursorY},
 			text = str,
 			fgColorIndex = 0xf7,
 			bgColorIndex = 0xf0,
-		})
+		}
+		self:addChild(label)
 		cursorY = cursorY + ystep
+		return label
 	end
 
 	local function menuTextField(label, t, k, write, tooltip)
@@ -161,22 +166,29 @@ function MainMenu:setCurrentMenu(name)
 		-- configure
 		menuSection'sound'
 
+		local refreshVolumeLabelText = function()
+			self.volumeLabel.text = tostring(app.cfg.volume)
+		end
+
 		menuLabelDontInc('volume', cursorX, cursorY, 0xf7, 0xf0)
 		self:addChild(UISpinner{
 			owner = self,
 			pos = {cursorX + 32, cursorY},
 			setValue = function(dx)
 				app.cfg.volume = math.clamp(app.cfg.volume + 10 * dx, 0, 255)
+				refreshVolumeLabelText()
 			end,
 			tooltip = 'volume',
 		})
-		self:addChild(UILabel{
+		self.volumeLabel = UILabel{
 			owner = self,
 			text = tostring(app.cfg.volume),
 			pos = {cursorX + 56, cursorY},
 			fgColorIndex = 0xf7,
 			bgColorIndex = 0xf0,
-		})
+		}
+		self:addChild(self.volumeLabel)
+		refreshVolumeLabelText()
 		cursorY = cursorY + ystep
 
 		menuSection'system'
@@ -255,16 +267,35 @@ function MainMenu:setCurrentMenu(name)
 		end
 
 		cursorY = cursorY + 8
-		menuLabelDontInc('num. local players: '..app.cfg.numLocalPlayers, cursorX - 32, cursorY, 0xf7, 0xf0)
+
+		-- [[ begin same as input and connection section
+
+		local function refreshNumLocalPlayersLabel()
+			self.numLocalPlayersLabel.text = 'num. local players: '..app.cfg.numLocalPlayers
+		end
+		local function refreshNumLocalPlayers()
+			-- TODO don't refresh the whole panel... just the controls depending on # players
+			--refreshNumLocalPlayersLabel()
+			-- and refresh the whole page as well?
+			-- or at least regen the config sections...
+			self:setCurrentMenu(self.currentMenu)
+		end
+
+		self.numLocalPlayersLabel = menuLabelDontInc('', cursorX - 32, cursorY, 0xf7, 0xf0)
+		refreshNumLocalPlayersLabel()
+
 		self:addChild(UISpinner{
 			owner = self,
 			pos = {cursorX + 80, cursorY},
 			setValue = function(dx)
 				app.cfg.numLocalPlayers = math.clamp(app.cfg.numLocalPlayers + dx, 1, maxPlayersPerConn)
+				refreshNumLocalPlayers()
 			end,
 			tooltip = 'num. local players',
 		})
 		cursorY = cursorY + 8
+
+		-- end same as input and connection section --]]
 
 		menuSection'local player names'
 
@@ -381,16 +412,36 @@ function MainMenu:setCurrentMenu(name)
 	elseif self.currentMenu == 'input' then
 		menuSection'input'
 
-		menuLabelDontInc('num. local players: '..app.cfg.numLocalPlayers, cursorX - 32, cursorY, 0xf7, 0xf0)
+		-- [[ begin same as input and connection section
+
+		local function refreshNumLocalPlayersLabel()
+			self.numLocalPlayersLabel.text = 'num. local players: '..app.cfg.numLocalPlayers
+		end
+		local function refreshNumLocalPlayers()
+			-- TODO don't refresh the whole panel... just the controls depending on # players
+			--refreshNumLocalPlayersLabel()
+			-- and refresh the whole page as well?
+			-- or at least regen the config sections...
+			self:setCurrentMenu(self.currentMenu)
+		end
+
+		self.numLocalPlayersLabel = menuLabelDontInc('', cursorX - 32, cursorY, 0xf7, 0xf0)
+		refreshNumLocalPlayersLabel()
+
 		self:addChild(UISpinner{
 			owner = self,
 			pos = {cursorX + 80, cursorY},
 			setValue = function(dx)
 				app.cfg.numLocalPlayers = math.clamp(app.cfg.numLocalPlayers + dx, 1, maxPlayersPerConn)
+				refreshNumLocalPlayers()
 			end,
 			tooltip = 'num. local players',
 		})
-		cursorY = cursorY + 16
+		cursorY = cursorY + 8
+
+		-- end same as input and connection section --]]
+
+		cursorY = cursorY + 8
 
 		local pushCursorX, pushCursorY = cursorX, cursorY
 		for playerIndexPlusOne=1,maxPlayersPerConn do
