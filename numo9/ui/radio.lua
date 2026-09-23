@@ -7,6 +7,7 @@ local UIButton = require 'numo9.ui.button'
 
 local UIRadio = UIWidget:subclass()
 UIRadio.tag = 'radio'
+UIRadio.tabStop = true
 
 function UIRadio:init(args)
 	UIRadio.super.init(self, args)

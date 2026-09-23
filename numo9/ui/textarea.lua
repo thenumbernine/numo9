@@ -39,6 +39,7 @@ local colors = {
 -- subclass the other widgets or nah? idk.
 local UITextArea = UIWidget:subclass()
 UITextArea.tag = 'textarea'
+UITextArea.tabStop = true	-- you can tab into it
 
 function UITextArea:init(args)
 	UITextArea.super.init(self, args)

@@ -6,6 +6,7 @@ local assert = require 'ext.assert'
 local UIButton = require 'numo9.ui.button'
 
 local UICheckbox = UIButton:subclass()
+--UICheckbox.tag = 'checkbox'
 
 --[[
 args:

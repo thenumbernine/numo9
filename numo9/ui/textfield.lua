@@ -15,6 +15,7 @@ local UIWidget = require 'numo9.ui.widget'
 
 local UITextField = UIWidget:subclass()
 UITextField.tag = 'textfield'
+UITextField.tabStop = true
 
 function UITextField:init(args)
 	UITextField.super.init(self, args)

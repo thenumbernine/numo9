@@ -178,9 +178,11 @@ function UIWidget:update()
 	local owner = self.owner
 
 	-- keep track of which tab index this component is
-	self.menuTabIndex = owner.menuTabCounter
-	owner.widgetForTabIndex[self.menuTabIndex] = self
-	owner.menuTabCounter = owner.menuTabCounter + 1
+	if self.tabStop then
+		self.menuTabIndex = owner.menuTabCounter
+		owner.widgetForTabIndex[self.menuTabIndex] = self
+		owner.menuTabCounter = owner.menuTabCounter + 1
+	end
 
 	for _,ch in ipairs(self.childrenInOrder) do
 		ch:update()

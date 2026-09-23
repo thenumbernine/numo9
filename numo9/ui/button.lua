@@ -8,6 +8,7 @@ local UIWidget = require 'numo9.ui.widget'
 
 local UIButton = UIWidget:subclass()
 UIButton.tag = 'button'
+UIButton.tabStop = true
 
 function UIButton:init(args)
 	UIButton.super.init(self, args)
