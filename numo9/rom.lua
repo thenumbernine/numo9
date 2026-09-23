@@ -28,6 +28,7 @@ local float_4 = ffi.typeof'float[4]'
 local version = table{1,4,5}
 local versionSig = version:mapi(function(x) return string.char(x) end):concat()
 local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
+	..'d'
 
 local numo9FileSig = 'NuMo9'
 
