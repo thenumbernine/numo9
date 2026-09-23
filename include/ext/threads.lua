@@ -33,7 +33,7 @@ Threads.update = |:| do
 		if not res then
 			self.threads:remove(i)
 		else
-			i = i + 1
+			i += 1
 		end
 	end
 end

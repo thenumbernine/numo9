@@ -295,6 +295,7 @@ function UIRoot:rootEvent(sdlEvent, handleUIEvent)
 		-- tempting to just use a tree based ui ... and give them event-capturing and bubble in and out and everything
 		if (sdlEvent.type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and sdlEvent.gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
 		or (sdlEvent.type == sdl.SDL_EVENT_KEY_DOWN and sdlEvent.key.key == sdl.SDLK_RETURN)
+		-- TODO or the sdl event matches with the input controller's "ok" button (a or b)
 		then
 			local w = owner.widgetForTabIndex[owner.menuTabIndex]
 			-- TODO some day this will need to be an event object like in UIRoot:rootEvent
