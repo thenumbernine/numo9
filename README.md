@@ -897,7 +897,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 - Sonoro1234 for his fork of `lfs_ffi`
 - BastardFerret for helping me get the linux build to work.
-- CapsAdmin for helping me get the OSX build to work.
+- CapsAdmin for attempting to get the OSX build to work, tho it stopped when he realized he would need to install OpenGL.  Way to go Apple, pioneering open standards in 2010 and then destroying the same ones you had just made.
 
 
 # TODO
