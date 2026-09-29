@@ -1033,12 +1033,14 @@ function App:initGL()
 		local blob = self.codeBlobForFilename[fn..'.lua'] or self.codeBlobForFilename[fn..'.rua']
 		if not blob then error("module '"..modname.."' not found") end
 		local code = blob:toBinStr()
+		-- get this blob's meta info to see if it overrides the master on anything
+		local metainfo = blob:getMetaInfo()
 
 		-- if we try to require ourselves before we've resolved our own load code then error
 		loaded[modname] = loadingPlaceholder
 		-- if this is based on the master code blob metainfo, then maybe make a function for loadCmd-of-codeblob for this and runCart?
-		local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
-		local mod = assert(self:loadCmd(code, modname, env, alreadyTranspiledToLua))(modname)
+		local codeSaveMethod = metainfo.codeSaveMethod or self.metainfo.codeSaveMethod
+		local mod = assert(self:loadCmd(code, modname, env, codeSaveMethod))(modname)
 		if mod == nil then mod = true end
 		loaded[modname] = mod
 		return mod
@@ -3370,19 +3372,27 @@ function App:resetCart()
 end
 
 -- returns the function to run code
-function App:loadCmd(cmd, source, env, alreadyTranspiledToLua)
+function App:loadCmd(cmd, source, env, codeSaveMethod)
+--print('loadCmd', (cmd:sub(1,10):gsub('%s', '.')), source, codeSaveMethod)
 	-- allow meta-info to pre-transpile and offload the langfix-transpile step
-	if alreadyTranspiledToLua then
+	if codeSaveMethod == 'plain-lua' then
 --return select(2, require 'ext.timer'('App:loadCmd with alreadyTranspiledToLua', function()
 		return load(cmd, source, 't', env or self.gameEnv or self.env)
+	elseif codeSaveMethod == 'binary-lua' then
+		-- cut off the header
+		local term = cmd:find('\n\n', 1, true)
+		assert(term, "App:loadCmd('"..tostring(source).."') binary-lua expects a \\n\\n separating the meta-info from the bytecode")
+		cmd = cmd:sub(term+2)
+		return load(cmd, source, 'b', env or self.gameEnv or self.env)
 --end))
-	end
+	else
 -- langfix is slow... esp for big scripts...
--- so if it goes slow, use `codeSaveMethod = transpiled-lua` in large files
+-- so if it goes slow, use `codeSaveMethod = plain-lua` in large files
 --return select(2, require 'ext.timer'('App:loadCmd', function()
 	-- Lua is wrapping [string "  "] around my source always ...
-	return self.loadenv.load(cmd, source, 't', env or self.gameEnv or self.env)
+		return self.loadenv.load(cmd, source, 't', env or self.gameEnv or self.env)
 --end))
+	end
 end
 
 --[[
@@ -3539,8 +3549,8 @@ function App:runCart()
 		local code = self.blobs.code[1]:toBinStr()
 
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
-		local alreadyTranspiledToLua = self.metainfo.codeSaveMethod == 'transpiled-lua'
-		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, alreadyTranspiledToLua)
+		local codeSaveMethod = self.metainfo.codeSaveMethod
+		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, codeSaveMethod)
 		if not f then
 			--print(msg)
 			self.con:print(msg)

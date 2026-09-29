@@ -415,21 +415,29 @@ print('creating default sfx '..i..' blob')
 		--resetPalette(bank)
 	end
 
-	-- ok I am getting tired of my transpile load time
-	-- so I came up with a fix
-	-- optional save transpiled code or save bytecode
-	-- maybe I shouldn't let the normies save bytecode, or they will do it to try to "protect their intellectual property"
-	local mainCodeBlob = blobs.code[1]
-	if mainCodeBlob then
-		local masterMetaInfo = mainCodeBlob:getMetaInfo()
-		if masterMetaInfo.codeSaveMethod then
-			if masterMetaInfo.codeSaveMethod == 'transpiled-lua' then
-				require 'ext.timer'('caching transpiled code', function()
-					-- TODO this is duplicated in numo9/app.lua:
-					for blobIndexPlus1,codeBlob in ipairs(blobs.code) do
-						local blobMetaInfo = codeBlob:getMetaInfo()
-						local code = codeBlob:toBinStr()
+	require 'ext.timer'('compiling/transpiling code', function()
+		-- ok I am getting tired of my transpile load time
+		-- so I came up with a fix
+		-- optional save transpiled code or save bytecode
+		-- maybe I shouldn't let the normies save bytecode, or they will do it to try to "protect their intellectual property"
+		local mainCodeBlob = blobs.code[1]
+		if mainCodeBlob then
+			local masterMetaInfo = mainCodeBlob:getMetaInfo()
 
+			-- TODO this is duplicated in numo9/app.lua:
+			for blobIndexPlus1,codeBlob in ipairs(blobs.code) do
+				local blobMetaInfo = codeBlob:getMetaInfo()
+				local codeSaveMethod = blobMetaInfo.codeSaveMethod or masterMetaInfo.codeSaveMethod
+				local codeReadMethod = blobMetaInfo.codeReadMethod or masterMetaInfo.codeReadMethod
+
+				if not codeSaveMethod then
+					-- nothing
+				elseif codeSaveMethod == 'plain-lua'
+				or codeSaveMethod == 'binary-lua'
+				then
+					local code = codeBlob:toBinStr()
+
+					if codeReadMethod ~= 'plain-lua' then
 						local loadenv = setmetatable({
 							package = {
 								searchpath = package.searchpath,
@@ -454,24 +462,27 @@ print('creating default sfx '..i..' blob')
 							parts:insert(msg)
 							error(parts:concat', ')
 						end
-
-						-- re-append the meta-info for the next read:
-						local metakv = table()
-						for k,v in pairs(blobMetaInfo) do
-							metakv:insert('-- '..k..' = '..v)
-						end
-						code = metakv:concat'\n'..'\n\n'..code
-
-						codeBlob.vec:resize(#code)
-						ffi.copy(codeBlob.vec.v, code, #code)
 					end
-				end)
-			--elseif masterMetaInfo.codeSaveMethod == 'bytecode' then
-			else
-				error("I got codeSaveMethod but it was an unknown value: "..tostring(masterMetaInfo.codeSaveMethod))
+
+					if codeSaveMethod == 'binary-lua' then
+						code = string.dump((assert(load(code))))
+					end
+
+					-- re-append the meta-info for the next read:
+					local metakv = table()
+					for k,v in pairs(blobMetaInfo) do
+						metakv:insert('-- '..k..' = '..v)
+					end
+					code = metakv:concat'\n'..'\n\n'..code
+
+					codeBlob.vec:resize(#code)
+					ffi.copy(codeBlob.vec.v, code, #code)
+				else
+					error("I got codeSaveMethod but it was an unknown value: "..tolua(codeSaveMethod))
+				end
 			end
 		end
-	end
+	end)
 
 	local labelImage
 	pcall(function()

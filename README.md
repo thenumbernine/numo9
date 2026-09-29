@@ -184,6 +184,15 @@ From there, the `require` function will search for blobs to include based on pat
 
 The `require` function can also search for files in the `numo9/include/` folder, however only as `require` called with a string literal.  This is so static analysis can determine which `numo9/include/` files should be added to the apk.
 
+Notable meta-info:
+- `codeReadMethod`
+- - `plain-lua` = set this for the `n9a.lua` archiver to read vanilla `lua` instead of `langfix-lua`.
+- `codeSaveMethod`
+- - `plain-lua` = set this for the `n9a.lua` archiver to write vanilla text `lua`.
+- - `binary-lua` = set this for the `n9a.lua` archiver to write vanilla binary `lua`.
+
+Ex: If you want to save plain-lua that is loaded as plain-lua (not transpiled from langfix-lua to plain-lua), use `codeReadMethod=plain-lua codeSaveMethod=plain-lua`
+
 ### data
 
 Any binary blob
