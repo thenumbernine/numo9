@@ -3374,7 +3374,7 @@ end
 -- returns the function to run code
 function App:loadCmd(cmd, source, env, codeBlobFormat)
 	codeBlobFormat = codeBlobFormat or 'langfix-lua'
-print('loadCmd', source, codeBlobFormat)
+--DEBUG:print('loadCmd', source, codeBlobFormat)
 	-- allow meta-info to pre-transpile and offload the langfix-transpile step
 	if codeBlobFormat == 'plain-lua' then
 --return select(2, require 'ext.timer'('App:loadCmd with alreadyTranspiledToLua', function()

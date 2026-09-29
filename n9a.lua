@@ -430,7 +430,7 @@ print('creating default sfx '..i..' blob')
 				local codeBlobFormat = blobMetaInfo.codeBlobFormat or masterMetaInfo.codeBlobFormat or 'langfix-lua'
 				local codeUnarchivedFormat = blobMetaInfo.codeUnarchivedFormat or masterMetaInfo.codeUnarchivedFormat or 'langfix-lua'
 
-print('codeBlob', blobIndexPlus1-1, blobMetaInfo.filename, codeUnarchivedFormat, '->', codeBlobFormat)
+--DEBUG:print('codeBlob', blobIndexPlus1-1, blobMetaInfo.filename, codeUnarchivedFormat, '->', codeBlobFormat)
 
 				if codeBlobFormat == 'langfix-lua' then
 					-- nothing
