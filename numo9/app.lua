@@ -1039,8 +1039,8 @@ function App:initGL()
 		-- if we try to require ourselves before we've resolved our own load code then error
 		loaded[modname] = loadingPlaceholder
 		-- if this is based on the master code blob metainfo, then maybe make a function for loadCmd-of-codeblob for this and runCart?
-		local codeSaveMethod = metainfo.codeSaveMethod or self.metainfo.codeSaveMethod
-		local mod = assert(self:loadCmd(code, modname, env, codeSaveMethod))(modname)
+		local codeBlobFormat = metainfo.codeBlobFormat or self.metainfo.codeBlobFormat
+		local mod = assert(self:loadCmd(code, modname, env, codeBlobFormat))(modname)
 		if mod == nil then mod = true end
 		loaded[modname] = mod
 		return mod
@@ -3372,26 +3372,29 @@ function App:resetCart()
 end
 
 -- returns the function to run code
-function App:loadCmd(cmd, source, env, codeSaveMethod)
---print('loadCmd', (cmd:sub(1,10):gsub('%s', '.')), source, codeSaveMethod)
+function App:loadCmd(cmd, source, env, codeBlobFormat)
+	codeBlobFormat = codeBlobFormat or 'langfix-lua'
+print('loadCmd', source, codeBlobFormat)
 	-- allow meta-info to pre-transpile and offload the langfix-transpile step
-	if codeSaveMethod == 'plain-lua' then
+	if codeBlobFormat == 'plain-lua' then
 --return select(2, require 'ext.timer'('App:loadCmd with alreadyTranspiledToLua', function()
 		return load(cmd, source, 't', env or self.gameEnv or self.env)
-	elseif codeSaveMethod == 'binary-lua' then
+	elseif codeBlobFormat == 'binary-lua' then
 		-- cut off the header
 		local term = cmd:find('\n\n', 1, true)
 		assert(term, "App:loadCmd('"..tostring(source).."') binary-lua expects a \\n\\n separating the meta-info from the bytecode")
 		cmd = cmd:sub(term+2)
 		return load(cmd, source, 'b', env or self.gameEnv or self.env)
 --end))
-	else
+	elseif codeBlobFormat == 'langfix-lua' then
 -- langfix is slow... esp for big scripts...
--- so if it goes slow, use `codeSaveMethod = plain-lua` in large files
+-- so if it goes slow, use `codeBlobFormat = plain-lua` in large files
 --return select(2, require 'ext.timer'('App:loadCmd', function()
 	-- Lua is wrapping [string "  "] around my source always ...
 		return self.loadenv.load(cmd, source, 't', env or self.gameEnv or self.env)
 --end))
+	else
+		error("App:loadCmd: unknown codeBlobFormat "..tostring(codeBlobFormat))
 	end
 end
 
@@ -3549,8 +3552,8 @@ function App:runCart()
 		local code = self.blobs.code[1]:toBinStr()
 
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
-		local codeSaveMethod = self.metainfo.codeSaveMethod
-		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, codeSaveMethod)
+		local codeBlobFormat = self.metainfo.codeBlobFormat
+		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env, codeBlobFormat)
 		if not f then
 			--print(msg)
 			self.con:print(msg)

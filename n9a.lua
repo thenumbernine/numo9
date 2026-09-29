@@ -427,17 +427,19 @@ print('creating default sfx '..i..' blob')
 			-- TODO this is duplicated in numo9/app.lua:
 			for blobIndexPlus1,codeBlob in ipairs(blobs.code) do
 				local blobMetaInfo = codeBlob:getMetaInfo()
-				local codeSaveMethod = blobMetaInfo.codeSaveMethod or masterMetaInfo.codeSaveMethod
-				local codeReadMethod = blobMetaInfo.codeReadMethod or masterMetaInfo.codeReadMethod
+				local codeBlobFormat = blobMetaInfo.codeBlobFormat or masterMetaInfo.codeBlobFormat or 'langfix-lua'
+				local codeUnarchivedFormat = blobMetaInfo.codeUnarchivedFormat or masterMetaInfo.codeUnarchivedFormat or 'langfix-lua'
 
-				if not codeSaveMethod then
+print('codeBlob', blobIndexPlus1-1, blobMetaInfo.filename, codeUnarchivedFormat, '->', codeBlobFormat)
+
+				if codeBlobFormat == 'langfix-lua' then
 					-- nothing
-				elseif codeSaveMethod == 'plain-lua'
-				or codeSaveMethod == 'binary-lua'
+				elseif codeBlobFormat == 'plain-lua'
+				or codeBlobFormat == 'binary-lua'
 				then
 					local code = codeBlob:toBinStr()
 
-					if codeReadMethod ~= 'plain-lua' then
+					if codeUnarchivedFormat ~= 'plain-lua' then
 						local loadenv = setmetatable({
 							package = {
 								searchpath = package.searchpath,
@@ -464,7 +466,7 @@ print('creating default sfx '..i..' blob')
 						end
 					end
 
-					if codeSaveMethod == 'binary-lua' then
+					if codeBlobFormat == 'binary-lua' then
 						code = string.dump((assert(load(code))))
 					end
 
@@ -478,7 +480,7 @@ print('creating default sfx '..i..' blob')
 					codeBlob.vec:resize(#code)
 					ffi.copy(codeBlob.vec.v, code, #code)
 				else
-					error("I got codeSaveMethod but it was an unknown value: "..tolua(codeSaveMethod))
+					error("I got codeBlobFormat but it was an unknown value: "..tolua(codeBlobFormat))
 				end
 			end
 		end
