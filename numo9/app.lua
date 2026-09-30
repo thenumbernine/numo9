@@ -3369,7 +3369,7 @@ if you pass these then it'll just reset those regions
 --]]
 function App:resetCart(blobName, index)
 	if blobName then
-		return App:resetRegion(blobName, index)
+		return self:resetBlobRegion(blobName, index)
 	end
 --DEBUG:print'App:resetCart'
 	self:copyBlobsToROM()
@@ -3382,22 +3382,26 @@ function App:resetCart(blobName, index)
 	return true
 end
 
-function App:resetRegion(blobName, index)
-	local blobsForType = self[blobName]
-	if not blobsForType then return end
+function App:resetBlobRegion(blobName, index)
+	local blobsForType = self.blobs[blobName]
+	if not blobsForType then
+		return
+	end
 	if index then
 		local blob = blobsForType[1+index]
-		if not blob then return end
-		self:copyBlobToROM(blob)
+		if not blob then
+			return
+		end
+		self:resetSpecificBlobRegion(blob)
 	else
 		for _,blob in ipairs(blobsForType) do
-			self:copyBlobToROM(blob)
+			self:resetSpecificBlobRegion(blob)
 		end
 	end
 	return true
 end
 -- ugly for now, fix later plz
-App.makeBlobDirty = assert(load([[
+App.resetSpecificBlobRegion = assert(load([[
 local ffi = require 'ffi'
 local uint8_t = ffi.typeof'uint8_t'
 local int32_t = ffi.typeof'int32_t'
