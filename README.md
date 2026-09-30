@@ -523,7 +523,7 @@ If the following functions are defined then they will be called from the virtual
 
 - `save([filename])` = save cartridge to virtual-filesystem and host-filesystem.
 - `open([filename])` = open cartridge.
-- `reset()` = reload cartridge to its initial state.
+- `reset([name, index])` = reload cartridge to its initial state.  Or reloads a specific blob region to its initial state.
 - `quit()` = quit the entire application outright to host OS.
 
 - `time()` = soon to be cartridge run time, currently poor mans implementation

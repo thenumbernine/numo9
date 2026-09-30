@@ -2550,6 +2550,10 @@ local prePokeCode = [=[
 	end
 --]=]
 
+--[[
+expects:
+self, addr, addrend
+--]]
 local postPokeCode = template([=[
 	--[[
 	ok this has sucessfully slowed things down
@@ -2593,6 +2597,7 @@ local postPokeCode = template([=[
 			-- TODO none of the others happen period, only the palette texture
 			-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 			for _,blob in ipairs(self.blobs.sheet) do
+
 				-- use ramgpu since it is the relocatable address
 				if addrend >= blob.ramgpu.addr
 				and addr < blob.ramgpu.addrEnd
@@ -3358,8 +3363,14 @@ That means code too - save your changes!
 TODO
 split this function between resetting the cartridge / system (i.e. RAM+ROM state + hardware)
  and resetting only the ROM
+
+ok I made quick script fix reset() accept temp args 'name, index'
+if you pass these then it'll just reset those regions
 --]]
-function App:resetCart()
+function App:resetCart(blobName, index)
+	if blobName then
+		return App:resetRegion(blobName, index)
+	end
 --DEBUG:print'App:resetCart'
 	self:copyBlobsToROM()
 
@@ -3370,6 +3381,38 @@ function App:resetCart()
 	-- ... unless I move resetAudio() into load()
 	return true
 end
+
+function App:resetRegion(blobName, index)
+	local blobsForType = self[blobName]
+	if not blobsForType then return end
+	if index then
+		local blob = blobsForType[1+index]
+		if not blob then return end
+		self:copyBlobToROM(blob)
+	else
+		for _,blob in ipairs(blobsForType) do
+			self:copyBlobToROM(blob)
+		end
+	end
+	return true
+end
+-- ugly for now, fix later plz
+App.makeBlobDirty = assert(load([[
+local ffi = require 'ffi'
+local uint8_t = ffi.typeof'uint8_t'
+local int32_t = ffi.typeof'int32_t'
+return function(self, blob)
+	local addr = blob.addr
+	local addrend = blob.addrEnd
+
+]]..prePokeCode..[[
+
+	blob:copyToROM()
+
+]]..postPokeCode..[[
+end
+]]))()
+
 
 -- returns the function to run code
 function App:loadCmd(cmd, source, env, codeBlobFormat)
