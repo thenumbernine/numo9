@@ -417,10 +417,13 @@ function App:initGL()
 		end,
 
 		pal = function(colorIndex, value)
+			local paletteBlobIndex = colorIndex >> 8
+			colorIndex &= 0xff
+			local blob = self.blobs.palette[1+paletteBlobIndex]
 			if value then
-				return self:net_pokew(self.blobs.palette[1].ramgpu.addr + bit.lshift(colorIndex, 1), value)
+				return self:net_pokew(blob.ramgpu.addr + bit.lshift(colorIndex, 1), value)
 			else
-				return self:peekw(self.blobs.palette[1].ramgpu.addr + bit.lshift(colorIndex, 1))
+				return self:peekw(blob.ramgpu.addr + bit.lshift(colorIndex, 1))
 			end
 		end,
 

@@ -562,7 +562,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `yield()` = flip the framebuffer, aka yield the game coroutine, and wait until the next 60Hz frame to begin.  `yield` is identical to `coroutine.yield`.
 - `cls([colorIndex], [depthOnly])` = Clears the screen to the palette index at `color`.
 - `fillp([pattern])` = Sets the 16-bit 4x4 dither pattern, where 0 is fully solid and 0xffff is fully transparent.  Default is 0.  Bit values follow a Bayer dither matrix.
-- `pal(i, [value])` = If value is not provided then returns the uint16 RGBA 5551 value of the palette entry at index `i`.  If value is provided then the palette entry at `i` is set to the value.
+- `pal(index, [value])` = The low 8 bits of `index` represent the palette color index.  The upper bits of `index` represent the palette blob index. If value is not provided then returns the uint16 RGBA 5551 value of the palette color.  If value is provided then the palette color is set to the value.
 - `rect(x, y, w, h, [colorIndex])` = draw solid rectangle
 - `rectb(x, y, w, h, [colorIndex])` = draw rectangle border
 - `elli(x, y, w, h, [colorIndex])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.

@@ -118,7 +118,7 @@ function Console:addChar(ch)
 		self.fgColor,
 		self.bgColor
 	)
-	app:drawSolidRect(self.cursorPos.x + w, self.cursorPos.y, 8, 8, 0x10)	-- which black is solid?
+	app:drawSolidRect(self.cursorPos.x + w, self.cursorPos.y, app.ram.screenWidth, 8, 0x10)	-- which black is solid?
 	self:offsetCursor(menuFontWidth, 0)
 end
 
@@ -235,7 +235,7 @@ function Console:update()
 		end
 		--]]
 		local w = app:drawMenuText(l, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-		app:drawSolidRect(w, self.cursorPos.y, 8, 8, 0x10)	-- which black is solid?
+		app:drawSolidRect(w, self.cursorPos.y, app.ram.screenWidth, 8, 0x10)	-- which black is solid?
 		self.cursorPos.y = self.cursorPos.y + 8
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
