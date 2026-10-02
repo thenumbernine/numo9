@@ -95,6 +95,8 @@ do
 	end
 
 	local sunlight = Lights.sunlight := {
+		yaw = 45,
+		pitch = 45,
 		ambient = vec3(0,0,0),
 		diffuse = vec3(1,1,1),
 		specular  = vec3(.3, .2, .1),
@@ -123,9 +125,9 @@ do
 		-- negative rotation because inverse for view transform
 		-- angle starts looking down i.e. towards z- (cuz opengl)
 		-- tilting up 45 degrees means its still tilted at a pitch down of 45 degrees.
-		matrot(-math.rad(45), 1, 0, 0, viewMatrixIndex)	-- initial view angle is straight down ...
+		matrot(-math.rad(sunlight.pitch), 1, 0, 0, viewMatrixIndex)	-- initial view angle is straight down ...
 		-- cam starts looking along y+ so 45 to the right
-		matrot(-math.rad(-45), 0, 0, 1, viewMatrixIndex)
+		matrot(-math.rad(-sunlight.yaw), 0, 0, 1, viewMatrixIndex)
 		local fwdx = -peekf(ramaddr'viewMat' + 2*4)	 -- -.5
 		local fwdy = -peekf(ramaddr'viewMat' + 6*4)	-- .5
 		local fwdz = -peekf(ramaddr'viewMat' + 10*4)	-- -math.sqrt(2)
