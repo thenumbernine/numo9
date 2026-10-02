@@ -94,6 +94,15 @@ do
 			h * self.lightSubSize
 	end
 
+	local sunlight = Lights.sunlight := {
+		ambient = vec3(0,0,0),
+		diffuse = vec3(1,1,1),
+		specular  = vec3(.3, .2, .1),
+		shininess = 30,
+		distAtten = vec3(1, 0, 0),	-- constant / global attenuation
+		cosAngleRange = vec2(-2, -1),	-- set cos angle range to [-2,-1] so all values map to 1
+	}
+
 	-- for now, one giant map
 	-- TODO eventually make it use a bunch of 128x128 blocks like point lights below do
 	-- for now this will overwrite any dir lights (or vice versa)
@@ -140,21 +149,21 @@ do
 		matpop(projMatrixIndex)
 
 		-- is per-light ambient color dumb?
-		pokef(lightAddr + self.lightAmbientColorOffset, 0)
-		pokef(lightAddr + self.lightAmbientColorOffset+4, 0)
-		pokef(lightAddr + self.lightAmbientColorOffset+8, 0)
-		pokef(lightAddr + self.lightDiffuseColorOffset, 1)
-		pokef(lightAddr + self.lightDiffuseColorOffset+4, 1)
-		pokef(lightAddr + self.lightDiffuseColorOffset+8, 1)
-		pokef(lightAddr + self.lightSpecularColorOffset, .3)
-		pokef(lightAddr + self.lightSpecularColorOffset+4, .2)
-		pokef(lightAddr + self.lightSpecularColorOffset+8, .1)
-		pokef(lightAddr + self.lightSpecularColorOffset+12, 30)
-		pokef(lightAddr + self.lightDistAttenOffset, 1)	-- constant / global attenuation
-		pokef(lightAddr + self.lightDistAttenOffset+4, 0)
-		pokef(lightAddr + self.lightDistAttenOffset+8, 0)
-		pokef(lightAddr + self.lightCosAngleRangeOffset, -2)	-- set cos angle range to [-2,-1] so all values map to 1
-		pokef(lightAddr + self.lightCosAngleRangeOffset+4, -1)
+		pokef(lightAddr + self.lightAmbientColorOffset, sunlight.ambient.x)
+		pokef(lightAddr + self.lightAmbientColorOffset+4, sunlight.ambient.y)
+		pokef(lightAddr + self.lightAmbientColorOffset+8, sunlight.ambient.z)
+		pokef(lightAddr + self.lightDiffuseColorOffset, sunlight.diffuse.x)
+		pokef(lightAddr + self.lightDiffuseColorOffset+4, sunlight.diffuse.y)
+		pokef(lightAddr + self.lightDiffuseColorOffset+8, sunlight.diffuse.z)
+		pokef(lightAddr + self.lightSpecularColorOffset, sunlight.specular.x)
+		pokef(lightAddr + self.lightSpecularColorOffset+4, sunlight.specular.y)
+		pokef(lightAddr + self.lightSpecularColorOffset+8, sunlight.specular.z)
+		pokef(lightAddr + self.lightSpecularColorOffset+12, sunlight.shininess)
+		pokef(lightAddr + self.lightDistAttenOffset, sunlight.distAtten.x)
+		pokef(lightAddr + self.lightDistAttenOffset+4, sunlight.distAtten.y)
+		pokef(lightAddr + self.lightDistAttenOffset+8, sunlight.distAtten.z)
+		pokef(lightAddr + self.lightCosAngleRangeOffset, sunlight.cosAngleRange.x)
+		pokef(lightAddr + self.lightCosAngleRangeOffset+4, sunlight.cosAngleRange.y)
 
 		-- subimage/viewport on the lightmap
 		pokew(lightAddr + self.lightRegionOffset, lx)
