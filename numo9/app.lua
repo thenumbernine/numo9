@@ -3885,11 +3885,12 @@ function App:toggleMenu()
 		end
 		--]]
 	elseif self.activeMenu == self.cartBrowser then		-- cart browser goes to main menu
-		self:setMenu(nil)
+		--self:setMenu(nil)
 		self.isPaused = false
-		if not self.runFocus then
-			self:setMenu(self.mainMenu)
-		end
+		--if not self.runFocus then
+		--self:setMenu(self.mainMenu)	-- doesn't work
+		self.mainMenu:open()			-- works
+		--end
 	elseif self.activeMenu == self.con then				-- console goes to main menu
 		--[[ con -> editor?
 		self:setMenu(self.editCode)

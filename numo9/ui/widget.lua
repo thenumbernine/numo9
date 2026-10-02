@@ -16,6 +16,8 @@ local UIWidget = class()
 
 UIWidget.zIndex = 0
 UIWidget.tag = 'widget'
+UIWidget.bgColorIndex = 0xf
+--UIWidget.borderColorIndex = 0xc
 
 function UIWidget:init(args)
 	args = args or {}
@@ -30,6 +32,7 @@ function UIWidget:init(args)
 	self.value = args.value	-- for input values
 	self.fgColorIndex = args.fgColorIndex
 	self.bgColorIndex = args.bgColorIndex
+	self.borderColorIndex = args.borderColorIndex
 
 	self.tooltip = args.tooltip
 
@@ -100,10 +103,14 @@ function UIWidget:draw()
 	local app = owner.app
 
 	-- draw background
-	app:drawSolidRect(0, 0, self.size.x, self.size.y, 0xf, nil, nil, app.paletteMenuTex)
+	if self.bgColorIndex then
+		app:drawSolidRect(0, 0, self.size.x, self.size.y, self.bgColorIndex, nil, nil, app.paletteMenuTex)
+	end
 
 	-- draw border
-	app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, 0xc, nil, app.paletteMenuTex)
+	if self.borderColorIndex then
+		app:drawBorderRect(0, 0, self.size.x-1, self.size.y-1, self.borderColorIndex, nil, app.paletteMenuTex)
+	end
 end
 
 function UIWidget:drawRecurse(root)
