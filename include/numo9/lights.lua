@@ -108,7 +108,7 @@ do
 	-- for now, one giant map
 	-- TODO eventually make it use a bunch of 128x128 blocks like point lights below do
 	-- for now this will overwrite any dir lights (or vice versa)
-	Lights.makeSunLight = |:,stagesize|do
+	Lights.makeSunLight = |:,orthoSize, center|do
 		local lightAddr, lx, ly, lw, lh = Lights:new(self.lightmapWidthInSubRegions, self.lightmapHeightInSubRegions)
 		if not lightAddr then return end
 
@@ -117,7 +117,6 @@ do
 		matpush(viewMatrixIndex)	-- push the view mat
 
 		matident(projMatrixIndex)
-		local orthoSize = .5 * stagesize:len()	-- max diagonal
 		local znear, zfar = -4, 2 * orthoSize
 		matortho(-orthoSize, orthoSize, -orthoSize, orthoSize, znear, zfar)	-- projMatrixIndex by default
 
@@ -128,19 +127,21 @@ do
 		matrot(-math.rad(sunlight.pitch), 1, 0, 0, viewMatrixIndex)	-- initial view angle is straight down ...
 		-- cam starts looking along y+ so 45 to the right
 		matrot(-math.rad(-sunlight.yaw), 0, 0, 1, viewMatrixIndex)
-		local fwdx = -peekf(ramaddr'viewMat' + 2*4)	 -- -.5
-		local fwdy = -peekf(ramaddr'viewMat' + 6*4)	-- .5
+		local fwdx = -peekf(ramaddr'viewMat' + 2*4)	 	-- -.5
+		local fwdy = -peekf(ramaddr'viewMat' + 6*4)		-- .5
 		local fwdz = -peekf(ramaddr'viewMat' + 10*4)	-- -math.sqrt(2)
+-- [[
 		-- position the light a way from the center.
 		-- ortho can do +- z ranges, but the light calcs still look at light view mat pos
 		-- a TODO could be using a lightpos vec4 instead of calculating it from the light view matrix
 		-- this would provide better directional lights (set w=0)
 		--  but would mean more redundant variables for the cart programmer to correlate.
 		mattrans(
-			-(.5 * stagesize.x - orthoSize * fwdx),
-			-(.5 * stagesize.y - orthoSize * fwdy),
-			-(.5 * stagesize.z - orthoSize * fwdz),
+			-(center.x - orthoSize * fwdx),
+			-(center.y - orthoSize * fwdy),
+			-(center.z - orthoSize * fwdz),
 			viewMatrixIndex)
+--]]
 
 		poke(lightAddr + self.lightEnabledOffset, 0xff)	-- light is enabled for depth-write and for surface-calculations
 
