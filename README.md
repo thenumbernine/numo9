@@ -720,7 +720,7 @@ Mouse state is read from the local machine.  Remote connections can only send jo
 - `getmetatable`
 - `setmetatable`
 - `pcall`
-- `xpcall`
+- `xpcall` ... is taken from `ext.xpcall` such that the error-handler is optional and defaults to returning the error message and traceback concatenated.
 - `traceback = debug.traceback`
 - `tstamp` = `os.time`
 - `getfenv` ... though should I remove this?

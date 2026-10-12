@@ -951,7 +951,6 @@ function App:initGL()
 		rawset = rawset,
 		traceback = debug.traceback,	-- useful for threads
 		pcall = pcall,
-		xpcall = xpcall,
 		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
 		setfenv = setfenv,	-- \_ fair warning, getfenv(0) breaks out of the sandbox and gets numo9's _G
 
@@ -1091,6 +1090,11 @@ self.env = setmetatable({
 		__index = _G,
 		--]]
 	})
+
+	-- use ext.xpcall so error-handler can be optional
+	self.xpcallEnv = {}
+	require 'ext.xpcall'(self.xpcallEnv)
+	self.env.xpcall = self.xpcallEnv.xpcall
 
 --[[
 print()
