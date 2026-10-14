@@ -1101,7 +1101,7 @@ function EditSheet:update()
 		256,	-- th
 		0,		-- orientation2D
 		self.sheetBlobIndex,
-		0,		-- paletteShift
+		self.paletteOffset,	-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit ... TODO show the current spriteBit here?
 		0xFF	-- spriteMask ... TODO same?
@@ -1250,7 +1250,7 @@ function EditSheet:update()
 			selh * spriteSize.y,
 			0,		-- orientation2D
 			self.sheetBlobIndex,
-			0,										-- paletteIndex
+			self.paletteOffset,						-- paletteIndex
 			-1,										-- transparentIndex
 			self.spriteBit,							-- spriteBit
 			bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
