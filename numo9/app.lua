@@ -2235,6 +2235,15 @@ print('run thread dead')
 			needDrawCounter = drawCounterNeededToRedraw
 		end
 
+		local videoModeObj = self.videoModes[self.ram.videoMode]
+		if videoModeObj.format == '8bppIndex' then
+			-- FIXME FIXME FIXME
+			-- cheap fix, i need to track if the ram.paletteBlobIndex'th palette blob has changed in this frame
+			-- and if so then also needDrawCounter
+			-- but until then, just always redraw indexed mode
+			needDrawCounter = drawCounterNeededToRedraw
+		end
+
 		if self.activeMenu then
 			needDrawCounter = 1
 		end
