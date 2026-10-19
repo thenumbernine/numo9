@@ -598,8 +598,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `quad(screenX, screenY, w, h, tx, ty, tw, th, [sheetIndex, orientation2D, paletteOffset, transparentIndex, spriteBit, spriteMask])` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
 	- screenX, screneY = pixel location of upper-left corner of the sprite-sheet to draw
 	- w, h = pixels wide and high to draw.
-	- tx, ty = sprite sheet pixel upper left corner.
-	- tw, th = sprite sheet width and height to use.
+	- tx, ty = normalized texture coordinate upper left corner, in [0,1].
+	- tw, th = normalized texture coordinate width and height, in [0,1].
 	- orientation2D = same as `spr()`, default 0.
 	- sheetIndex = sheet index, default 0.
 	- paletteOffset = same as `spr()`.
