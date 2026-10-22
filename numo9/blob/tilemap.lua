@@ -60,10 +60,10 @@ end
 -- swizzle / unswizzle channels
 function BlobTileMap:loadFile(filepath, basepath, blobIndex)
 	local loadImg = assert(Image(filepath.path))
-	assert.eq(loadImg.width, tilemapSize.x)
-	assert.eq(loadImg.height, tilemapSize.y)
-	assert.eq(loadImg.channels, 3)
-	assert.eq(ffi.sizeof(loadImg.format), 1)
+	assert.eq(loadImg.width, tilemapSize.x, 'tilemap width expected')
+	assert.eq(loadImg.height, tilemapSize.y, 'tilemap height expected')
+	assert.eq(loadImg.channels, 3, 'tilemap channels expected')
+	assert.eq(ffi.sizeof(loadImg.format), 1, 'tilemap format expected')
 	local loadPtr = ffi.cast(uint8_t_p, loadImg.buffer)
 
 	local blobImg = self:makeImage()
