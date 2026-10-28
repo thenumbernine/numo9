@@ -797,7 +797,7 @@ if (debugDraw == 4) {	// debug show the first light buffer
 		:unbind()
 	-- TODO blit here to combine calcLightTex and framebufferTex into lightAndFBTex
 	-- hmm, it is going to vary depending on video mode
-	-- can I just use blitScreenObj? why not?
+	-- can I just use blitScreenApplyLightObj? why not?
 --]=]
 
 
@@ -1027,9 +1027,9 @@ void main() {
 	}
 --]=]
 
-	-- 'blitScreenObj' is actually the lighting pass
+	-- 'blitScreenApplyLightObj' is actually the lighting pass
 	-- should I always do it to a prev float16 buffer, or is it fine going straight to the screen?
-	self.blitScreenHD2DObj = GLSceneObject{
+	self.blitScreenPlainObj = GLSceneObject{
 		program = {
 			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
@@ -1228,8 +1228,8 @@ vec4 colorIndexToFragColor(uint colorIndex) {
 	--]=]
 
 	-- used for drawing our 16bpp framebuffer to the screen
---DEBUG:print'mode 0 blitScreenObj'
-	self.blitScreenObj = GLSceneObject{
+--DEBUG:print'mode 0 blitScreenApplyLightObj'
+	self.blitScreenApplyLightObj = GLSceneObject{
 		program = {
 			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
@@ -1303,8 +1303,8 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 ]]
 
 	-- used for drawing our 8bpp indexed framebuffer to the screen
---DEBUG:print'mode 1 blitScreenObj'
-	self.blitScreenObj = GLSceneObject{
+--DEBUG:print'mode 1 blitScreenApplyLightObj'
+	self.blitScreenApplyLightObj = GLSceneObject{
 		program = {
 			rowMajor = false,	-- default to col-major glUniformMatrix's
 			version = app.glslVersion,
@@ -1395,8 +1395,8 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 }
 ]]
 
---DEBUG:print'mode 2 blitScreenObj'
-	self.blitScreenObj = GLSceneObject{
+--DEBUG:print'mode 2 blitScreenApplyLightObj'
+	self.blitScreenApplyLightObj = GLSceneObject{
 		program = {
 			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,

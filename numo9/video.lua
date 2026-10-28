@@ -3865,7 +3865,7 @@ print()
 		}:unbind()
 
 		-- update refs
-		videoMode.blitScreenObj.texs[3] = calcLightTex:cur()
+		videoMode.blitScreenApplyLightObj.texs[3] = calcLightTex:cur()
 
 		-- and resize the fbo stored size
 		calcLightFB.width = videoMode.width
@@ -3993,10 +3993,15 @@ print()
 --]]
 
 	-- now combine them here too
+	--[====[
 	if bit.band(ram.HD2DFlags, bit.bor(
 		ffi.C.HD2DFlags_useHDR,
 		ffi.C.HD2DFlags_useDoF
 	)) ~= 0 then
+	--]====]
+	-- [====[
+	if ram.HD2DFlags ~= 0 then
+	--]====]
 		-- HDR and DOF both need mipmaps,
 		-- so they can't accept our indexed color,
 		-- so I have to combine and mipmap here.
@@ -4005,7 +4010,10 @@ print()
 		-- which palette to use? first?  extra RAM var to specify?
 		-- how about whatevers selected as the active palette at end of frame?
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
-		local sceneObj = videoMode.blitScreenObj
+		local sceneObj = videoMode.blitScreenApplyLightObj
+		sceneObj.texs[1] = videoMode.framebufferRAM.tex
+		sceneObj.texs[2] = videoMode.framebufferPosTex
+		sceneObj.texs[3] = videoMode.calcLightTex:cur()
 		if videoMode.format == '8bppIndex' then
 			local paletteBlob =
 				self.blobs.palette[1+ram.paletteBlobIndex]
@@ -4132,6 +4140,8 @@ print()
 		copyFrom = self.currentVideoMode.dofTex.fbo --:cur()
 	elseif bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
 		copyFrom = self.currentVideoMode.hdrTex.fbo --:cur()
+	else
+		copyFrom = videoMode.lightAndFBTex.fbo
 	end
 	-- else it's already in self.currentVideoMode.framebufferRAM.tex
 
@@ -4151,6 +4161,16 @@ print()
 		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, 0)
 		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 	end
+
+--[[
+	-- clear light tex (since it's already in the dest color buf)
+	self.currentVideoMode.calcLightTex.fbo
+		:bind()
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	self.currentVideoMode.calcLightTex.fbo
+		:unbind()
+--]]
 
 	if self.inUpdateCallback then
 		self.currentVideoMode.fb:bind()

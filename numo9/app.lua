@@ -2012,7 +2012,7 @@ print('run thread dead')
 			--]]
 
 			-- while we're here, start us off with the current framebufferRAM contents
-			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
+			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenApplyLightObj to draw it
 --			self:triBuf_flush()
 			-- hmm, without glClear here, console buffer gets jumbled
 			--gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
@@ -2030,7 +2030,7 @@ print('run thread dead')
 			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
 			-- (... what?)
 			do--if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
-				local sceneObj = self.currentVideoMode.blitScreenObj
+				local sceneObj = self.currentVideoMode.blitScreenApplyLightObj
 				-- [[
 				--local bgTex = self.currentVideoMode.menuPauseTex or fbTex
 				local bgTex = fbTex
@@ -2323,18 +2323,7 @@ print('run thread dead')
 		view.mvMat:setIdent()
 		view.mvProjMat:copy(view.projMat)
 
-		local sceneObj
-		if bit.band(self.ram.HD2DFlags, bit.bor(
-			ffi.C.HD2DFlags_useHDR,
-			ffi.C.HD2DFlags_useDoF
-		)) ~= 0 then
-			sceneObj = videoModeObj.blitScreenHD2DObj
-		else
-			sceneObj = videoModeObj.blitScreenObj
--- TODO why do I have to reassign this again?  why does it go to nil?  why does test-8bppindex show a black screen now (versus crash before I added this?)
-sceneObj.texs[2] = videoModeObj.framebufferPosTex
-sceneObj.texs[3] = videoModeObj.calcLightTex:cur()
-		end
+		local sceneObj = videoModeObj.blitScreenPlainObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 		local pushTex = sceneObj.texs[1]
 		sceneObj.texs[1] = fbTex
@@ -3958,7 +3947,7 @@ function App:resize()
 
 			videoModeNative.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
 			videoModeNative.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
-			videoModeNative.blitScreenObj = modeObj.blitScreenObj
+			videoModeNative.blitScreenApplyLightObj = modeObj.blitScreenApplyLightObj
 			videoModeNative.drawObj = modeObj.drawObj
 			videoModeNative.fb = modeObj.fb
 			--]]
