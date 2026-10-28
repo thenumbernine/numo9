@@ -78,6 +78,7 @@ function Console:runCmdBuf()
 	end
 	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
+	self.cursorLoc = 0
 
 	local cmdBufWithPrompt = app.fs.cwd:path()..self.prompt..cmd
 	local maxcol = math.floor(self.width / menuFontWidth)
@@ -123,15 +124,20 @@ function Console:selectHistory(dx)
 	local n = #self.cmdHistory
 	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
+	self.cursorLoc = #self.cmdbuf
 end
 
 function Console:addCharToCmd(ch)
 	if ch == 8 then
-		if #self.cmdbuf > 0 then
-			self.cmdbuf = self.cmdbuf:sub(1,-2)
+		if self.cursorLoc > 0
+		and #self.cmdbuf > 0
+		then
+			self.cursorLoc = self.cursorLoc - 1
+			self.cmdbuf = self.cmdbuf:sub(1,self.cursorLoc)..self.cmdbuf:sub(self.cursorLoc+2)
 		end
 	else
-		self.cmdbuf = self.cmdbuf .. string.char(ch)
+		self.cmdbuf = self.cmdbuf:sub(1,self.cursorLoc) .. string.char(ch) .. self.cmdbuf:sub(self.cursorLoc+1)
+		self.cursorLoc = self.cursorLoc + 1
 	end
 end
 
@@ -167,7 +173,8 @@ function Console:update()
 	-- ... or just don't at all any of this and do like old apple 2's?
 	local maxLines = 30
 
-	local cmdBufWithPrompt = app.fs.cwd:path()..self.prompt..self.cmdbuf
+	local pathAndPrompt = app.fs.cwd:path()..self.prompt
+	local cmdBufWithPrompt = pathAndPrompt..self.cmdbuf
 	local maxcol = math.floor(self.width / menuFontWidth)
 	local numCmdBufWithPromptRows = math.ceil(#cmdBufWithPrompt/maxcol)
 
@@ -198,13 +205,14 @@ function Console:update()
 		cursorPosY = cursorPosY + 8
 	end
 
-	self.cursorLoc = #cmdBufWithPrompt
-	app:drawSolidRect(
-		(self.cursorLoc % maxcol) * menuFontWidth,
-		promptStartY + math.floor(self.cursorLoc / maxcol) * 8,
-		8, 8,
-		getTime() % 1 < .5 and 0x10 or 0xc	-- which black is solid?
-	)
+	local cursorDrawLoc = self.cursorLoc + #pathAndPrompt
+	if getTime() % 1 < .5 then
+		app:drawSolidRect(
+			(cursorDrawLoc % maxcol) * menuFontWidth,
+			promptStartY + math.floor(cursorDrawLoc / maxcol) * 8,
+			8, 8, 0xc
+		)
+	end
 	--cursorPosX = #cmdBufWithPrompt * menuFontWidth
 
 	app:matMenuReset()
@@ -238,6 +246,10 @@ function Console:event(e)
 			elseif keycode == keyCodeForName.down then
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
+			elseif keycode == keyCodeForName.left then
+				self.cursorLoc = math.max(self.cursorLoc - 1, 0)
+			elseif keycode == keyCodeForName.right then
+				self.cursorLoc = math.min(self.cursorLoc + 1, #self.cmdbuf)
 			end
 		end
 	end
