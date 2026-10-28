@@ -1012,6 +1012,13 @@ function App:initGL()
 			return self:loadCmd(cmd, ...)
 			--return self:loadCmd(cmd, source, self.gameEnv)  -- should it use the game's env, or the app's default env? or should it be an arg?
 		end,
+
+		-- ???
+
+		-- flush HD2D lighting, hdr, dof back to color framebuffer mid-render
+		flushHD2D = function()
+			self:updateHD2DPass()
+		end,
 	}
 
 	local loadingPlaceholder = {}
@@ -2253,6 +2260,7 @@ print('run thread dead')
 			self:setVideoMode(self.ram.videoMode)
 		end
 
+		-- flush lighting pass, dof pass, hdr pass back to the color framebuffer
 		self:updateHD2DPass()
 
 		if self.activeMenu then

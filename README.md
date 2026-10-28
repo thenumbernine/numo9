@@ -656,6 +656,10 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 - `matortho(left,right,bottom,top,[near,far],[matrix])` = apply orthographic transform.  `matrix` default is 2 for projection.
 - `matfrustum(left,right,bottom,top,near,far,[matrix])` = apply frustum perspective transform.  `matrix` default is 2 for projection.
 
+## HD2D:
+
+- `flushHD2D()` = this flushes any HD2D rendering (lighting, DoF, HDR) calculations back to the color buffer.  Useful if you want to apply overlays on top of them.  Note that whatever draw commands are issued while HD2D flags are set will have respective flags associated with their fragments, and whatever are issued without will likewise, however sometimes (i.e. blending) it is useful to flush lighting calculations first before applying new overlays.
+
 ## sound:
 
 - `sfx(sfxID, channel, pitch, volL, volR, loop)` = play sfx.  still WIP.

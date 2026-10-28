@@ -3805,7 +3805,11 @@ function AppVideo:updateHD2DPass()
 	-- if we're not using lighting then don't bother with lighting
 	if self.ram.HD2DFlags == 0 and not self.haveCapturedDrawMatsForLightingThisFrame then return end
 
-	assert(not self.inUpdateCallback)
+--	assert(not self.inUpdateCallback)
+	if self.inUpdateCallback then
+		-- should always be true
+		self.currentVideoMode.fb:unbind()
+	end
 
 --[=[ trying to read the depth buffer
 -- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
@@ -4147,6 +4151,23 @@ print()
 		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, 0)
 		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 	end
+
+	if self.inUpdateCallback then
+		self.currentVideoMode.fb:bind()
+	end
+
+	-- clear this every render frame
+	-- then when we draw tris, on first tri with lighting, copy the view mat into drawViewMatForLighting and set this
+	self.haveCapturedDrawMatsForLightingThisFrame = false
+	self.drawViewMatForLighting:setIdent()
+	self.drawProjMatForLighting:setIdent()
+
+	-- clear the HD2D flags from the normal.w color attachment
+	clearFloat[0] = 0
+	clearFloat[1] = 0
+	clearFloat[2] = 1
+	clearFloat[3] = 0	-- framebufferNormalTex.a == 0 <=> disable lighting on background by default
+	gl.glClearBufferfv(gl.GL_COLOR, 1, clearFloat)
 end
 
 return {
