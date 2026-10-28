@@ -51,8 +51,7 @@ end
 -- reset console state ...
 function Console:reset()
 
-	-- TODO move these to RAM
-	self.cursorPos = vec2i(0, 0)
+	self.cursorLoc = 0	-- where to draw the cursor
 	self.fgColor = 0xfd
 	self.bgColor = 0x10
 
@@ -79,63 +78,17 @@ function Console:runCmdBuf()
 	end
 	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
-	self:print(app.fs.cwd:path()..self.prompt..cmd)
+
+	local cmdBufWithPrompt = app.fs.cwd:path()..self.prompt..cmd
+	local maxcol = math.floor(self.width / menuFontWidth)
+	local numCmdBufWithPromptRows = math.ceil(#cmdBufWithPrompt/maxcol)
+	for row=1,numCmdBufWithPromptRows do
+		local lineStr = cmdBufWithPrompt:sub(1+(row-1)*maxcol, row*maxcol)
+		self:print(lineStr)
+	end
+
 	self.needsPrompt = true
 	app:runCmd(cmd)
-end
-
--- should cursor be a 'app' property or an 'editor' property?
--- should the low-level os be 'editor' or its own thing?
-function Console:offsetCursor(dx, dy)
-	local app = self.app
-	local fb = self.fb
-	self.cursorPos.x = self.cursorPos.x + dx
-	self.cursorPos.y = self.cursorPos.y + dy
-
-	while self.cursorPos.x < 0 do
-		self.cursorPos.x = self.cursorPos.x + self.width
-		self.cursorPos.y = self.cursorPos.y - spriteSize.y
-	end
-	while self.cursorPos.x >= self.width do
-		self.cursorPos.x = self.cursorPos.x - self.width
-		self.cursorPos.y = self.cursorPos.y + spriteSize.y
-	end
-
-	while self.cursorPos.y < 0 do
-		self.cursorPos.y = self.cursorPos.y + self.height
-	end
-	while self.cursorPos.y >= self.height do
-		self.cursorPos.y = self.cursorPos.y - self.height
-	end
-end
-
-function Console:addChar(ch)
-	local app = self.app
-	local w = app:drawMenuText(
-		string.char(ch),
-		self.cursorPos.x,
-		self.cursorPos.y,
-		self.fgColor,
-		self.bgColor
-	)
-	app:drawSolidRect(self.cursorPos.x + w, self.cursorPos.y, app.ram.screenWidth, 8, 0x10)	-- which black is solid?
-	self:offsetCursor(menuFontWidth, 0)
-end
-
-function Console:addCharToScreen(ch)
-	local app = self.app
-	if ch == 8 then
-		self:addChar((' '):byte())	-- in case the cursor is there
-		self:offsetCursor(-2*menuFontWidth, 0)
-		self:addChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-menuFontWidth, 0)
-	elseif ch == 10 or ch == 13 then
-		self:addChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
-		self.cursorPos.x = 0
-		self.cursorPos.y = self.cursorPos.y + spriteSize.y
-	else
-		self:addChar(ch)
-	end
 end
 
 function Console:print(...)
@@ -170,18 +123,15 @@ function Console:selectHistory(dx)
 	local n = #self.cmdHistory
 	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
-	self.cursorPos.x = 0
 end
 
 function Console:addCharToCmd(ch)
 	if ch == 8 then
 		if #self.cmdbuf > 0 then
 			self.cmdbuf = self.cmdbuf:sub(1,-2)
-			self:addCharToScreen(ch)
 		end
 	else
 		self.cmdbuf = self.cmdbuf .. string.char(ch)
-		self:addCharToScreen(ch)
 	end
 end
 
@@ -217,31 +167,45 @@ function Console:update()
 	-- ... or just don't at all any of this and do like old apple 2's?
 	local maxLines = 30
 
-	local shownLines = math.min(#self.lines, maxLines)
+	local cmdBufWithPrompt = app.fs.cwd:path()..self.prompt..self.cmdbuf
+	local maxcol = math.floor(self.width / menuFontWidth)
+	local numCmdBufWithPromptRows = math.ceil(#cmdBufWithPrompt/maxcol)
+
+	local shownLines = math.min(#self.lines, maxLines - (numCmdBufWithPromptRows-1))
 	app:setBlendMode(3)
 	app:drawSolidRect(0, 0, self.width, (shownLines + 1) * spriteSize.y, 0xf0)
 	app:setBlendMode(0xff)
 
-	self.cursorPos.x = 0
-	self.cursorPos.y = 0
-	local maxcol = math.floor(self.width / menuFontWidth)
+	local cursorPosX = 0
+	local cursorPosY = 0
 	for i=shownLines,1,-1 do
 		local l = self.lines[i]
 		--[[ hmm TODO split up lines in display, or split them up when adding them?
 		while #l > maxcol do
-			app:drawMenuText(l:sub(1,maxcol), 0, self.cursorPos.y, self.fgColor, self.bgColor)
+			app:drawMenuText(l:sub(1,maxcol), 0, cursorPosY, self.fgColor, self.bgColor)
 			l = l:sub(maxcol+1)
-			self.cursorPos.y = self.cursorPos.y + 8
+			cursorPosY = cursorPosY + 8
 		end
 		--]]
-		local w = app:drawMenuText(l, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-		app:drawSolidRect(w, self.cursorPos.y, app.ram.screenWidth, 8, 0x10)	-- which black is solid?
-		self.cursorPos.y = self.cursorPos.y + 8
+		local w = app:drawMenuText(l, 0, cursorPosY, self.fgColor, self.bgColor)
+		app:drawSolidRect(w, cursorPosY, app.ram.screenWidth, 8, 0x10)	-- which black is solid?
+		cursorPosY = cursorPosY + 8
 	end
-	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
-	local w = app:drawMenuText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-	app:drawSolidRect(w, self.cursorPos.y, 8, 8, getTime() % 1 < .5 and 0x10 or 0xc)	-- which black is solid?
-	self.cursorPos.x = #s * menuFontWidth
+	local promptStartY = cursorPosY
+	for row=1,numCmdBufWithPromptRows do
+		local lineStr = cmdBufWithPrompt:sub(1+(row-1)*maxcol, row*maxcol)
+		app:drawMenuText(lineStr, 0, cursorPosY, self.fgColor, self.bgColor)
+		cursorPosY = cursorPosY + 8
+	end
+
+	self.cursorLoc = #cmdBufWithPrompt
+	app:drawSolidRect(
+		(self.cursorLoc % maxcol) * menuFontWidth,
+		promptStartY + math.floor(self.cursorLoc / maxcol) * 8,
+		8, 8,
+		getTime() % 1 < .5 and 0x10 or 0xc	-- which black is solid?
+	)
+	--cursorPosX = #cmdBufWithPrompt * menuFontWidth
 
 	app:matMenuReset()
 end
