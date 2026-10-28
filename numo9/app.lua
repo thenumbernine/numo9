@@ -1982,8 +1982,7 @@ print('run thread dead')
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
-			--local fbTex = self.currentVideoMode.framebufferRAM.tex
-			local fbTex = self:getPipelineRenderTex()
+			local fbTex = self.currentVideoMode.framebufferRAM.tex
 
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			local pushVideoMode = self.ram.videoMode
@@ -2116,7 +2115,6 @@ print('run thread dead')
 
 			-- necessary or nah?
 			local fbTex = self.currentVideoMode.framebufferRAM.tex
-			--local fbTex = self:getPipelineRenderTex()
 			gl.glViewport(0, 0, fbTex.width, fbTex.height)
 
 			-- pop lighting
@@ -2298,7 +2296,7 @@ print('run thread dead')
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-		local fbTex = self:getPipelineRenderTex()
+		local fbTex = self.currentVideoMode.framebufferRAM.tex
 
 		-- redo ortho projection matrix
 		-- every frame for us to use a proper rectangle

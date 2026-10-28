@@ -4119,17 +4119,34 @@ print()
 			fbo:unbind()
 		end
 	end
-end
 
--- get the last tex in the pipeline for rendering to screen
-function AppVideo:getPipelineRenderTex()
+	-- now, whatever is the tex with the latest applications to it,
+	--  copy it into self.currentVideoMode.framebufferRAM.tex
+
+	local copyFrom
 	if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
-		return self.currentVideoMode.dofTex:cur()
+		copyFrom = self.currentVideoMode.dofTex.fbo --:cur()
+	elseif bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+		copyFrom = self.currentVideoMode.hdrTex.fbo --:cur()
 	end
-	if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
-		return self.currentVideoMode.hdrTex:cur()
+	-- else it's already in self.currentVideoMode.framebufferRAM.tex
+
+	if copyFrom then
+		--copy copyFrom to self.currentVideoMode.framebufferRAM.tex
+		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, copyFrom.id)
+		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, self.currentVideoMode.fb.id)
+		gl.glBlitFramebuffer(
+			0, 0,
+			self.currentVideoMode.framebufferRAM.tex.width,
+			self.currentVideoMode.framebufferRAM.tex.height,
+			0, 0,
+			self.currentVideoMode.framebufferRAM.tex.width,
+			self.currentVideoMode.framebufferRAM.tex.height,
+			gl.GL_COLOR_BUFFER_BIT,
+			gl.GL_NEAREST)
+		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, 0)
+		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 	end
-	return self.currentVideoMode.framebufferRAM.tex
 end
 
 return {
