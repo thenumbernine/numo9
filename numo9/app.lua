@@ -1776,12 +1776,6 @@ conn.receivesPerSecond = 0
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
 
-		-- clear this every render frame
-		-- then when we draw tris, on first tri with lighting, copy the view mat into drawViewMatForLighting and set this
-		self.haveCapturedDrawMatsForLightingThisFrame = false
-		self.drawViewMatForLighting:setIdent()
-		self.drawProjMatForLighting:setIdent()
-
 -- hmm ... remind me again why I added this collectgarbage() every frame, other than just to do just that ...
 -- because with it, the framerate (on 10yo computer) is going down to 20 FPS, without it, 60kfps
 --		collectgarbage()
