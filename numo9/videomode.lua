@@ -1353,6 +1353,39 @@ vec4 colorIndexToFragColor(uint colorIndex) {
 	-- so just use framebufferTex instead
 	-- TODO this only works for internalFormat == GL_RGB565
 	-- if we are ever using internalFormat = gl.GL_R16UI then we will need a pass here
+
+	-- convert back from lighting to framebuffer
+	self.flushBackToFBObj = GLSceneObject{
+		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
+			version = app.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+uniform sampler2D rgbTex;
+void main() {
+	fragColor = texture(rgbTex, tcv);
+}
+]],			{
+				videoMode = self,
+			}),
+			uniforms = {
+				prevTex = 0,
+			},
+		},
+		texs = {},
+		geometry = app.quadGeom,
+	}
 end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
@@ -1391,24 +1424,9 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 		numBuffers = 1,	-- just for the fbo + tex
 		width = self.width,
 		height = self.height,
-		-- does mipmap work with RGBA32F?
-		-- ... for GLES3 ... technically ...no.
-		-- how to know when it will and when it wont work?
-		-- welp at least RGBA16F is textureFilterable
-		internalFormat = gl.GL_RGBA16F,
-		-- [[ using mipmaps for blurs
-		magFilter = gl.GL_NEAREST,
-		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
-		--]]
-		--[[ blur with kernel
+		internalFormat = gl.GL_RGB,
 		magFilter = gl.GL_NEAREST,
 		minFilter = gl.GL_NEAREST,
-		--]]
-		wrap = {
-			s = gl.GL_REPEAT,
-			t = gl.GL_REPEAT,
-		},
-		generateMipmap = true,
 	}
 	self.bakeRGBTex.fbo
 		:bind()
@@ -1464,6 +1482,45 @@ void main() {
 		},
 		geometry = app.quadGeom,
 	}
+
+	-- convert back from lighting to framebuffer
+	-- TODO quantize here
+	self.flushBackToFBObj = GLSceneObject{
+		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
+			version = app.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out uvec4 fragColor;
+uniform sampler2D rgbTex;
+void main() {
+	vec4 rgb = texture(rgbTex, tcv);
+
+	fragColor.r = uint(rgb.r * 255.);
+	fragColor.g = 0u;
+	fragColor.b = 0u;
+	fragColor.a = uint(rgb.a * 255.);
+}
+]],			{
+				videoMode = self,
+			}),
+			uniforms = {
+				prevTex = 0,
+			},
+		},
+		texs = {},
+		geometry = app.quadGeom,
+	}
 end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
@@ -1512,31 +1569,15 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 ]]
 
 
-
 	-- if it's indexed or 332 mode then we need to convert to rgba here
 	-- separate of lighting for when lighting is disabled
 	self.bakeRGBTex = GLPingPong{
 		numBuffers = 1,	-- just for the fbo + tex
 		width = self.width,
 		height = self.height,
-		-- does mipmap work with RGBA32F?
-		-- ... for GLES3 ... technically ...no.
-		-- how to know when it will and when it wont work?
-		-- welp at least RGBA16F is textureFilterable
-		internalFormat = gl.GL_RGBA16F,
-		-- [[ using mipmaps for blurs
-		magFilter = gl.GL_NEAREST,
-		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
-		--]]
-		--[[ blur with kernel
+		internalFormat = gl.GL_RGB,
 		magFilter = gl.GL_NEAREST,
 		minFilter = gl.GL_NEAREST,
-		--]]
-		wrap = {
-			s = gl.GL_REPEAT,
-			t = gl.GL_REPEAT,
-		},
-		generateMipmap = true,
 	}
 	self.bakeRGBTex.fbo
 		:bind()
@@ -1586,6 +1627,48 @@ void main() {
 		texs = {
 			self.framebufferRAM.tex,
 		},
+		geometry = app.quadGeom,
+	}
+
+
+	-- convert back from lighting to framebuffer
+	-- back to rgb332
+	self.flushBackToFBObj = GLSceneObject{
+		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
+			version = app.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out uvec4 fragColor;
+uniform sampler2D rgbTex;
+void main() {
+	vec4 rgb = texture(rgbTex, tcv);
+
+	fragColor.r = uint(rgb.r * 7.) |
+				(uint(rgb.g * 7.) << 3) |
+				(uint(rgb.b * 3.) << 6);
+	fragColor.g = 0u;
+	fragColor.b = 0u;
+	fragColor.a = uint(rgb.a * 255.);
+}
+]],			{
+				videoMode = self,
+			}),
+			uniforms = {
+				prevTex = 0,
+			},
+		},
+		texs = {},
 		geometry = app.quadGeom,
 	}
 end

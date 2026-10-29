@@ -4217,9 +4217,8 @@ assert.eq(finalRGBFBO.height, videoMode.fb.height)
 
 gl.glDepthMask(gl.GL_FALSE)
 
-			local sceneObj = videoMode.finalBlitScreenObj
+			local sceneObj = videoMode.flushBackToFBObj
 			sceneObj.texs[1] = finalRGBTex
-			sceneObj.uniforms.mvProjMat = identProjMat.ptr
 			sceneObj:draw()
 
 gl.glDepthMask(gl.GL_TRUE)
