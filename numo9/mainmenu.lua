@@ -458,35 +458,50 @@ function MainMenu:setCurrentMenu(name)
 				-- TODO instead of name use some of our extra codes ...
 				if active then
 					menuLabelDontInc(buttonName, cursorX-8, cursorY, 0xfc, 0xf0)
-					local buttonBind = playerInfo.buttonBinds[buttonIndex]
-					local label = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
-						and 'Press...'
-						or tostring(buttonBind and buttonBind.name or '...')
-					menuButton(label, function()
-						-- if we're waiting then call it 'press a key'
-						-- otherwise show the key desc
-						-- capture it
-						app.waitingForEvent = {
-							callback = function(e)
-	--print('got event', require 'ext.tolua'(e))
-								-- [[ let esc or g.p. start clear the binding
-								if (e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE)
-								or (e[1] == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[3] == sdl.SDL_GAMEPAD_BUTTON_START)
-								then
-									playerInfo.buttonBinds[buttonIndex] = nil
-									return
-								end
-								--]]
 
-								playerInfo.buttonBinds[buttonIndex] = e
+					local button
+					local function refreshButton()
+						local buttonBind = playerInfo.buttonBinds[buttonIndex]
+						button.text = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
+							and 'Press...'
+							or tostring(buttonBind and buttonBind.name or '...')
+					end
+					button = UIButton{
+						owner = self,
+						pos = {cursorX, cursorY},
+						text = '',
+						events = {
+							click = function()
+								-- if we're waiting then call it 'press a key'
+								-- otherwise show the key desc
+								-- capture it
+								app.waitingForEvent = {
+									callback = function(e)
+										-- [[ let esc or g.p. start clear the binding
+										if (e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE)
+										or (e[1] == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[3] == sdl.SDL_GAMEPAD_BUTTON_START)
+										then
+											playerInfo.buttonBinds[buttonIndex] = nil
+											refreshButton()
+											return
+										end
+										--]]
 
-								-- rebuild map from events to the players & buttons
-								app:buildPlayerEventsMap()
+										playerInfo.buttonBinds[buttonIndex] = e
+										refreshButton()
 
-								self.menuTabIndex = self.menuTabIndex + 1
+										-- rebuild map from events to the players & buttons
+										app:buildPlayerEventsMap()
+
+										self.menuTabIndex = self.menuTabIndex + 1
+									end,
+								}
 							end,
-						}
-					end)
+						},
+					}
+					refreshButton()
+					self:addChild(button)
+					cursorY = cursorY + ystep
 				end
 			end
 		end
