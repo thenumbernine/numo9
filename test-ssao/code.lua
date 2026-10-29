@@ -2,7 +2,6 @@
 this used to be just a copy of test-lightmaps with ssao enabled.
 i think now instead I'll use it for testing multilpe hd2d flags rendered to the same frame using the flushHD2D() command ...
 --]]
-local range = require 'ext.range'
 local matpush = require 'numo9.matstack'.push
 local matpop = require 'numo9.matstack'.pop
 
