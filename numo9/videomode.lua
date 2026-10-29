@@ -59,17 +59,17 @@ output:
 	- videoMode.calcLightTex.fbo
 		- color0: videoMode.calcLightTex:cur() GL_RGBA32F for light color scale
 
-TODO here: videoMode.framebufferRAM.tex -> decode indexed mode or rgb332 into `rgbaTempTex` -> `prevTex`
-TODO	input:
-TODO		- sceneObj: videoMode.bakeFBToRGB
-TODO			- geometry: app.quadGeom
-TODO	output:
-TODO		- videoMode.bakedRGBTex.fbo
-TODO			- videoMode.bakedRGBTex:cur() -> prevTex
+bakeRGBTex/bakeRGBBlitObj:
+videoMode.framebufferRAM.tex -> decode indexed mode or rgb332 into `rgbaTempTex` -> `prevTex`
+(not needed for RGB565, only for 8bppIndexed and RGB332)
+input:
+	- sceneObj: videoMode.bakeRGBBlitObj
+		- geometry: app.quadGeom
+output:
+	- videoMode.bakeRGBTex.fbo
+		- videoMode.bakeRGBTex:cur() -> prevTex
 
-combine...
-- fb index & pal for indexed-mode (TODO move that to prev separate step, so we can bypass lighting when HD2DFlags are disabled)
-- color & lighting when lighting is used
+combine color & lighting when lighting is used
 input:
 	- sceneObj: videoMode.blitScreenApplyLightObj
 		- geometry: app.quadGeom
@@ -113,7 +113,7 @@ TODO here: if any HD2D passes were applied:
 
 last in App:update end-of-frame:
 input:
-	- sceneObj: videoMode.blitScreenPlainObj ...
+	- sceneObj: videoMode.finalBlitScreen ...
 		- geometry: app.quadGeom
 	- textures:
 		- ... used to be self.lightAndFBTex:cur()
@@ -231,7 +231,6 @@ function VideoMode:build()
 	if self.built then return end
 
 	self:buildFramebuffers()
-	self:buildColorOutputAndBlitScreenObj()
 	self:buildUberShader()
 
 	self.built = true
@@ -827,6 +826,91 @@ if (debugDraw == 4) {	// debug show the first light buffer
 		}:unbind()
 	end
 
+	-- build bakeRGBTex if necessary
+	self:buildColorOutputAndBlitScreenObj()
+
+	-- and use either it or self.framebufferRAM.tex for input
+	-- ... but the sampler gets rebound anyways
+	-- ... and I can just assert it is a sampler2D in shader anwyays
+	local rgbTex = self.format == 'RGB565'
+		and assert(self.framebufferRAM.tex)
+		or assert(self.bakeRGBTex:cur())
+
+	self.blitScreenApplyLightObj = GLSceneObject{
+		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
+			version = app.glslVersion,
+			precision = 'best',
+			-- I could just make a vertex shader obj of its own and link to the other programs but meh
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+-- this string can include template code that appears in all of them
+-- TODO now this is just use for the lighting-application pass
+			fragmentCode = template([[
+precision highp sampler2D;
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+in vec2 tcv;
+
+layout(location=0) out vec4 fragColor;
+
+uniform <?=rgbTex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
+uniform <?=self.calcLightTex:cur():getGLSLSamplerType()?> calcLightTex;
+
+void doLighting() {
+
+#if 0	// debugging - show calcLight tex
+fragColor.xyz = texture(calcLightTex, tcv).xyz;
+return;
+#endif
+
+#if 1	// show calcLight tex - only where alpha=0 i.e. lightmap debug display
+vec4 lightColor = texture(calcLightTex, tcv);
+if (lightColor.w == 0.) {
+	fragColor.xyz = lightColor.xyz;
+	return;
+}
+#endif
+
+	fragColor.xyz *= texture(calcLightTex, tcv).xyz;
+}
+
+void main() {
+	fragColor = texture(framebufferTex, tcv);
+	doLighting();
+}
+]],			{
+				self = self,
+				rgbTex = rgbTex,
+			}),
+			uniforms = {
+				framebufferTex = 0,
+				framebufferPosTex = 1,
+				calcLightTex = 2,
+			},
+		},
+		texs = {
+			rgbTex,
+			self.framebufferPosTex,
+			assert(self.calcLightTex:cur()),
+		},
+		geometry = app.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = app.blitScreenView.mvProjMat.ptr,
+		},
+	}
+
+
 -- [=[
 	-- ok TODO
 	-- before we'd combine deferred-lighting buf + framebuffer and apply directly to output
@@ -1104,7 +1188,7 @@ void main() {
 	-- used for combining lighting calcs and/or final palette application to our destination rgba buffer
 	-- 'blitScreenApplyLightObj' is the lighting pass
 	-- should I always do it to a prev float16 buffer, or is it fine going straight to the screen?
-	self.blitScreenPlainObj = GLSceneObject{
+	self.finalBlitScreen = GLSceneObject{
 		program = {
 			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
@@ -1122,7 +1206,7 @@ void main() {
 precision highp sampler2D;
 in vec2 tcv;
 layout(location=0) out vec4 fragColor;
-uniform <?=videoMode.lightAndFBTex:cur():getGLSLSamplerType()?> prevTex;
+uniform sampler2D prevTex;
 void main() {
 	fragColor = texture(prevTex, tcv);
 }
@@ -1206,50 +1290,10 @@ local colorIndexToFrag = [[
 	).r)
 ]]
 
--- I could just make a vertex shader obj of its own and link to the other programs but meh
-local blitScreenVertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]]
-
--- this string can include template code that appears in all of them
-local blitScreenFragHeader = [[
-precision highp sampler2D;
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out vec4 fragColor;
-
-uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=self.calcLightTex:cur():getGLSLSamplerType()?> calcLightTex;
-
-void doLighting() {
-
-#if 0	// debugging - show calcLight tex
-fragColor.xyz = texture(calcLightTex, tcv).xyz;
-return;
-#endif
-
-#if 1	// show calcLight tex - only where alpha=0 i.e. lightmap debug display
-vec4 lightColor = texture(calcLightTex, tcv);
-if (lightColor.w == 0.) {
-	fragColor.xyz = lightColor.xyz;
-	return;
-}
-#endif
-
-	fragColor.xyz *= texture(calcLightTex, tcv).xyz;
-}
-]]
-
+-- TODO now this creates bakeRGBTex & bakeRGBBlitObj
+-- that is input for self.blitScreenApplyLightObj
+--   which is built inside of VideoMode:buildFramebuffers
+-- so now I'll call this inside there right before it is made
 function VideoMode:buildColorOutputAndBlitScreenObj()
 	if self.format == 'RGB565' then
 		self:buildColorOutputAndBlitScreenObj_RGB565(self)
@@ -1302,52 +1346,13 @@ vec4 colorIndexToFragColor(uint colorIndex) {
 ]],
 	--]=]
 
-	-- gonna bake indexed-mode palettes and dithered-mode dithering here before
 
-	-- used for drawing our 16bpp framebuffer to the screen
---DEBUG:print'mode 0 blitScreenApplyLightObj'
-	self.blitScreenApplyLightObj = GLSceneObject{
-		program = {
-			rowMajor = false,	-- dafult to col-major glUniformMatrix's
-			version = app.glslVersion,
-			precision = 'best',
-			vertexCode = blitScreenVertexCode,
-			fragmentCode = template(
-blitScreenFragHeader..[[
-
-void main() {
-#if 1	// internalFormat == GL_RGB565
-	fragColor = texture(framebufferTex, tcv);
-#endif
-#if 0	// internalFormat = gl.GL_R16UI
-	uint rgba5551 = texture(framebufferTex, tcv).r;
-	fragColor = u16_to_5551_vec4(rgba5551);
-#endif
-
-	doLighting();
-}
-]],			{
-				app = app,
-				self = self,
-				glnumber = glnumber,
-			}),
-			uniforms = {
-				framebufferTex = 0,
-				framebufferPosTex = 1,
-				calcLightTex = 2,
-			},
-		},
-		texs = {
-			self.framebufferRAM.tex,
-			self.framebufferPosTex,
-			assert(self.calcLightTex:cur()),
-		},
-		geometry = app.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = app.blitScreenView.mvProjMat.ptr,
-		},
-	}
+	-- NOTICE
+	-- bakeRGBTex & bakeRGBBlitObj would otherwise go here
+	-- but it's identity for RGB565 mode
+	-- so just use framebufferTex instead
+	-- TODO this only works for internalFormat == GL_RGB565
+	-- if we are ever using internalFormat = gl.GL_R16UI then we will need a pass here
 end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
@@ -1379,18 +1384,61 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 }
 ]]
 
-	-- used for combining lighting calcs and/or final palette application to our destination rgba buffer
-	-- used for drawing our 8bpp indexed framebuffer to the screen
---DEBUG:print'mode 1 blitScreenApplyLightObj'
-	self.blitScreenApplyLightObj = GLSceneObject{
+
+	-- if it's indexed or 332 mode then we need to convert to rgba here
+	-- separate of lighting for when lighting is disabled
+	self.bakeRGBTex = GLPingPong{
+		numBuffers = 1,	-- just for the fbo + tex
+		width = self.width,
+		height = self.height,
+		-- does mipmap work with RGBA32F?
+		-- ... for GLES3 ... technically ...no.
+		-- how to know when it will and when it wont work?
+		-- welp at least RGBA16F is textureFilterable
+		internalFormat = gl.GL_RGBA16F,
+		-- [[ using mipmaps for blurs
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		--]]
+		--[[ blur with kernel
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		--]]
+		wrap = {
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
+		},
+		generateMipmap = true,
+	}
+	self.bakeRGBTex.fbo
+		:bind()
+		:drawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.bakeRGBTex:cur().id)
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+	self.bakeRGBTex.fbo
+		:unbind()
+
+	self.bakeRGBBlitObj = GLSceneObject{
 		program = {
-			rowMajor = false,	-- default to col-major glUniformMatrix's
+			rowMajor = false,
 			version = app.glslVersion,
 			precision = 'best',
-			vertexCode = blitScreenVertexCode,
-			fragmentCode = template(
-blitScreenFragHeader..[[
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 
+// specific to 8bppIndexed:
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 ]]..glslCode5551..[[
@@ -1399,32 +1447,22 @@ void main() {
 	uint colorIndex = texture(framebufferTex, tcv).r;
 	uvec4 ufragColor = ]]..colorIndexToFrag..[[;
 	fragColor = vec4(ufragColor) / 31.;
-
-	doLighting();
 }
 ]],			{
-				app = app,
+				app  = app,
 				self = self,
 				glnumber = glnumber,
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				framebufferPosTex = 1,
-				calcLightTex = 2,
-				paletteTex = 3,
+				paletteTex = 1,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
-			self.framebufferPosTex,
-			assert(self.calcLightTex:cur()),
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = app.blitScreenView.mvProjMat.ptr,
-		},
 	}
 end
 
@@ -1473,15 +1511,60 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 }
 ]]
 
---DEBUG:print'mode 2 blitScreenApplyLightObj'
-	self.blitScreenApplyLightObj = GLSceneObject{
+
+
+	-- if it's indexed or 332 mode then we need to convert to rgba here
+	-- separate of lighting for when lighting is disabled
+	self.bakeRGBTex = GLPingPong{
+		numBuffers = 1,	-- just for the fbo + tex
+		width = self.width,
+		height = self.height,
+		-- does mipmap work with RGBA32F?
+		-- ... for GLES3 ... technically ...no.
+		-- how to know when it will and when it wont work?
+		-- welp at least RGBA16F is textureFilterable
+		internalFormat = gl.GL_RGBA16F,
+		-- [[ using mipmaps for blurs
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		--]]
+		--[[ blur with kernel
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		--]]
+		wrap = {
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
+		},
+		generateMipmap = true,
+	}
+	self.bakeRGBTex.fbo
+		:bind()
+		:drawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.bakeRGBTex:cur().id)
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+	self.bakeRGBTex.fbo
+		:unbind()
+
+	self.bakeRGBBlitObj = GLSceneObject{
 		program = {
-			rowMajor = false,	-- dafult to col-major glUniformMatrix's
+			rowMajor = false,
 			version = app.glslVersion,
 			precision = 'best',
-			vertexCode = blitScreenVertexCode,
-			fragmentCode = template(
-blitScreenFragHeader..[[
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 
 void main() {
 	uint rgb332 = texture(framebufferTex, tcv).r;
@@ -1490,29 +1573,20 @@ void main() {
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
 	fragColor.a = 1.;
 
-	doLighting();
 }
 ]],			{
-				app = app,
+				app  = app,
 				self = self,
 				glnumber = glnumber,
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				framebufferPosTex = 1,
-				calcLightTex = 2,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
-			self.framebufferPosTex,
-			assert(self.calcLightTex:cur()),
 		},
 		geometry = app.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = app.blitScreenView.mvProjMat.ptr,
-		},
 	}
 end
 

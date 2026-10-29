@@ -3812,9 +3812,16 @@ end
 
 AppVideo.lightDebugDraw = 0
 
-function AppVideo:updateHD2DPass()
+-- does palette baking
+-- does rgb332 dithering
+-- does lighting
+-- does hdr
+-- does dof
+-- finished result will be in some rgba tex that can just be blitted to screen
+function AppVideo:flushToFinalRGB()
 	-- if we're not using lighting then don't bother with lighting
-	if self.ram.HD2DFlags == 0 and not self.haveCapturedDrawMatsForLightingThisFrame then return end
+	--if self.ram.HD2DFlags == 0 and not self.haveCapturedDrawMatsForLightingThisFrame then return end
+	local ram = self.ram
 
 --	assert(not self.inUpdateCallback)
 	if self.inUpdateCallback then
@@ -3822,186 +3829,215 @@ function AppVideo:updateHD2DPass()
 		self.currentVideoMode.fb:unbind()
 	end
 
---[=[ trying to read the depth buffer
--- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
-tempLightCPU = tempLightCPU or ffi.new('float[?]', dirLightMapSize.x * dirLightMapSize.y)
--- [[
-self.lightmapFB:bind()
---gl.glReadBuffers(gl.GL_NONE)	-- glReadBuffers, when is this needed?
-gl.glReadPixels(0, 0, dirLightMapSize.x, dirLightMapSize.y, gl.GL_DEPTH_COMPONENT, gl.GL_FLOAT, tempLightCPU)
-self.lightmapFB:unbind()
---]]
---[[
-self.lightDepthTex
-	:bind()
-	:getImage(tempLightCPU)
---]]
-print()
-for y=0,self.lightDepthTex.height-1 do
-	for x=0,self.lightDepthTex.width-1 do
-		io.write(' ', tempLightCPU[x + self.lightDepthTex.width * y])
-	end
-	print()
-end
-print()
---]=]
-
 	local videoMode =
 		self.activeMenu
 		and self.videoModes[255]
 		or self.currentVideoMode
 
-	local calcLightTex = videoMode.calcLightTex
-	local calcLightFB = calcLightTex.fbo
-	-- only for native res video mode ...shouldn't this happen in the :resize() callback?
-	if videoMode.width ~= calcLightFB.width
-	or videoMode.height ~= calcLightFB.height
-	then
-		-- delete the old tex
-		calcLightTex.hist[1]:delete()
+	-- what is holding the final rgb output
+	self.finalRGBTex = videoMode.framebufferRAM.tex
 
-		-- realloc a new tex
-		calcLightTex.hist[1] = GLTex2D{
-			width = videoMode.width,
-			height = videoMode.height,
-			internalFormat = gl.GL_RGBA32F,
-			format = gl.GL_RGBA,
-			type = gl.GL_FLOAT,
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_LINEAR,
-			wrap = {
-				s = gl.GL_REPEAT,
-				t = gl.GL_REPEAT,
-			},
-		}:unbind()
-
-		-- update refs
-		videoMode.blitScreenApplyLightObj.texs[3] = calcLightTex:cur()
-
-		-- and resize the fbo stored size
-		calcLightFB.width = videoMode.width
-		calcLightFB.height = videoMode.height
-		calcLightTex.width = videoMode.width
-		calcLightTex.height = videoMode.height
+	-- here I'll do the rgb332 dithering or palette baking
+	if videoMode.bakeRGBBlitObj then
+		assert.ne(videoMode.format, 'RGB565')
+		local sceneObj = videoMode.bakeRGBBlitObj
+		videoMode.bakeRGBTex.fbo:bind()
+		sceneObj.texs[1] = self.finalRGBTex
+		if videoMode.format == '8bppIndex' then
+			local paletteBlob =
+				self.blobs.palette[1+ram.paletteBlobIndex]
+				or self.blobs.palette[1]
+			paletteBlob.ramgpu:checkDirtyCPU()
+			sceneObj.texs[2] = paletteBlob.ramgpu.tex
+		end
+		sceneObj:draw()
+		videoMode.bakeRGBTex.fbo:unbind()
+		self.finalRGBTex = videoMode.bakeRGBTex:cur()
 	end
 
-	calcLightTex:swap()
-	calcLightFB
+	-- update lightmaps & lighting colors
+	if bit.band(ram.HD2DFlags, bit.bor(
+		ffi.C.HD2DFlags_lightingApplyToSurface,
+		ffi.C.HD2DFlags_useSSAO,
+		ffi.C.HD2DFlags_calcFromLightMap,
+		ffi.C.HD2DFlags_calcFromLights
+	)) ~= 0 then
+
+	--[=[ trying to read the depth buffer
+	-- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
+	tempLightCPU = tempLightCPU or ffi.new('float[?]', dirLightMapSize.x * dirLightMapSize.y)
+	-- [[
+	self.lightmapFB:bind()
+	--gl.glReadBuffers(gl.GL_NONE)	-- glReadBuffers, when is this needed?
+	gl.glReadPixels(0, 0, dirLightMapSize.x, dirLightMapSize.y, gl.GL_DEPTH_COMPONENT, gl.GL_FLOAT, tempLightCPU)
+	self.lightmapFB:unbind()
+	--]]
+	--[[
+	self.lightDepthTex
 		:bind()
-		:setColorAttachmentTex2D(calcLightTex:cur().id)
-
-	gl.glViewport(0, 0, calcLightTex.width, calcLightTex.height)
-	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
-	-- then in the light combine pass it wont combine
-
-	-- this currently gets blitted per-display
-	-- so if menu is open we dont want it
-	-- that means I just broke menu lighting *again*...
-	--if not self.activeMenu then
-	-- how to get around lighting
-	-- I can always just not apply the calcLightTex if we're in light mode
-	-- or I can make sure that the menu render calcs always set the to false
-
-	local sceneObj = videoMode.calcLightBlitObj
-	sceneObj.texs[1] = videoMode.framebufferNormalTex
-	sceneObj.texs[2] = videoMode.framebufferPosTex
-	-- these dont change:
-	--sceneObj.texs[3] = self.noiseTex
-	--sceneObj.texs[4] = self.lightDepthTex
-
---DEBUG(lighting):print('drawing lighting')
---DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
---DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
---DEBUG(lighting):print()
-
---[[ if we dont break out of the sandbox...
-	sceneObj:draw()
---]]
--- [[ doing custom stuff
-	local texs = sceneObj.texs
-	for i,tex in ipairs(texs) do
-		tex:bind(i-1)
+		:getImage(tempLightCPU)
+	--]]
+	print()
+	for y=0,self.lightDepthTex.height-1 do
+		for x=0,self.lightDepthTex.width-1 do
+			io.write(' ', tempLightCPU[x + self.lightDepthTex.width * y])
+		end
+		print()
 	end
+	print()
+	--]=]
 
-	local program = sceneObj.program
-	program:use()
+		-- TODO what about resizing hdrTex, dofTex, bakeRGBTex, etc?
+		local calcLightTex = videoMode.calcLightTex
+		local calcLightFB = calcLightTex.fbo
+		-- only for native res video mode ...shouldn't this happen in the :resize() callback?
+		if videoMode.width ~= calcLightFB.width
+		or videoMode.height ~= calcLightFB.height
+		then
+			-- delete the old tex
+			calcLightTex.hist[1]:delete()
 
+			-- realloc a new tex
+			calcLightTex.hist[1] = GLTex2D{
+				width = videoMode.width,
+				height = videoMode.height,
+				internalFormat = gl.GL_RGBA32F,
+				format = gl.GL_RGBA,
+				type = gl.GL_FLOAT,
+				minFilter = gl.GL_NEAREST,
+				magFilter = gl.GL_LINEAR,
+				wrap = {
+					s = gl.GL_REPEAT,
+					t = gl.GL_REPEAT,
+				},
+			}:unbind()
 
-	-- and on any lighting change ...
-	-- update the frag uniform block ...
-	local ram = self.ram
-	local fragUniCPU = self.currentVideoMode.fragUniCPU
+			-- update refs
+			videoMode.blitScreenApplyLightObj.texs[3] = calcLightTex:cur()
 
-	fragUniCPU.ssaoSampleRadius = ram.ssaoSampleRadius
-	fragUniCPU.ssaoInfluence = ram.ssaoInfluence
+			-- and resize the fbo stored size
+			calcLightFB.width = videoMode.width
+			calcLightFB.height = videoMode.height
+			calcLightTex.width = videoMode.width
+			calcLightTex.height = videoMode.height
+		end
 
-	self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
-	ffi.copy(fragUniCPU.drawViewPos.s, self.drawViewInvMat.ptr + 12, ffi.sizeof(vec3f))
+		calcLightTex:swap()
+		calcLightFB
+			:bind()
+			:setColorAttachmentTex2D(calcLightTex:cur().id)
 
-	ffi.copy(fragUniCPU.drawViewMat.s, self.drawViewMatForLighting, ffi.sizeof(vec4x4fcol))
-	ffi.copy(fragUniCPU.drawProjMat.s, self.drawProjMatForLighting, ffi.sizeof(vec4x4fcol))
+		gl.glViewport(0, 0, calcLightTex.width, calcLightTex.height)
+		-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
+		-- then in the light combine pass it wont combine
 
-	fragUniCPU.numLights = ram.numLights
-	fragUniCPU.debugDraw = self.lightDebugDraw	-- new debug var
+		-- this currently gets blitted per-display
+		-- so if menu is open we dont want it
+		-- that means I just broke menu lighting *again*...
+		--if not self.activeMenu then
+		-- how to get around lighting
+		-- I can always just not apply the calcLightTex if we're in light mode
+		-- or I can make sure that the menu render calcs always set the to false
 
-	ffi.copy(fragUniCPU.lightAmbientColor.s, ram.lightAmbientColor, ffi.sizeof(vec3f))
+		local sceneObj = videoMode.calcLightBlitObj
+		sceneObj.texs[1] = videoMode.framebufferNormalTex
+		sceneObj.texs[2] = videoMode.framebufferPosTex
+		-- these dont change:
+		--sceneObj.texs[3] = self.noiseTex
+		--sceneObj.texs[4] = self.lightDepthTex
 
-	for i=0,math.min(maxLights, ram.numLights)-1 do
-		local light = ram.lights + i
-		local fragUniLight = fragUniCPU.lights + i
+	--DEBUG(lighting):print('drawing lighting')
+	--DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
+	--DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
+	--DEBUG(lighting):print()
 
---DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
-		fragUniLight.enabled = 0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_CALCS) and 1 or 0
+	--[[ if we dont break out of the sandbox...
+		sceneObj:draw()
+	--]]
+	-- [[ doing custom stuff
+		local texs = sceneObj.texs
+		for i,tex in ipairs(texs) do
+			tex:bind(i-1)
+		end
 
-		fragUniLight.region.x = tonumber(light.region[0]) / tonumber(ram.lightmapWidth)
-		fragUniLight.region.y =	tonumber(light.region[1]) / tonumber(ram.lightmapHeight)
-		fragUniLight.region.z =	tonumber(light.region[2]) / tonumber(ram.lightmapWidth)
-		fragUniLight.region.w =	tonumber(light.region[3]) / tonumber(ram.lightmapHeight)
+		local program = sceneObj.program
+		program:use()
 
-		ffi.copy(fragUniLight.ambientColor, light.ambientColor, ffi.sizeof(vec3f))
-		ffi.copy(fragUniLight.diffuseColor, light.diffuseColor, ffi.sizeof(vec3f))
-		ffi.copy(fragUniLight.specularColor, light.specularColor, ffi.sizeof(vec4f))
-		ffi.copy(fragUniLight.distAtten, light.distAtten, ffi.sizeof(vec3f))
+		-- and on any lighting change ...
+		-- update the frag uniform block ...
+		local fragUniCPU = self.currentVideoMode.fragUniCPU
 
-		fragUniLight.cosAngleRange.x = light.cosAngleRange[0]
-		fragUniLight.cosAngleRange.y = 1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
+		fragUniCPU.ssaoSampleRadius = ram.ssaoSampleRadius
+		fragUniCPU.ssaoInfluence = ram.ssaoInfluence
 
-		fragUniLight.viewProjMat:mul4x4(light.projMat, light.viewMat)
-		self.lightViewInvMat:inv4x4(light.viewMat)
+		self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
+		ffi.copy(fragUniCPU.drawViewPos.s, self.drawViewInvMat.ptr + 12, ffi.sizeof(vec3f))
 
---DEBUG(lighting):print('lighting lightView\n'..light.viewMat)
---DEBUG(lighting):print('lighting lightProj\n'..light.projMat)
+		ffi.copy(fragUniCPU.drawViewMat.s, self.drawViewMatForLighting, ffi.sizeof(vec4x4fcol))
+		ffi.copy(fragUniCPU.drawProjMat.s, self.drawProjMatForLighting, ffi.sizeof(vec4x4fcol))
 
-		ffi.copy(fragUniLight.viewPos.s, self.lightViewInvMat.ptr + 12, ffi.sizeof(vec3f))
-		ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))
-	end
+		fragUniCPU.numLights = ram.numLights
+		fragUniCPU.debugDraw = self.lightDebugDraw	-- new debug var
 
-	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
+		ffi.copy(fragUniCPU.lightAmbientColor.s, ram.lightAmbientColor, ffi.sizeof(vec3f))
 
-	-- TODO how about binding the frag uni gpu uniform buffer to the vao ...
-	self.currentVideoMode.fragUniGPU
-		:bind()
-		:updateData()
+		for i=0,math.min(maxLights, ram.numLights)-1 do
+			local light = ram.lights + i
+			local fragUniLight = fragUniCPU.lights + i
 
-	sceneObj.geometry:draw()
+	--DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
+			fragUniLight.enabled = 0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_CALCS) and 1 or 0
 
-	self.currentVideoMode.fragUniGPU
-		:unbind()
+			fragUniLight.region.x = tonumber(light.region[0]) / tonumber(ram.lightmapWidth)
+			fragUniLight.region.y =	tonumber(light.region[1]) / tonumber(ram.lightmapHeight)
+			fragUniLight.region.z =	tonumber(light.region[2]) / tonumber(ram.lightmapWidth)
+			fragUniLight.region.w =	tonumber(light.region[3]) / tonumber(ram.lightmapHeight)
 
-	sceneObj.vao:unbind()
+			ffi.copy(fragUniLight.ambientColor, light.ambientColor, ffi.sizeof(vec3f))
+			ffi.copy(fragUniLight.diffuseColor, light.diffuseColor, ffi.sizeof(vec3f))
+			ffi.copy(fragUniLight.specularColor, light.specularColor, ffi.sizeof(vec4f))
+			ffi.copy(fragUniLight.distAtten, light.distAtten, ffi.sizeof(vec3f))
 
-	program:useNone()
-	for i=#texs,1,-1 do
-		texs[i]:unbind(i-1)
-	end
---]]
+			fragUniLight.cosAngleRange.x = light.cosAngleRange[0]
+			fragUniLight.cosAngleRange.y = 1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
 
-	calcLightFB:unbind()
+			fragUniLight.viewProjMat:mul4x4(light.projMat, light.viewMat)
+			self.lightViewInvMat:inv4x4(light.viewMat)
+
+	--DEBUG(lighting):print('lighting lightView\n'..light.viewMat)
+	--DEBUG(lighting):print('lighting lightProj\n'..light.projMat)
+
+			ffi.copy(fragUniLight.viewPos.s, self.lightViewInvMat.ptr + 12, ffi.sizeof(vec3f))
+			ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))
+		end
+
+		sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
+
+		-- TODO how about binding the frag uni gpu uniform buffer to the vao ...
+		self.currentVideoMode.fragUniGPU
+			:bind()
+			:updateData()
+
+		sceneObj.geometry:draw()
+
+		self.currentVideoMode.fragUniGPU
+			:unbind()
+
+		sceneObj.vao:unbind()
+
+		program:useNone()
+		for i=#texs,1,-1 do
+			texs[i]:unbind(i-1)
+		end
+	--]]
+
+		calcLightFB:unbind()
 
 --[[ nahhh
-	calcLightTex:cur():bind()
-		:generateMipmap()
+		calcLightTex:cur():bind()
+			:generateMipmap()
 --]]
+--	end
 
 	-- now combine them here too
 	--[====[
@@ -4010,7 +4046,7 @@ print()
 		ffi.C.HD2DFlags_useDoF
 	)) ~= 0 then
 	--]====]
-	-- [====[
+	--[====[
 	do -- if ram.HD2DFlags ~= 0 then
 	--]====]
 		-- HDR and DOF both need mipmaps,
@@ -4022,127 +4058,123 @@ print()
 		-- how about whatevers selected as the active palette at end of frame?
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		local sceneObj = videoMode.blitScreenApplyLightObj
-		sceneObj.texs[1] = videoMode.framebufferRAM.tex
+		sceneObj.texs[1] = self.finalRGBTex
 		sceneObj.texs[2] = videoMode.framebufferPosTex
 		sceneObj.texs[3] = videoMode.calcLightTex:cur()
-		if videoMode.format == '8bppIndex' then
-			local paletteBlob =
-				self.blobs.palette[1+ram.paletteBlobIndex]
-				or self.blobs.palette[1]
-			paletteBlob.ramgpu:checkDirtyCPU()
-			sceneObj.texs[4] = paletteBlob.ramgpu.tex
-		end
 
 		local view = self.blitScreenView
 		view.mvProjMat:setOrtho(0,1,0,1,-1,1)
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
-		local prevTex
 		videoMode.lightAndFBTex.fbo:bind()
 		sceneObj:draw()
 		videoMode.lightAndFBTex.fbo:unbind()
-		prevTex = videoMode.lightAndFBTex:cur()
+		self.finalRGBTex = videoMode.lightAndFBTex:cur()
+	end
 
-		-- TODO
-		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
-			prevTex
-				:bind()
-				--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
-				:generateMipmap()
-				:unbind()
+	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+		-- TODO what we're doing HDR without lighting?
+		-- then this will be bound to the FC FB
+		-- and thatll gen mipmaps for the FC FB ...
+		self.finalRGBTex
+			:bind()
+			--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
+			:generateMipmap()
+			:unbind()
 
-			videoMode.hdrTex.fbo:bind()
-			videoMode.hdrBlitObj.texs[1] = prevTex
-			videoMode.hdrBlitObj:draw()
-			videoMode.hdrTex.fbo:unbind()
-			prevTex = videoMode.hdrTex:cur()
+		videoMode.hdrTex.fbo:bind()
+		videoMode.hdrBlitObj.texs[1] = self.finalRGBTex
+		videoMode.hdrBlitObj:draw()
+		videoMode.hdrTex.fbo:unbind()
+		self.finalRGBTex = videoMode.hdrTex:cur()
 
-			-- if DoF isnt gonna gen mipmaps then we better gen them here...
-			if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) == 0 then
-				prevTex
-					:bind()
-					:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
-					:unbind()
-			end
-		--[[
-		else
-			prevTex
+		-- if DoF isnt gonna gen mipmaps then we better gen them here...
+		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) == 0 then
+			self.finalRGBTex
 				:bind()
 				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
 				:unbind()
-		--]]
 		end
-
-		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
-			-- [[ dont use mipmaps with DoF, use a blur kernel instead
-			prevTex
-				:bind()
-				--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
-				:generateMipmap()
-				:unbind()
-			--]]
-			local fbo = videoMode.dofTex.fbo
-			fbo:bind()
-			local sceneObj = videoMode.dofBlitObj
-			local texs = sceneObj.texs
-			texs[1] = prevTex
-			texs[2] = videoMode.framebufferPosTex
-			for i,tex in ipairs(texs) do
-				tex:bind(i-1)
-			end
-			local program = sceneObj.program
-			program:use()
-			sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
-			--if program.uniforms.dofFocalDist then
-				gl.glUniform1f(
-					program.uniforms.dofFocalDist.loc,
-					ram.dofFocalDist
-				)
-			--end
-			--if program.uniforms.dofFocalRange then
-				gl.glUniform1f(
-					program.uniforms.dofFocalRange.loc,
-					ram.dofFocalRange
-				)
-			--end
-			--if program.uniforms.dofAperature then
-				gl.glUniform1f(
-					program.uniforms.dofAperature.loc,
-					ram.dofAperature
-				)
-			--end
-			--if program.uniforms.dofBlurMax then
-				gl.glUniform1f(
-					program.uniforms.dofBlurMax.loc,
-					ram.dofBlurMax
-				)
-			--end
-			--if program.uniforms.drawViewDir then
-				gl.glUniform3f(
-					program.uniforms.drawViewDir.loc,
-					self.drawViewInvMat.ptr[8],
-					self.drawViewInvMat.ptr[9],
-					self.drawViewInvMat.ptr[10]
-				)
-			--end
-			--if program.uniforms.drawViewPos then
-				gl.glUniform3f(
-					program.uniforms.drawViewPos.loc,
-					self.drawViewInvMat.ptr[12],
-					self.drawViewInvMat.ptr[13],
-					self.drawViewInvMat.ptr[14]
-				)
-			--end
-			sceneObj.geometry:draw()
-			sceneObj.vao:unbind()
-			program:useNone()
-			for i=#texs,1,-1 do
-				texs[i]:unbind(i-1)
-			end
-			fbo:unbind()
-		end
+	--[[
+	else
+		self.finalRGBTex
+			:bind()
+			:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+			:unbind()
+	--]]
 	end
 
+	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+		-- [[ dont use mipmaps with DoF, use a blur kernel instead
+		self.finalRGBTex
+			:bind()
+			--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
+			:generateMipmap()
+			:unbind()
+		--]]
+		local fbo = videoMode.dofTex.fbo
+		fbo:bind()
+		local sceneObj = videoMode.dofBlitObj
+		local texs = sceneObj.texs
+		texs[1] = self.finalRGBTex
+		texs[2] = videoMode.framebufferPosTex
+		for i,tex in ipairs(texs) do
+			tex:bind(i-1)
+		end
+		local program = sceneObj.program
+		program:use()
+		sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
+		--if program.uniforms.dofFocalDist then
+			gl.glUniform1f(
+				program.uniforms.dofFocalDist.loc,
+				ram.dofFocalDist
+			)
+		--end
+		--if program.uniforms.dofFocalRange then
+			gl.glUniform1f(
+				program.uniforms.dofFocalRange.loc,
+				ram.dofFocalRange
+			)
+		--end
+		--if program.uniforms.dofAperature then
+			gl.glUniform1f(
+				program.uniforms.dofAperature.loc,
+				ram.dofAperature
+			)
+		--end
+		--if program.uniforms.dofBlurMax then
+			gl.glUniform1f(
+				program.uniforms.dofBlurMax.loc,
+				ram.dofBlurMax
+			)
+		--end
+		--if program.uniforms.drawViewDir then
+			gl.glUniform3f(
+				program.uniforms.drawViewDir.loc,
+				self.drawViewInvMat.ptr[8],
+				self.drawViewInvMat.ptr[9],
+				self.drawViewInvMat.ptr[10]
+			)
+		--end
+		--if program.uniforms.drawViewPos then
+			gl.glUniform3f(
+				program.uniforms.drawViewPos.loc,
+				self.drawViewInvMat.ptr[12],
+				self.drawViewInvMat.ptr[13],
+				self.drawViewInvMat.ptr[14]
+			)
+		--end
+		sceneObj.geometry:draw()
+		sceneObj.vao:unbind()
+		program:useNone()
+		for i=#texs,1,-1 do
+			texs[i]:unbind(i-1)
+		end
+		fbo:unbind()
+	end
+
+--[[ do I really want to copy it back?
+-- or just blit from self.finalRGBTex to screen?
 	-- now, whatever is the tex with the latest applications to it,
 	--  copy it into self.currentVideoMode.framebufferRAM.tex
 
@@ -4172,6 +4204,7 @@ print()
 		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, 0)
 		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 	end
+--]]
 
 --[[
 	-- clear light tex (since it's already in the dest color buf)

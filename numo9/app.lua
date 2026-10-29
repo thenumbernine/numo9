@@ -1017,7 +1017,7 @@ function App:initGL()
 
 		-- flush HD2D lighting, hdr, dof back to color framebuffer mid-render
 		flushHD2D = function()
-			self:updateHD2DPass()
+			self:flushToFinalRGB()
 		end,
 	}
 
@@ -2255,7 +2255,7 @@ print('run thread dead')
 		end
 
 		-- flush lighting pass, dof pass, hdr pass back to the color framebuffer
-		self:updateHD2DPass()
+		self:flushToFinalRGB()
 
 		if self.activeMenu then
 			self.ram.videoMode = pushVideoMode
@@ -2290,15 +2290,12 @@ print('run thread dead')
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		local videoModeObj = self.videoModes[self.ram.videoMode]
-		if videoModeObj.format == '8bppIndex' then
-			self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu:checkDirtyCPU()
-		end
 
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-		local fbTex = self.currentVideoMode.framebufferRAM.tex
+		local fbTex = self.finalRGBTex
 
 		-- redo ortho projection matrix
 		-- every frame for us to use a proper rectangle
@@ -2323,14 +2320,12 @@ print('run thread dead')
 		view.mvMat:setIdent()
 		view.mvProjMat:copy(view.projMat)
 
-		local sceneObj = videoModeObj.blitScreenPlainObj
+		local sceneObj = videoModeObj.finalBlitScreen
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		local pushTex = sceneObj.texs[1]
 		sceneObj.texs[1] = fbTex
 
 		-- draw from framebuffer to screen
 		sceneObj:draw()
-		sceneObj.texs[1] = pushTex
 
 		-- [[ DOUBLEBUFFER ON: and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
