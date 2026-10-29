@@ -3812,6 +3812,10 @@ end
 
 AppVideo.lightDebugDraw = 0
 
+local identProjMat = vec4x4fcol()
+	:setIdent()
+	:setOrtho(0,1,0,1,-1,1)
+
 -- does palette baking
 -- does rgb332 dithering
 -- does lighting
@@ -3819,22 +3823,24 @@ AppVideo.lightDebugDraw = 0
 -- does dof
 -- finished result will be in some rgba tex that can just be blitted to screen
 function AppVideo:flushToFinalRGB(writeBackToVideoModeFB)
-print('flushToFinalRGB', writeBackToVideoModeFB)
+print('flushToFinalRGB writeBackToVideoModeFB='..tostring(writeBackToVideoModeFB))
 	local ram = self.ram
-
---	assert(not self.inUpdateCallback)
-	if self.inUpdateCallback then
-		-- should always be true
-		self.currentVideoMode.fb:unbind()
-	end
 
 	local videoMode =
 		self.activeMenu
 		and self.videoModes[255]
 		or self.currentVideoMode
 
+--	assert(not self.inUpdateCallback)
+	if self.inUpdateCallback then
+print('videoMode.fb:unbind()')
+		-- should always be true
+		videoMode.fb:unbind()
+	end
+
 	-- what is holding the final rgb output
-	self.finalRGBTex = videoMode.framebufferRAM.tex
+	local finalRGBFBO = videoMode.fb
+	local finalRGBTex = videoMode.framebufferRAM.tex
 
 	-- here I'll do the rgb332 dithering or palette baking
 	if videoMode.bakeRGBBlitObj then
@@ -3860,7 +3866,7 @@ print('applying bakeRGBBlitObj')
 
 		local sceneObj = videoMode.bakeRGBBlitObj
 		bakeRGBTex.fbo:bind()
-		sceneObj.texs[1] = self.finalRGBTex
+		sceneObj.texs[1] = finalRGBTex
 		if videoMode.format == '8bppIndex' then
 			local paletteBlob =
 				self.blobs.palette[1+ram.paletteBlobIndex]
@@ -3870,9 +3876,10 @@ print('applying bakeRGBBlitObj')
 		end
 		sceneObj:draw()
 		bakeRGBTex.fbo:unbind()
-		self.finalRGBTex = bakeRGBTex:cur()
-assert.eq(self.finalRGBTex.width, videoMode.framebufferRAM.tex.width)
-assert.eq(self.finalRGBTex.height, videoMode.framebufferRAM.tex.height)
+		finalRGBFBO = bakeRGBTex.fbo
+		finalRGBTex = bakeRGBTex:cur()
+assert.eq(finalRGBTex.width, videoMode.framebufferRAM.tex.width)
+assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 	end
 
 	-- update lightmaps & lighting colors
@@ -3882,7 +3889,7 @@ assert.eq(self.finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 		ffi.C.HD2DFlags_calcFromLightMap,
 		ffi.C.HD2DFlags_calcFromLights
 	)) ~= 0 then
-
+print('update lightmaps and lighting colors')
 		--[=[ trying to read the depth buffer
 		-- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
 		tempLightCPU = tempLightCPU or ffi.new('float[?]', dirLightMapSize.x * dirLightMapSize.y)
@@ -3965,7 +3972,7 @@ assert.eq(self.finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 
 		-- and on any lighting change ...
 		-- update the frag uniform block ...
-		local fragUniCPU = self.currentVideoMode.fragUniCPU
+		local fragUniCPU = videoMode.fragUniCPU
 
 		fragUniCPU.ssaoSampleRadius = ram.ssaoSampleRadius
 		fragUniCPU.ssaoInfluence = ram.ssaoInfluence
@@ -4015,13 +4022,13 @@ print('applying lights #', math.min(maxLights, ram.numLights))
 		sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
 
 		-- TODO how about binding the frag uni gpu uniform buffer to the vao ...
-		self.currentVideoMode.fragUniGPU
+		videoMode.fragUniGPU
 			:bind()
 			:updateData()
 
 		sceneObj.geometry:draw()
 
-		self.currentVideoMode.fragUniGPU
+		videoMode.fragUniGPU
 			:unbind()
 
 		sceneObj.vao:unbind()
@@ -4050,7 +4057,7 @@ print('applying lights #', math.min(maxLights, ram.numLights))
 		-- how about whatevers selected as the active palette at end of frame?
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		local sceneObj = videoMode.blitScreenApplyLightObj
-		sceneObj.texs[1] = self.finalRGBTex
+		sceneObj.texs[1] = finalRGBTex
 		sceneObj.texs[2] = videoMode.framebufferPosTex
 		sceneObj.texs[3] = videoMode.calcLightTex:cur()
 
@@ -4061,7 +4068,8 @@ print('applying lights #', math.min(maxLights, ram.numLights))
 		videoMode.lightAndFBTex.fbo:bind()
 		sceneObj:draw()
 		videoMode.lightAndFBTex.fbo:unbind()
-		self.finalRGBTex = videoMode.lightAndFBTex:cur()
+		finalRGBFBO = videoMode.lightAndFBTex.fbo
+		finalRGBTex = videoMode.lightAndFBTex:cur()
 	end
 
 	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
@@ -4069,28 +4077,29 @@ print('applying HDR')
 		-- TODO what we're doing HDR without lighting?
 		-- then this will be bound to the FC FB
 		-- and thatll gen mipmaps for the FC FB ...
-		self.finalRGBTex
+		finalRGBTex
 			:bind()
 			--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
 			:generateMipmap()
 			:unbind()
 
 		videoMode.hdrTex.fbo:bind()
-		videoMode.hdrBlitObj.texs[1] = self.finalRGBTex
+		videoMode.hdrBlitObj.texs[1] = finalRGBTex
 		videoMode.hdrBlitObj:draw()
 		videoMode.hdrTex.fbo:unbind()
-		self.finalRGBTex = videoMode.hdrTex:cur()
+		finalRGBFBO = videoMode.hdrTex.fbo
+		finalRGBTex = videoMode.hdrTex:cur()
 
 		-- if DoF isnt gonna gen mipmaps then we better gen them here...
 		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) == 0 then
-			self.finalRGBTex
+			finalRGBTex
 				:bind()
 				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
 				:unbind()
 		end
 	--[[
 	else
-		self.finalRGBTex
+		finalRGBTex
 			:bind()
 			:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
 			:unbind()
@@ -4100,7 +4109,7 @@ print('applying HDR')
 	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
 print('applying DoF')
 		-- [[ dont use mipmaps with DoF, use a blur kernel instead
-		self.finalRGBTex
+		finalRGBTex
 			:bind()
 			--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
 			:generateMipmap()
@@ -4110,7 +4119,7 @@ print('applying DoF')
 		fbo:bind()
 		local sceneObj = videoMode.dofBlitObj
 		local texs = sceneObj.texs
-		texs[1] = self.finalRGBTex
+		texs[1] = finalRGBTex
 		texs[2] = videoMode.framebufferPosTex
 		for i,tex in ipairs(texs) do
 			tex:bind(i-1)
@@ -4165,42 +4174,73 @@ print('applying DoF')
 			texs[i]:unbind(i-1)
 		end
 		fbo:unbind()
+
+		finalRGBFBO = videoMode.dofTex.fbo
+		finalRGBTex = videoMode.dofTex:cur()
 	end
 
+-- [[
 	if writeBackToVideoModeFB then
 		-- dont bother copy back if it's already there
 		-- this will be true for when no lighting, no dof, no hdr are used
-		if self.finalRGBTex ~= videoMode.framebufferRAM.tex then
+assert(finalRGBFBO)
+		if finalRGBFBO ~= videoMode.fb then
 print('writing back to framebuffer')
-			--copy self.finalRGBTex to self.currentVideoMode.framebufferRAM.tex
+--[=[
+assert.eq(finalRGBFBO.width, videoMode.fb.width)
+assert.eq(finalRGBFBO.height, videoMode.fb.height)
+			--copy finalRGBFBO to videoMode.framebufferRAM.tex
 			-- TODO ... this only works for RGB65 right now
-			gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, self.finalRGBTex.id)
-			gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, self.currentVideoMode.fb.id)
+			gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, finalRGBFBO.id)
+			gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, videoMode.fb.id)
+			gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT0)
+			gl.glDrawBuffer(gl.GL_COLOR_ATTACHMENT0)
 			gl.glBlitFramebuffer(
 				0, 0,
-				self.currentVideoMode.framebufferRAM.tex.width,
-				self.currentVideoMode.framebufferRAM.tex.height,
+				videoMode.fb.width,
+				videoMode.fb.height,
 				0, 0,
-				self.currentVideoMode.framebufferRAM.tex.width,
-				self.currentVideoMode.framebufferRAM.tex.height,
+				videoMode.fb.width,
+				videoMode.fb.height,
 				gl.GL_COLOR_BUFFER_BIT,
 				gl.GL_NEAREST)
+-- TODO error here because
+-- i'm trying to write from float back to fixed
 			gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, 0)
 			gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
+			gl.glReadBuffer(gl.GL_BACK)
+			gl.glDrawBuffer(gl.GL_BACK)
+--]=]
+-- [=[ can't blit float vs non-float, so i have to draw it
+			videoMode.fb:bind()
+			gl.glViewport(0, 0, self.ram.screenWidth, self.ram.screenHeight)
+
+gl.glDepthMask(gl.GL_FALSE)
+
+			local sceneObj = videoMode.finalBlitScreenObj
+			sceneObj.texs[1] = finalRGBTex
+			sceneObj.uniforms.mvProjMat = identProjMat.ptr
+			sceneObj:draw()
+
+gl.glDepthMask(gl.GL_TRUE)
+
+			videoMode.fb:unbind()
+--]=]
 		end
 	end
+--]]
 
---[[
+-- [[
 	-- clear light tex (since it's already in the dest color buf)
-	self.currentVideoMode.calcLightTex.fbo
+	videoMode.calcLightTex.fbo
 		:bind()
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
-	self.currentVideoMode.calcLightTex.fbo
+	videoMode.calcLightTex.fbo
 		:unbind()
 --]]
 
---[[
+-- [[ clear the lightmap depth buf
 	self.lightmapFB:bind()
 	gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
@@ -4209,16 +4249,11 @@ print('writing back to framebuffer')
 --]]
 
 	if self.inUpdateCallback then
-		self.currentVideoMode.fb:bind()
+print('videoMode.fb:bind()')
+		videoMode.fb:bind()
 	end
 
-	-- clear this every render frame
-	-- then when we draw tris, on first tri with lighting, copy the view mat into drawViewMatForLighting and set this
-	self.haveCapturedDrawMatsForLightingThisFrame = false
-	self.drawViewMatForLighting:setIdent()
-	self.drawProjMatForLighting:setIdent()
-
---[[
+-- [[
 	-- clear the HD2D flags from the normal.w color attachment
 	clearFloat[0] = 0
 	clearFloat[1] = 0
@@ -4226,6 +4261,17 @@ print('writing back to framebuffer')
 	clearFloat[3] = 0	-- framebufferNormalTex.a == 0 <=> disable lighting on background by default
 	gl.glClearBufferfv(gl.GL_COLOR, 1, clearFloat)
 --]]
+
+	-- clear this every render frame
+	-- then when we draw tris, on first tri with lighting, copy the view mat into drawViewMatForLighting and set this
+print('haveCapturedDrawMatsForLightingThisFrame = false')
+	self.haveCapturedDrawMatsForLightingThisFrame = false
+	self.drawViewMatForLighting:setIdent()
+	self.drawProjMatForLighting:setIdent()
+
+	-- clear the depth too?
+
+print'flushToFinalRGB done'
 end
 
 return {

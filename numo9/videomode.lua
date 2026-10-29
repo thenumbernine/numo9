@@ -113,7 +113,7 @@ TODO here: if any HD2D passes were applied:
 
 last in App:update end-of-frame:
 input:
-	- sceneObj: videoMode.finalBlitScreen ...
+	- sceneObj: videoMode.finalBlitScreenObj ...
 		- geometry: app.quadGeom
 	- textures:
 		- ... used to be self.lightAndFBTex:cur()
@@ -1188,7 +1188,7 @@ void main() {
 	-- used for combining lighting calcs and/or final palette application to our destination rgba buffer
 	-- 'blitScreenApplyLightObj' is the lighting pass
 	-- should I always do it to a prev float16 buffer, or is it fine going straight to the screen?
-	self.finalBlitScreen = GLSceneObject{
+	self.finalBlitScreenObj = GLSceneObject{
 		program = {
 			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,

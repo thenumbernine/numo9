@@ -2279,11 +2279,13 @@ print('run thread dead')
 			self.ram.videoMode = 255
 			self:setVideoMode(self.ram.videoMode)
 
+			--[[
 			pushHD2DFlags = self.ram.HD2DFlags
 			self.ram.HD2DFlags = 0
 			if self.ram.HD2DFlags ~= pushHD2DFlags then
 				self:onHD2DFlagsChange()
 			end
+			--]]
 		end
 
 --DEBUG(glquery):drawQuery:begin()
@@ -2295,12 +2297,30 @@ print('run thread dead')
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-		local fbTex = self.finalRGBTex
+		-- same condition as in flushToFinalRGB
+		local finalRGBTex = videoModeObj.framebufferRAM.tex
+		if videoModeObj.bakeRGBBlitObj then
+			finalRGBTex = videoModeObj.bakeRGBTex:cur()
+		end
+		if bit.band(self.ram.HD2DFlags, bit.bor(
+			ffi.C.HD2DFlags_lightingApplyToSurface,
+			ffi.C.HD2DFlags_useSSAO,
+			ffi.C.HD2DFlags_calcFromLightMap,
+			ffi.C.HD2DFlags_calcFromLights
+		)) ~= 0 then
+			finalRGBTex = videoModeObj.lightAndFBTex:cur()
+		end
+		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+			finalRGBTex = videoModeObj.hdrTex:cur()
+		end
+		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+			finalRGBTex = videoModeObj.dofTex:cur()
+		end
 
 		-- redo ortho projection matrix
 		-- every frame for us to use a proper rectangle
-		local fx = self.width / fbTex.width
-		local fy = self.height / fbTex.height
+		local fx = self.width / finalRGBTex.width
+		local fy = self.height / finalRGBTex.height
 		local fmin = math.min(fx, fy)
 		local rx = (fx / fmin - 1) * .5
 		local ry = (fy / fmin - 1) * .5
@@ -2320,9 +2340,9 @@ print('run thread dead')
 		view.mvMat:setIdent()
 		view.mvProjMat:copy(view.projMat)
 
-		local sceneObj = videoModeObj.finalBlitScreen
+		local sceneObj = videoModeObj.finalBlitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		sceneObj.texs[1] = fbTex
+		sceneObj.texs[1] = finalRGBTex
 
 		-- draw from framebuffer to screen
 		sceneObj:draw()
@@ -2335,10 +2355,12 @@ print('run thread dead')
 		--]]
 
 		if self.activeMenu then
+			--[[
 			if self.ram.HD2DFlags ~= pushHD2DFlags then
 				self.ram.HD2DFlags = pushHD2DFlags
 				self:onHD2DFlagsChange()
 			end
+			--]]
 
 			--sceneObj.texs[1] = self.currentVideoMode.framebufferRAM.tex
 

@@ -21,7 +21,6 @@ HD2DFlags |= 8	-- 8 = use bump map
 HD2DFlags |= 16	-- 16 = use shadow in lighting
 HD2DFlags |= 32	-- 32 = use amb diff spec in light color calcs
 
-poke(ramaddr'HD2DFlags', HD2DFlags)
 pokef(ramaddr'ssaoSampleRadius', .1)
 
 pokef(ramaddr'lightAmbientColor'+0, 0)
@@ -34,10 +33,11 @@ pokef(ramaddr'lightAmbientColor'+8, 0)
 mode(2)	-- 256x256 rgb332
 
 update = ||do
-
---	pokef(ramaddr'numLights', 1)
-
+	poke(ramaddr'HD2DFlags', 0)
 	cls(7)
+
+	poke(ramaddr'HD2DFlags', HD2DFlags)
+	cls(nil, true)	-- HD2DFlags + clear() == clear lighting gbuf
 
 	matident(0)	-- model
 	matident(1)	-- view
@@ -88,12 +88,20 @@ update = ||do
 	end
 
 	matscale(5, 5, 5)
+	matpush()
 	matscale(1/32768, 1/32768, 1/32768)
 
 	--poke(ramaddr'cullFace', 2)	-- why is this messing up the ui even if i reset cullFace?
 	mesh(1, 32, 0)	-- cube without z+
 	--poke(ramaddr'cullFace', 1)
+	matpop()
 
 	Lights:endFrame()
 
+	-- [[ flush will write back to framebuffer ...
+	--poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
+	flushHD2D()
+
+	poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
+	--]]
 end
