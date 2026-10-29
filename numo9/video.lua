@@ -1010,6 +1010,17 @@ end
 
 local getTime = require 'ext.timer'.getTime
 
+--[[
+ok gotta cache normal map for bumpmapping.  what goes into the normal map state?
+- tile sheet tex
+- palette tex
+- spriteNormalExhaggeration
+- paletteOffset
+- transparentIndex
+- spriteBit
+- spriteMask
+--]]
+
 local dummyNormalMapTex
 local dummyNormalMapImage
 

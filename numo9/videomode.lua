@@ -1,51 +1,102 @@
 --[[
 ok flowchart on how our rendering is supposed to work ...
 
-each mode
-has a fbo
-renders geometry
-and outputs to:
-- framebufferRAM.tex ("framebufferTex" in GLSL) attached to 0 for underlying color ...
-	- RGB565 => GL_RGB565
-	- 8bppIndex => GL_R8UI
-	- RGB332 => GL_R8UI
-- framebufferDepthTex as GL_DEPTH_COMPONENT attached to depth ... hmm its not read from, is it?  nah.
-- framebufferNormalTex GL_RGBA32F attached to color 1
-- framebufferPosTex GL_RGBA32F attached to color 2
+FC API draw commands: `AppVideo:triBuf_flushButDontClear`
+input:
+	- sceneObj: app.triBuf_sceneObj, assigned upon typically assigned to app.vertexBufCPU / app.vertexBufGPU
+	- textures: ... each is assigned upon AppVideo:triBuf_prepAddTri()
+		- app.lastPaletteTex ... usu app.blobs.palette[i].ramgpu.tex
+		- app.lastSheetTex ... usu app.blobs.sheet[i].ramgpu.tex
+		- app.lastTilemapTex ... usu app.blobs.tilemap[i].ramgpu.tex (optional, only for tilemap() calls)
+		- app.lastAnimSheetTex ... usu app.blobs.animsheet[i].ramgpu.tex
+		- app.lastNormalMapTex ... from AppVideo:getNormalMapTex()
+output:
+	- videoMode.fb
+		- depth: videoMode.framebufferDepthTex as GL_DEPTH_COMPONENT32F attached to depth ... hmm its not read from, is it?  nah.
+		- color0: videoMode.framebufferRAM.tex ("framebufferTex" in GLSL) attached to 0 for underlying color ...
+			- RGB565 => GL_RGB565
+			- 8bppIndex => GL_R8UI
+			- RGB332 => GL_R8UI
+		- color1: videoMode.framebufferNormalTex GL_RGBA32F attached to color 1
+		- color2: videoMode.framebufferPosTex GL_RGBA32F attached to color 2
 
-separately, there's the uberlightmap
-- lightDepthTex GL_DEPTH_COMPONENT32F attached to depth
-- nothing attached to color ...
-	- ... TODO I can save some calcs by copying the whole ubershader and just cut out all the color stuff, and just only do depth read/writes here.
-	- but there is a lot of alpha-based discard so it might not be that much less calcs ...
+separate, if `HD2DFlags_lightingCastShadows` is set then per-draw-flush, per-light the scene is rendered from the light's view:
+input:
+	- sceneObj: same as FC API draw
+	- textures: same as FC API draw: `AppVideo:triBuf_flushButDontClear`
+output:
+	- app.lightmapFB
+		- depth: app.lightDepthTex GL_DEPTH_COMPONENT32F attached to depth
+		- (nothing attached to color ...)
+			- ... TODO I can save some calcs by copying the whole ubershader and just cut out all the color stuff, and just only do depth read/writes here.
+			- but there is a lot of alpha-based discard so it might not be that much less calcs ...
 
-then lighting resizes as it goes
-TODO but should be in mode as well
-it takes in:
-- framebufferNormalTex as 0
-- framebufferPosTex as 1
-- noiseTex as 2 for SSAO (TODO somehow noise this / blur this / but dont get tearing on edges when camera moves somehow)
-- lightDepthTex as 3
-it outputs:
-- calcLightTex GL_RGBA32F attached to color 0 for light scale
 
-then final screen blit (happening every render, not just 60fps ...)
-takes in:
-- framebufferRAM.tex for color
-- calcLightTex for light scale
-it outputs directly to the screen
-- TODO maybe output to a *new* post-lighting buffer then just blit that to screen ???
-	- but honestly, I've already got the renderer set up to only draw when needed ... its just always redrawing every frame ...
-	- I should just not redraw the menu if we're not in a net game or something ... hmm ...
+then last if any HD2D flags are set we do the following:
 
-ok gotta cache normal map for bumpmapping.  what goes into the normal map state?
-- tile sheet tex
-- palette tex
-- spriteNormalExhaggeration
-- paletteOffset
-- transparentIndex
-- spriteBit
-- spriteMask
+(in AppVideo:updateHD2DPass)
+lighting and FC-framebuffer are recombined.
+- this is where SSAO is calculated
+- this is where light shadows are calculated
+input:
+	- sceneObj: videoMode.calcLightBlitObj
+		- geometry: app.quadGeom
+	- textures:
+		- videoMode.framebufferNormalTex as 0
+		- videoMode.framebufferPosTex as 1
+		- app.noiseTex as 2 for SSAO (TODO somehow noise this / blur this / but dont get tearing on edges when camera moves somehow)
+		- app.lightDepthTex as 3
+output:
+	- videoMode.calcLightTex.fbo
+		- color0: videoMode.calcLightTex:cur() GL_RGBA32F for light color scale
+
+we combine...
+- fb index & pal for indexed-mode
+- color & lighting when lighting is used
+input:
+	- sceneObj: videoMode.blitScreenApplyLightObj
+		- geometry: app.quadGeom
+	- textures:
+		- videoMode.framebufferRAM.tex
+		- videoMode.framebufferPosTex,
+		- videoMode.calcLightTex:cur()
+output:
+	- videoMode.lightAndFBTex.fbo
+		- color0: videoMode.lightAndFBTex:cur()
+
+... apply HDR bloom
+input:
+	- sceneObj: videoMode.hdrBlitObj
+		- geometry: app.quadGeom
+	- textures:
+		- prevTex = videoMode.lightAndFBTex:cur()
+output:
+	- videoMode.hdrTex.fbo
+		- videoMode.hdrTex:cur() -> prevTex
+
+... apply DoF blur
+input:
+	- sceneObj: videoMode.dofBlitObj
+		- geometry: app.quadGeom
+	- textures:
+		- prevTex = videoMode.hdrTex:cur() or videoMode.lightAndFBTex:cur()
+output:
+	- videoMode.dofTex.fbo
+		- videoMode.dofTex:cur() -> prevTex
+
+... then last, what should happen?
+... should flushHD2D flush it back to framebuffer?
+... should flushHD2D flush it out to screen RGB buffer?
+????
+where's this go? i think its not used anymore now that i tried to merge the final pass back into the updateHD2D
+input:
+	- sceneObj: videoMode.blitScreenPlainObj ...
+		- geometry: app.quadGeom
+	- textures:
+		- ... used to be self.lightAndFBTex:cur()
+		... but now that is always pushed/popped??
+			and its always self.currentVideoMode.framebufferRAM.tex ...
+output: no FB used, drawn direct to screen.
 
 --]]
 local ffi = require 'ffi'
@@ -1027,7 +1078,8 @@ void main() {
 	}
 --]=]
 
-	-- 'blitScreenApplyLightObj' is actually the lighting pass
+	-- used for combining lighting calcs and/or final palette application to our destination rgba buffer
+	-- 'blitScreenApplyLightObj' is the lighting pass
 	-- should I always do it to a prev float16 buffer, or is it fine going straight to the screen?
 	self.blitScreenPlainObj = GLSceneObject{
 		program = {
@@ -1302,6 +1354,7 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 }
 ]]
 
+	-- used for combining lighting calcs and/or final palette application to our destination rgba buffer
 	-- used for drawing our 8bpp indexed framebuffer to the screen
 --DEBUG:print'mode 1 blitScreenApplyLightObj'
 	self.blitScreenApplyLightObj = GLSceneObject{
