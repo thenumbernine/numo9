@@ -8,10 +8,10 @@ local matpop = require 'numo9.matstack'.pop
 
 poke(ramaddr'HD2DFlags', 1|4)	-- 1 = turn on light calcs, 4 = ssao calcs
 pokef(ramaddr'ssaoSampleRadius', .1)
---mode(-1)	-- native res x RGB565 works
+mode(-1)	-- native res x RGB565 works
 --mode(0)	-- 256x256xRGB565 works
---mode(1)	-- 256x256x8bppIndex ... shows nothing as it should since I don't have lighting with indexed mode
-mode(2)	-- 256x256 rgb332 ... shows nothing ... ssao is now broken with this mode ...
+--mode(1)	-- 256x256x8bppIndex works
+--mode(2)	-- 256x256 rgb332 works
 
 local poly = |t, a| do
 	local s = 0
