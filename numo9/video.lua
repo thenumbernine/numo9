@@ -3823,7 +3823,7 @@ local identProjMat = vec4x4fcol()
 -- does dof
 -- finished result will be in some rgba tex that can just be blitted to screen
 function AppVideo:flushToFinalRGB(writeBackToVideoModeFB)
-print('flushToFinalRGB writeBackToVideoModeFB='..tostring(writeBackToVideoModeFB))
+--DEBUG:print('flushToFinalRGB writeBackToVideoModeFB='..tostring(writeBackToVideoModeFB))
 	local ram = self.ram
 
 	local videoMode =
@@ -3833,7 +3833,7 @@ print('flushToFinalRGB writeBackToVideoModeFB='..tostring(writeBackToVideoModeFB
 
 --	assert(not self.inUpdateCallback)
 	if self.inUpdateCallback then
-print('videoMode.fb:unbind()')
+--DEBUG:print('videoMode.fb:unbind()')
 		-- should always be true
 		videoMode.fb:unbind()
 	end
@@ -3844,7 +3844,7 @@ print('videoMode.fb:unbind()')
 
 	-- here I'll do the rgb332 dithering or palette baking
 	if videoMode.bakeRGBBlitObj then
-print('applying bakeRGBBlitObj')
+--DEBUG:print('applying bakeRGBBlitObj')
 		assert.ne(videoMode.format, 'RGB565')
 
 		local bakeRGBTex = videoMode.bakeRGBTex
@@ -3889,7 +3889,7 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 		ffi.C.HD2DFlags_calcFromLightMap,
 		ffi.C.HD2DFlags_calcFromLights
 	)) ~= 0 then
-print('update lightmaps and lighting colors')
+--DEBUG:print('update lightmaps and lighting colors')
 		--[=[ trying to read the depth buffer
 		-- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
 		tempLightCPU = tempLightCPU or ffi.new('float[?]', dirLightMapSize.x * dirLightMapSize.y)
@@ -3988,7 +3988,7 @@ print('update lightmaps and lighting colors')
 
 		ffi.copy(fragUniCPU.lightAmbientColor.s, ram.lightAmbientColor, ffi.sizeof(vec3f))
 
-print('applying lights #', math.min(maxLights, ram.numLights))
+--DEBUG:print('applying lights #', math.min(maxLights, ram.numLights))
 		for i=0,math.min(maxLights, ram.numLights)-1 do
 			local light = ram.lights + i
 			local fragUniLight = fragUniCPU.lights + i
@@ -4073,7 +4073,7 @@ print('applying lights #', math.min(maxLights, ram.numLights))
 	end
 
 	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
-print('applying HDR')
+--DEBUG:print('applying HDR')
 		-- TODO what we're doing HDR without lighting?
 		-- then this will be bound to the FC FB
 		-- and thatll gen mipmaps for the FC FB ...
@@ -4107,7 +4107,7 @@ print('applying HDR')
 	end
 
 	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
-print('applying DoF')
+--DEBUG:print('applying DoF')
 		-- [[ dont use mipmaps with DoF, use a blur kernel instead
 		finalRGBTex
 			:bind()
@@ -4185,7 +4185,7 @@ print('applying DoF')
 		-- this will be true for when no lighting, no dof, no hdr are used
 assert(finalRGBFBO)
 		if finalRGBFBO ~= videoMode.fb then
-print('writing back to framebuffer')
+--DEBUG:print('writing back to framebuffer')
 --[=[
 assert.eq(finalRGBFBO.width, videoMode.fb.width)
 assert.eq(finalRGBFBO.height, videoMode.fb.height)
@@ -4248,7 +4248,7 @@ gl.glDepthMask(gl.GL_TRUE)
 --]]
 
 	if self.inUpdateCallback then
-print('videoMode.fb:bind()')
+--DEBUG:print('videoMode.fb:bind()')
 		videoMode.fb:bind()
 	end
 
@@ -4263,14 +4263,14 @@ print('videoMode.fb:bind()')
 
 	-- clear this every render frame
 	-- then when we draw tris, on first tri with lighting, copy the view mat into drawViewMatForLighting and set this
-print('haveCapturedDrawMatsForLightingThisFrame = false')
+--DEBUG:print('haveCapturedDrawMatsForLightingThisFrame = false')
 	self.haveCapturedDrawMatsForLightingThisFrame = false
 	self.drawViewMatForLighting:setIdent()
 	self.drawProjMatForLighting:setIdent()
 
 	-- clear the depth too?
 
-print'flushToFinalRGB done'
+--DEBUG:print'flushToFinalRGB done'
 end
 
 return {

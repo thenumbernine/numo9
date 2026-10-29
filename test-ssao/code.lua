@@ -28,9 +28,9 @@ pokef(ramaddr'lightAmbientColor'+4, 0)
 pokef(ramaddr'lightAmbientColor'+8, 0)
 
 --mode(-1)	-- native res x RGB565
---mode(0)	-- 256x256xRGB565
+mode(0)	-- 256x256xRGB565
 --mode(1)	-- 256x256x8bppIndex
-mode(2)	-- 256x256 rgb332
+--mode(2)	-- 256x256 rgb332
 
 update = ||do
 	poke(ramaddr'HD2DFlags', 0)
@@ -99,7 +99,6 @@ update = ||do
 	Lights:endFrame()
 
 	-- [[ flush will write back to framebuffer ...
-	--poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
 	flushHD2D()
 
 	poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
