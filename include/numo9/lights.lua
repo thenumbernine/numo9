@@ -282,7 +282,6 @@ do
 	end
 
 
-
 	-- TODO spotlight angle attenuation (min/max angle)
 	local MakeSpotLight = class()
 	Lights.MakeSpotLight = MakeSpotLight

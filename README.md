@@ -622,7 +622,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation2D, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
 - `mesh(mesh3DIndex, [uofs, vofs, sheetIndex, paletteOffset, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.
-	- uofs, vofs = an amount to offset u and v coordinates (which wrap), defaults to 0.
+	- uofs, vofs = an amount to offset u and v coordinates (which wrap) in texels, defaults to 0.
 	- sheetIndex = defaults to 0.
 	- The rest of the parameters are forwarded to `ttri3d()`.
 - `drawvoxel(voxelCode, [sheetIndex, ...])` = draw a single voxel.  `voxelCode` is the uint32 value that is typically stored in a voxelmap.  Additional arguments are forwarded to `mesh`, starting with `sheetIndex`.
