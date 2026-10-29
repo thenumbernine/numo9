@@ -10,6 +10,8 @@ input:
 		- app.lastTilemapTex ... usu app.blobs.tilemap[i].ramgpu.tex (optional, only for tilemap() calls)
 		- app.lastAnimSheetTex ... usu app.blobs.animsheet[i].ramgpu.tex
 		- app.lastNormalMapTex ... from AppVideo:getNormalMapTex()
+shader:
+	- applies bumpmapping over solid-normals where `HD2DFlags_useBumpMap` is set
 output:
 	- videoMode.fb
 		- depth: videoMode.framebufferDepthTex as GL_DEPTH_COMPONENT32F attached to depth ... hmm its not read from, is it?  nah.
@@ -31,64 +33,85 @@ output:
 			- ... TODO I can save some calcs by copying the whole ubershader and just cut out all the color stuff, and just only do depth read/writes here.
 			- but there is a lot of alpha-based discard so it might not be that much less calcs ...
 
+in AppVideo:updateHD2DPass:
 
-then last if any HD2D flags are set we do the following:
-
-(in AppVideo:updateHD2DPass)
-lighting and FC-framebuffer are recombined.
-- this is where SSAO is calculated
-- this is where light shadows are calculated
+if the following HD2D flags are set...
+	HD2DFlags_lightingApplyToSurface (per-fragment)
+	HD2DFlags_useSSAO (per-fragment)
+	HD2DFlags_calcFromLightMap (per-fragment), i.e. apply lightmap shadows
+	HD2DFlags_calcFromLights (per-fragment), i.e. accum light amb diff spec calcs
+... then apply lighting:
+I think I'll only run this if any of those flags are set when `flushHD2D` is called or end-of-frame is reached.
 input:
 	- sceneObj: videoMode.calcLightBlitObj
 		- geometry: app.quadGeom
 	- textures:
-		- videoMode.framebufferNormalTex as 0
-		- videoMode.framebufferPosTex as 1
-		- app.noiseTex as 2 for SSAO (TODO somehow noise this / blur this / but dont get tearing on edges when camera moves somehow)
-		- app.lightDepthTex as 3
+		- 0: videoMode.framebufferNormalTex -> worldNormal
+		- 1: videoMode.framebufferPosTex -> worldCoordAndClipDepth
+		- 2: app.noiseTex, for SSAO (TODO somehow noise this / blur this / but dont get tearing on edges when camera moves somehow)
+		- 3: app.lightDepthTex
+shader:
+	- applies light where `HD2DFlags_lightingApplyToSurface` is set on `worldNormal.w`
+	- applies SSAO where `HD2DFlags_useSSAO` is set
+	- `HD2DFlags_calcFromLightMap` flag = occlude shadows
+	- `HD2DFlags_calcFromLights` flag = accum light amb diff spec
 output:
 	- videoMode.calcLightTex.fbo
 		- color0: videoMode.calcLightTex:cur() GL_RGBA32F for light color scale
 
-we combine...
-- fb index & pal for indexed-mode
+TODO here: videoMode.framebufferRAM.tex -> decode indexed mode or rgb332 into `rgbaTempTex` -> `prevTex`
+TODO	input:
+TODO		- sceneObj: videoMode.bakeFBToRGB
+TODO			- geometry: app.quadGeom
+TODO	output:
+TODO		- videoMode.bakedRGBTex.fbo
+TODO			- videoMode.bakedRGBTex:cur() -> prevTex
+
+combine...
+- fb index & pal for indexed-mode (TODO move that to prev separate step, so we can bypass lighting when HD2DFlags are disabled)
 - color & lighting when lighting is used
 input:
 	- sceneObj: videoMode.blitScreenApplyLightObj
 		- geometry: app.quadGeom
 	- textures:
-		- videoMode.framebufferRAM.tex
-		- videoMode.framebufferPosTex,
-		- videoMode.calcLightTex:cur()
+		- 0: videoMode.framebufferRAM.tex (TODO replace with prevTex = rgbaTempTex)
+		- 1: videoMode.framebufferPosTex,
+		- 2: videoMode.calcLightTex:cur()
+		- 3: (indexed only): app.blobs.palette[1+app.ram.paletteBlobIndex].ramgpu.tex
 output:
 	- videoMode.lightAndFBTex.fbo
-		- color0: videoMode.lightAndFBTex:cur()
+		- color0: videoMode.lightAndFBTex:cur() -> prevTex
 
 ... apply HDR bloom
 input:
 	- sceneObj: videoMode.hdrBlitObj
 		- geometry: app.quadGeom
 	- textures:
-		- prevTex = videoMode.lightAndFBTex:cur()
+		- 0: prevTex = videoMode.lightAndFBTex:cur()
+shader:
+	- applies HDR where `HD2DFlags_useHDR` is set
 output:
 	- videoMode.hdrTex.fbo
-		- videoMode.hdrTex:cur() -> prevTex
+		- color0: videoMode.hdrTex:cur() -> prevTex
 
 ... apply DoF blur
 input:
 	- sceneObj: videoMode.dofBlitObj
 		- geometry: app.quadGeom
 	- textures:
-		- prevTex = videoMode.hdrTex:cur() or videoMode.lightAndFBTex:cur()
+		- 0: prevTex = videoMode.hdrTex:cur() or videoMode.lightAndFBTex:cur()
+shader:
+	- applies DoF where `HD2DFlags_useDoF` is set
 output:
 	- videoMode.dofTex.fbo
-		- videoMode.dofTex:cur() -> prevTex
+		- color0: videoMode.dofTex:cur() -> prevTex
 
-... then last, what should happen?
-... should flushHD2D flush it back to framebuffer?
-... should flushHD2D flush it out to screen RGB buffer?
-????
-where's this go? i think its not used anymore now that i tried to merge the final pass back into the updateHD2D
+TODO here: if any HD2D passes were applied:
+- if we are in RGB332 mode, write prevTex back to videoMode.framebufferRAM.tex)
+- if we are in Indexed mode, write prevTex back to videoMode.framebufferRAM.tex using GPU-quantization)
+... will it be worth the slowdown(if any) to do this?
+
+last in App:update end-of-frame:
 input:
 	- sceneObj: videoMode.blitScreenPlainObj ...
 		- geometry: app.quadGeom
@@ -1278,6 +1301,8 @@ vec4 colorIndexToFragColor(uint colorIndex) {
 
 ]],
 	--]=]
+
+	-- gonna bake indexed-mode palettes and dithered-mode dithering here before
 
 	-- used for drawing our 16bpp framebuffer to the screen
 --DEBUG:print'mode 0 blitScreenApplyLightObj'

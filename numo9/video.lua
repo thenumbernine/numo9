@@ -4011,7 +4011,7 @@ print()
 	)) ~= 0 then
 	--]====]
 	-- [====[
-	if ram.HD2DFlags ~= 0 then
+	do -- if ram.HD2DFlags ~= 0 then
 	--]====]
 		-- HDR and DOF both need mipmaps,
 		-- so they can't accept our indexed color,
