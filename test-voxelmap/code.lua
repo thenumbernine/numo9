@@ -22,8 +22,8 @@ mode(0xff)	-- NativexRGB565
 --mode(18)	-- 336x189xRGB565
 --HD2DFlags = 0
 --HD2DFlags = 1|8|32				-- bump-mapping without shadows
-HD2DFlags = 1|2|8|16|32		-- no SSAO, noDoF
---HD2DFlags = 0xff				-- everything
+--HD2DFlags = 1|2|8|16|32		-- no SSAO, noDoF
+HD2DFlags = 0xff				-- everything
 
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
@@ -515,11 +515,18 @@ update=||do
 	Lights:endFrame()
 --]]
 
+--	flushHD2D()
+
 	-- end-of-frame, after view has been captured, do ortho and draw text
 	-- but disable light flags before clearing depth or else it'll clear the light depth too
 	poke(ramaddr'HD2DFlags', 0)
 
+	-- at this point the depth buffer should be intact
+	-- and lighting should be disabled
+	-- so you should be able to safely draw overlays onto the 3D geom no problem
+
 	cls(nil, true)
+
 	-- [[
 	--poke(ramaddr'HD2DFlags', 2)	-- if you want the gui text to cast a shadow...
 	textheight = textwidth * height / width

@@ -1017,7 +1017,7 @@ function App:initGL()
 
 		-- flush HD2D lighting, hdr, dof back to color framebuffer mid-render
 		flushHD2D = function()
-			self:flushToFinalRGB()
+			self:flushToFinalRGB(true)	-- 'true' means 'also write back to videoMode FB
 		end,
 	}
 
