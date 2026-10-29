@@ -1787,249 +1787,250 @@ end
 
 function EditMesh3D:event(e)
 	local app = self.app
-	local mesh3DBlob = assert.index(app.blobs.mesh3d, self.mesh3DBlobIndex+1)
-	if not mesh3DBlob then return end
+	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 
-	local numVtxs = mesh3DBlob:getNumVertexes()
-	local vtxs = mesh3DBlob:getVertexPtr()
+	if mesh3DBlob then
+		local numVtxs = mesh3DBlob:getNumVertexes()
+		local vtxs = mesh3DBlob:getVertexPtr()
 
-	-- TODO if meshEditMode == 'translate' then
-	-- accept input like a textarea for a number string, and let that be the amount to translate or rotate or whatever
-	local function setVtxEditPos()
-		self.vtxOrig = self:getMeshVertexList()
-	end
-	local function calcSelVtxCOM()
-		self.selVtxCOM = vec3d()
-		self.selTexCoordCOM = vec2d()
-		local count = 0
-		for i in pairs(self.selectedVertexIndexSet) do
-			if i >= 0 and i < numVtxs then
-				local v = vtxs + i
-				self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
-				self.selTexCoordCOM = self.selTexCoordCOM + vec2d(v.u, v.v)
-				count = count + 1
+		-- TODO if meshEditMode == 'translate' then
+		-- accept input like a textarea for a number string, and let that be the amount to translate or rotate or whatever
+		local function setVtxEditPos()
+			self.vtxOrig = self:getMeshVertexList()
+		end
+		local function calcSelVtxCOM()
+			self.selVtxCOM = vec3d()
+			self.selTexCoordCOM = vec2d()
+			local count = 0
+			for i in pairs(self.selectedVertexIndexSet) do
+				if i >= 0 and i < numVtxs then
+					local v = vtxs + i
+					self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
+					self.selTexCoordCOM = self.selTexCoordCOM + vec2d(v.u, v.v)
+					count = count + 1
+				end
+			end
+			if count == 0 then
+				self.meshEditMode = nil
+			else
+				self.selVtxCOM = self.selVtxCOM / count
+				self.selTexCoordCOM = self.selTexCoordCOM / count
 			end
 		end
-		if count == 0 then
-			self.meshEditMode = nil
-		else
-			self.selVtxCOM = self.selVtxCOM / count
-			self.selTexCoordCOM = self.selTexCoordCOM / count
-		end
-	end
 
-	if e[0].type == sdl.SDL_EVENT_KEY_DOWN then
-		local uikey
-		if ffi.os == 'OSX' then
-			uikey = app:key'lgui' or app:key'rgui'
-		else
-			uikey = app:key'lctrl' or app:key'rctrl'
-		end
-
-		if uikey then
-			if e[0].key.key == sdl.SDLK_Z then
-				local shift = app:key'lshift' or app:key'rshift'
-				self:popUndo(shift)
+		if e[0].type == sdl.SDL_EVENT_KEY_DOWN then
+			local uikey
+			if ffi.os == 'OSX' then
+				uikey = app:key'lgui' or app:key'rgui'
+			else
+				uikey = app:key'lctrl' or app:key'rctrl'
 			end
-		else	-- non-ctrl:
 
-			if e[0].key.key == sdl.SDLK_BACKSPACE
-			or e[0].key.key == sdl.SDLK_DELETE
-			then
-				-- if we're in an edit mode then reset it
-				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
-				if self.meshEditMode then
+			if uikey then
+				if e[0].key.key == sdl.SDLK_Z then
+					local shift = app:key'lshift' or app:key'rshift'
+					self:popUndo(shift)
+				end
+			else	-- non-ctrl:
 
-					--[[
-					if #self.meshEditModeText > 0 then
-						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
+				if e[0].key.key == sdl.SDLK_BACKSPACE
+				or e[0].key.key == sdl.SDLK_DELETE
+				then
+					-- if we're in an edit mode then reset it
+					-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
+					if self.meshEditMode then
+
+						--[[
+						if #self.meshEditModeText > 0 then
+							self.meshEditModeText = self.meshEditModeText:sub(1, -2)
+						else
+							resetVtxEditPos()
+							self.meshEditMode = nil
+						end
+						--]]
+
 					else
-						resetVtxEditPos()
-						self.meshEditMode = nil
-					end
-					--]]
-
-				else
-					-- if we're not in an edit mode then delete vertexes
-					-- and then regen blobs or something
-					-- hmm
-					local vs, ts = self:getMeshVtxAndTriList()
-					-- delete selected vertexes
-					-- delete touching triangles
-
-					local selVtxRefSet = table.map(
-						self.selectedVertexIndexSet,
-						function(true_, index) return true, vs[1+index] end
-					)
-
-					if self.meshEditForm == 'vertexes' then
+						-- if we're not in an edit mode then delete vertexes
+						-- and then regen blobs or something
+						-- hmm
+						local vs, ts = self:getMeshVtxAndTriList()
 						-- delete selected vertexes
-						for i=#vs,1,-1 do
-							if selVtxRefSet[vs[i]] then
-								vs:remove(i)
-							end
-						end
+						-- delete touching triangles
 
-						-- delete any tris that use it
-						for ti=#ts,1,-1 do
-							local t = ts[ti]
-							if selVtxRefSet[t[1]]
-							or selVtxRefSet[t[2]]
-							or selVtxRefSet[t[3]]
-							then
-								ts:remove(ti)
+						local selVtxRefSet = table.map(
+							self.selectedVertexIndexSet,
+							function(true_, index) return true, vs[1+index] end
+						)
+
+						if self.meshEditForm == 'vertexes' then
+							-- delete selected vertexes
+							for i=#vs,1,-1 do
+								if selVtxRefSet[vs[i]] then
+									vs:remove(i)
+								end
 							end
-						end
-					elseif self.meshEditForm == 'edges' then
-						-- currently edge-sel is based on tri edge, not based on vtxs.
-						-- so just delete the tri that the edge is on.
-						local trisToRemove = table()
-						for _,e in ipairs(self.selectedEdges) do
-							local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+
+							-- delete any tris that use it
 							for ti=#ts,1,-1 do
-								for j=0,2 do
-									local tj0 = 3*(ti-1) + j
-									local tj1 = 3*(ti-1) + (j+1)%3
-									if (tj0 == ei0 and tj1 == ei1)
-									or (tj0 == ei1 and tj1 == ei0)
-									then
-										trisToRemove[ti] = true	-- keys are 1-based indexes
-										break
+								local t = ts[ti]
+								if selVtxRefSet[t[1]]
+								or selVtxRefSet[t[2]]
+								or selVtxRefSet[t[3]]
+								then
+									ts:remove(ti)
+								end
+							end
+						elseif self.meshEditForm == 'edges' then
+							-- currently edge-sel is based on tri edge, not based on vtxs.
+							-- so just delete the tri that the edge is on.
+							local trisToRemove = table()
+							for _,e in ipairs(self.selectedEdges) do
+								local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+								for ti=#ts,1,-1 do
+									for j=0,2 do
+										local tj0 = 3*(ti-1) + j
+										local tj1 = 3*(ti-1) + (j+1)%3
+										if (tj0 == ei0 and tj1 == ei1)
+										or (tj0 == ei1 and tj1 == ei0)
+										then
+											trisToRemove[ti] = true	-- keys are 1-based indexes
+											break
+										end
 									end
 								end
 							end
+							for _,ti in ipairs(trisToRemove:keys():sort():reverse()) do
+								ts:remove(ti)
+							end
+						elseif self.meshEditForm == 'tris' then
+							-- delete the face, and then remove/remap any unused vtxs
+							-- self.selectedTriIndexSet is 0-based mod-3 index of the start of a triangle in our index buffer
+							-- so traverse in reverse order and remove-3 per tri we want to remove
+							for _,ti in ipairs(
+								table.keys(self.selectedTriIndexSet)
+								:sort()
+								:reverse()
+							) do
+								ts:remove(ti+1)	-- selectedTriIndexSet keys are 0-based-sequential
+							end
+						else
+							error'here'
 						end
-						for _,ti in ipairs(trisToRemove:keys():sort():reverse()) do
-							ts:remove(ti)
-						end
-					elseif self.meshEditForm == 'tris' then
-						-- delete the face, and then remove/remap any unused vtxs
-						-- self.selectedTriIndexSet is 0-based mod-3 index of the start of a triangle in our index buffer
-						-- so traverse in reverse order and remove-3 per tri we want to remove
-						for _,ti in ipairs(
-							table.keys(self.selectedTriIndexSet)
-							:sort()
-							:reverse()
-						) do
-							ts:remove(ti+1)	-- selectedTriIndexSet keys are 0-based-sequential
+
+						self.undo:push()
+						self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+
+						-- reset mouseover selection-testing tables
+						self.mouseoverVertexIndexSet = {}
+						-- select-none
+						self.selectedVertexIndexSet = {}
+						self:refreshSelection()
+
+						-- return and don't let anything else use the invalidated mesh functions until we refresh things
+						return
+					end
+				elseif e[0].key.key == sdl.SDLK_A then
+					if next(self.selectedVertexIndexSet) == nil then
+						local numVtxs = mesh3DBlob:getNumVertexes()
+						-- select all
+						self.selectedVertexIndexSet = {}
+						for i=0,numVtxs-1 do
+							self.selectedVertexIndexSet[i] = true
 						end
 					else
-						error'here'
+						-- select none
+						self.selectedVertexIndexSet = {}
 					end
-
-					self.undo:push()
-					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-
-					-- reset mouseover selection-testing tables
-					self.mouseoverVertexIndexSet = {}
-					-- select-none
-					self.selectedVertexIndexSet = {}
 					self:refreshSelection()
+					return
+				elseif e[0].key.key == sdl.SDLK_G then
+					if self.meshEditMode ~= nil then
+						-- TODO maybe even pop the last undo push?
+						resetVtxEditPos()
+						self.meshEditMode = nil
+					else
+						self.meshEditMode = 'translate'
+						self.meshEditModeText = ''
+						setVtxEditPos()
+						calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
+						self.totalTranslation:set(0,0,0)
+						self.undo:push()
+					end
+					return
+				elseif e[0].key.key == sdl.SDLK_S then
+					if self.meshEditMode ~= nil then
+						resetVtxEditPos()
+						self.meshEditMode = nil
+					else
+						self.meshEditMode = 'scale'
+						self.meshEditModeText = ''
+						setVtxEditPos()
+						calcSelVtxCOM()
+						self.totalScreenTranslate:set(0,0)
+						self.undo:push()
+					end
+					return
+				elseif e[0].key.key == sdl.SDLK_R then
+					if self.meshEditMode ~= nil then
+						resetVtxEditPos()
+						self.meshEditMode = nil
+					else
+						self.meshEditMode = 'rotate'
+						self.meshEditModeText = ''
+						setVtxEditPos()
+						calcSelVtxCOM()
+						self.undo:push()
+						self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
+						self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
+						self.screenRotateAngle = quatd(0,0,1,0)	-- angle-axis
 
-					-- return and don't let anything else use the invalidated mesh functions until we refresh things
+						local drawViewInvMat = vec4x4fcol()
+						drawViewInvMat:inv4x4(app.ram.viewMat)
+						self.selRotFwdDir = vec3d(
+							drawViewInvMat.ptr[8],
+							drawViewInvMat.ptr[9],
+							drawViewInvMat.ptr[10]
+						):normalize()
+					end
+					return
+
+				-- TODO or maybe use this for flipping common edge between two tris?
+				elseif e[0].key.key == sdl.SDLK_F then
+					self.drawFaces = not self.drawFaces
+					return
+				elseif e[0].key.key == sdl.SDLK_N then
+					self.drawNormals = not self.drawNormals
+					return
+				elseif e[0].key.key == sdl.SDLK_W then
+					self.wireframe = not self.wireframe
+					return
+				elseif e[0].key.key == sdl.SDLK_O then
+					orbit.ortho = not orbit.ortho
+					return
+
+				elseif e[0].key.key == sdl.SDLK_V then
+					self.meshEditForm = 'vertexes'
+					return
+				elseif e[0].key.key == sdl.SDLK_E then
+					self.meshEditForm = 'edges'
+					return
+				elseif e[0].key.key == sdl.SDLK_T then
+					self.meshEditForm = 'tris'
+					return
+
+				elseif e[0].key.key == sdl.SDLK_X then
+					self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
+					resetVtxEditPos()
+					return
+				elseif e[0].key.key == sdl.SDLK_Y then
+					self.axisFlags.y = not self.axisFlags.y or nil
+					resetVtxEditPos()
+					return
+				elseif e[0].key.key == sdl.SDLK_Z then
+					self.axisFlags.z = not self.axisFlags.z or nil
+					resetVtxEditPos()
 					return
 				end
-			elseif e[0].key.key == sdl.SDLK_A then
-				if next(self.selectedVertexIndexSet) == nil then
-					local numVtxs = mesh3DBlob:getNumVertexes()
-					-- select all
-					self.selectedVertexIndexSet = {}
-					for i=0,numVtxs-1 do
-						self.selectedVertexIndexSet[i] = true
-					end
-				else
-					-- select none
-					self.selectedVertexIndexSet = {}
-				end
-				self:refreshSelection()
-				return
-			elseif e[0].key.key == sdl.SDLK_G then
-				if self.meshEditMode ~= nil then
-					-- TODO maybe even pop the last undo push?
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.meshEditMode = 'translate'
-					self.meshEditModeText = ''
-					setVtxEditPos()
-					calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
-					self.totalTranslation:set(0,0,0)
-					self.undo:push()
-				end
-				return
-			elseif e[0].key.key == sdl.SDLK_S then
-				if self.meshEditMode ~= nil then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.meshEditMode = 'scale'
-					self.meshEditModeText = ''
-					setVtxEditPos()
-					calcSelVtxCOM()
-					self.totalScreenTranslate:set(0,0)
-					self.undo:push()
-				end
-				return
-			elseif e[0].key.key == sdl.SDLK_R then
-				if self.meshEditMode ~= nil then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.meshEditMode = 'rotate'
-					self.meshEditModeText = ''
-					setVtxEditPos()
-					calcSelVtxCOM()
-					self.undo:push()
-					self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
-					self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
-					self.screenRotateAngle = quatd(0,0,1,0)	-- angle-axis
-
-					local drawViewInvMat = vec4x4fcol()
-					drawViewInvMat:inv4x4(app.ram.viewMat)
-					self.selRotFwdDir = vec3d(
-						drawViewInvMat.ptr[8],
-						drawViewInvMat.ptr[9],
-						drawViewInvMat.ptr[10]
-					):normalize()
-				end
-				return
-
-			-- TODO or maybe use this for flipping common edge between two tris?
-			elseif e[0].key.key == sdl.SDLK_F then
-				self.drawFaces = not self.drawFaces
-				return
-			elseif e[0].key.key == sdl.SDLK_N then
-				self.drawNormals = not self.drawNormals
-				return
-			elseif e[0].key.key == sdl.SDLK_W then
-				self.wireframe = not self.wireframe
-				return
-			elseif e[0].key.key == sdl.SDLK_O then
-				orbit.ortho = not orbit.ortho
-				return
-
-			elseif e[0].key.key == sdl.SDLK_V then
-				self.meshEditForm = 'vertexes'
-				return
-			elseif e[0].key.key == sdl.SDLK_E then
-				self.meshEditForm = 'edges'
-				return
-			elseif e[0].key.key == sdl.SDLK_T then
-				self.meshEditForm = 'tris'
-				return
-
-			elseif e[0].key.key == sdl.SDLK_X then
-				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
-				resetVtxEditPos()
-				return
-			elseif e[0].key.key == sdl.SDLK_Y then
-				self.axisFlags.y = not self.axisFlags.y or nil
-				resetVtxEditPos()
-				return
-			elseif e[0].key.key == sdl.SDLK_Z then
-				self.axisFlags.z = not self.axisFlags.z or nil
-				resetVtxEditPos()
-				return
 			end
 		end
 	end

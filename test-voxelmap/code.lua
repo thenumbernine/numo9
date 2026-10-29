@@ -515,7 +515,7 @@ update=||do
 	Lights:endFrame()
 --]]
 
---	flushHD2D()
+	flushHD2D()
 
 	-- end-of-frame, after view has been captured, do ortho and draw text
 	-- but disable light flags before clearing depth or else it'll clear the light depth too
@@ -537,9 +537,9 @@ update=||do
 	text(tostring('Cx '..playerCoins), 0, 0, 220, 219)
 	--]]
 
-	--poke(ramaddr'HD2DFlags', 0)		-- set neither
+	poke(ramaddr'HD2DFlags', 0)		-- set neither
 	--poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
 	--poke(ramaddr'HD2DFlags', 0x40)		-- set HDR
 	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
-	poke(ramaddr'HD2DFlags', HD2DFlags)
+	--poke(ramaddr'HD2DFlags', HD2DFlags)
 end
