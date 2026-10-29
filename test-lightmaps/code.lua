@@ -11,9 +11,10 @@ local Lights = require 'numo9.lights'
 
 poke(ramaddr'HD2DFlags', 0xff & ~4)	-- lightmaps without ssao
 pokef(ramaddr'ssaoSampleRadius', .1)
---mode(2)	-- 256x256 rgb332
---mode(0)
-mode(255)
+--mode(255)	-- native res x RGB565
+--mode(0)	-- 256x256xRGB565
+--mode(1)	-- 256x256x8bppIndex
+mode(2)	-- 256x256xRGB332
 
 local poly = |t, a| do
 	local s = 0
