@@ -28,10 +28,10 @@ pokef(ramaddr'lightAmbientColor'+0, 0)
 pokef(ramaddr'lightAmbientColor'+4, 0)
 pokef(ramaddr'lightAmbientColor'+8, 0)
 
-mode(-1)	-- native res x RGB565 works
+--mode(-1)	-- native res x RGB565 works
 --mode(0)	-- 256x256xRGB565 works
 --mode(1)	-- 256x256x8bppIndex works
---mode(2)	-- 256x256 rgb332 works
+mode(2)	-- 256x256 rgb332 works
 
 update = ||do
 
