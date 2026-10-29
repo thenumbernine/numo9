@@ -381,7 +381,7 @@ elseif cmd == 'a' or cmd == 'r' then
 
 		for i,f in ipairs(wavefuncs) do
 			if not blobs.sfx[i] then
-print('creating default sfx '..i..' blob')
+--DEBUG:print('creating default sfx '..i..' blob')
 				local len = math.ceil(audioSampleRate / waveformFreq * 2)
 				local data = audioSampleArrType(len)
 				local p = ffi.cast(audioSamplePtrType, data)
