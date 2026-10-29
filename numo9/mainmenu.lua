@@ -477,6 +477,12 @@ function MainMenu:setCurrentMenu(name)
 								-- capture it
 								app.waitingForEvent = {
 									callback = function(e)
+										-- if it's a first Return to enter into the .click() then ignore it...
+										if e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_RETURN then
+											-- TODO handle default so we can capture the next key
+											return
+										end
+
 										-- [[ let esc or g.p. start clear the binding
 										if (e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE)
 										or (e[1] == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[3] == sdl.SDL_GAMEPAD_BUTTON_START)
