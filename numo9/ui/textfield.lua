@@ -63,6 +63,7 @@ function UITextField:onKeyDown(e)
 	elseif keycode == keyCodeForName['return'] then
 		-- change is on 'commit', i.e. key 'enter' or blur
 		self:triggerEvents('change', false, e)
+		self.root:setFocusWidget(nil)
 	elseif ch then
 		self.value = self.value:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. self.value:sub(self.textFieldCursorLoc+1)
 		self.textFieldCursorLoc = math.min(#self.value, self.textFieldCursorLoc + 1)

@@ -327,28 +327,28 @@ function UIRoot:setFocusWidget(widget, ...)
 
 	self.activeElement = widget
 
-	-- see if widget's screen-space is out of bounds
-	-- if so, scroll parent so it is in bounds
-	-- TODO consider scale?
-	local viewPadding = 10
-	local app = self.owner.app
-	-- which to use ...
-	local container = self	-- has .scroll
-	--local container = widget.parent
-	if widget.ssbbox.max.x < 0 then
-		container.scroll.x = container.scroll.x + viewPadding - widget.ssbbox.max.x
-	end
-	if widget.ssbbox.max.y < 0 then
-		container.scroll.y = container.scroll.y + viewPadding - widget.ssbbox.max.y
-	end
-	if widget.ssbbox.min.x >= app.width then
-		container.scroll.x = container.scroll.x - widget.ssbbox.max.x - app.width + viewPadding
-	end
-	if widget.ssbbox.min.y >= app.height then
-		container.scroll.y = container.scroll.y - widget.ssbbox.max.y - app.height + viewPadding
-	end
-
 	if self.activeElement then
+		-- see if widget's screen-space is out of bounds
+		-- if so, scroll parent so it is in bounds
+		-- TODO consider scale?
+		local viewPadding = 10
+		local app = self.owner.app
+		-- which to use ...
+		local container = self	-- has .scroll
+		--local container = widget.parent
+		if widget.ssbbox.max.x < 0 then
+			container.scroll.x = container.scroll.x + viewPadding - widget.ssbbox.max.x
+		end
+		if widget.ssbbox.max.y < 0 then
+			container.scroll.y = container.scroll.y + viewPadding - widget.ssbbox.max.y
+		end
+		if widget.ssbbox.min.x >= app.width then
+			container.scroll.x = container.scroll.x - widget.ssbbox.max.x - app.width + viewPadding
+		end
+		if widget.ssbbox.min.y >= app.height then
+			container.scroll.y = container.scroll.y - widget.ssbbox.max.y - app.height + viewPadding
+		end
+
 		self:bubbleCallback(self.activeElement, 'onFocusIn_bubbleIn', 'onFocusIn', ...)
 		self.activeElement:onFocus(...)
 	end
