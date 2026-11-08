@@ -351,37 +351,34 @@ Player.update = |:, ...|do
 	self.vel.x = 0
 	self.vel.y = 0
 	-- hold y + dir to rotate camera
-	if btn'x' then
-		if btnp'left' then
-			view.destYaw += 90
-		elseif btnp'right' then
-			view.destYaw -= 90
-		end
-	else
-		local speed = btn'y' and self.walkSpeed * 1.5 or self.walkSpeed
-		if btn'up' then
-			self.vel.x += -view.sinYaw * speed
-			self.vel.y += view.cosYaw * speed
-			self.angle = view.yaw + 90
-			self.angle %= 360
-		end
-		if btn'down' then
-			self.vel.x -= -view.sinYaw * speed
-			self.vel.y -= view.cosYaw * speed
-			self.angle = view.yaw - 90
-			self.angle %= 360
-		end
-		if btn'left' then
-			self.vel.x -= view.cosYaw * speed
-			self.vel.y -= view.sinYaw * speed
-			self.angle = view.yaw + 180
-			self.angle %= 360
-		end
-		if btn'right' then
-			self.vel.x += view.cosYaw * speed
-			self.vel.y += view.sinYaw * speed
-			self.angle = view.yaw
-		end
+	if btnp'l' then
+		view.destYaw += 90
+	elseif btnp'r' then
+		view.destYaw -= 90
+	end
+	local speed = btn'y' and self.walkSpeed * 1.5 or self.walkSpeed
+	if btn'up' then
+		self.vel.x += -view.sinYaw * speed
+		self.vel.y += view.cosYaw * speed
+		self.angle = view.yaw + 90
+		self.angle %= 360
+	end
+	if btn'down' then
+		self.vel.x -= -view.sinYaw * speed
+		self.vel.y -= view.cosYaw * speed
+		self.angle = view.yaw - 90
+		self.angle %= 360
+	end
+	if btn'left' then
+		self.vel.x -= view.cosYaw * speed
+		self.vel.y -= view.sinYaw * speed
+		self.angle = view.yaw + 180
+		self.angle %= 360
+	end
+	if btn'right' then
+		self.vel.x += view.cosYaw * speed
+		self.vel.y += view.sinYaw * speed
+		self.angle = view.yaw
 	end
 
 	-- test jump here before walking because walking clears onground flag for the sake of testing falling off ledges
@@ -462,6 +459,15 @@ local textwidth = 32 * 8
 local textheight = textwidth
 
 update=||do
+	for _,obj in ipairs(objs) do
+		obj:update()
+	end
+	for i=#objs,1,-1 do
+		if objs[i].remove then objs:remove(i) end
+	end
+end
+
+draw=||do
 	poke(ramaddr'HD2DFlags', 0)
 	cls(33)
 
@@ -491,11 +497,7 @@ update=||do
 	voxelmap()
 
 	for _,obj in ipairs(objs) do
-		obj:update()
 		obj:draw()
-	end
-	for i=#objs,1,-1 do
-		if objs[i].remove then objs:remove(i) end
 	end
 
 -- [[ use default for now.
