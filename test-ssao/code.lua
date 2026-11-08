@@ -4,10 +4,15 @@ i think now instead I'll use it for testing multilpe hd2d flags rendered to the 
 --]]
 local matpush = require 'numo9.matstack'.push
 local matpop = require 'numo9.matstack'.pop
+local getScreenSize = require 'numo9.screen'.getScreenSize
 local getAspectRatio = require 'numo9.screen'.getAspectRatio
 local Lights = require 'numo9.lights'
 local quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
+
+local modelMatrixIndex = require 'numo9.matstack'.modelMatrixIndex
+local viewMatrixIndex = require 'numo9.matstack'.viewMatrixIndex
+local projMatrixIndex = require 'numo9.matstack'.projMatrixIndex
 
 local angle = quat()
 
@@ -70,35 +75,119 @@ update = ||do
 		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 	end
 
-	Lights.MakeLight.znear = 1
-	Lights.MakeLight.zfar = 100
-	Lights.MakeLight.ambient:set(1,1,1)
-	Lights.MakeLight.diffuse:set(1,1,1)
-	Lights.MakeLight.specular:set(1,1,1)
-	Lights.MakeLight.shininess = 10
-	Lights.MakeLight.distAtten:set(1,0,0)
-	Lights:beginFrame()
-	--Lights:makeSunLight(10, vec3(0,0,0))
-	Lights.makeSpotLight(0, 0, 5, 0, -90, 90, 0)
 
-	mattrans(0, 0, -8, 1)			-- view transform
-	do
-		local x,y,z,th = quat.quat_toAngleAxis(angle:unpack())
-		matrot(th,x,y,z, 1)	-- view transform
+	local w, h = getScreenSize()
+	local lightPosX = 6 * (tonumber(int16_t(peekw(ramaddr'mousePos')))/w*2-1)
+	local lightPosY = -6 * (tonumber(int16_t(peekw(ramaddr'mousePos'+2)))/h*2-1)
+	local lightPosZ = 6
+
+
+	if true then
+		Lights:beginFrame()
+
+		-- set up a torch point light at the player
+		-- TODO lightmap block allocation system ...
+		local lightAddr, lx, ly, lw, lh = Lights:new()
+		if not lightAddr then return end
+
+		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
+		matpush(projMatrixIndex)
+		matpush(viewMatrixIndex)	-- push the view mat
+
+		matident(projMatrixIndex)
+
+		local spotOuterAngle = 90
+		local spotInnerAngle = 0
+
+		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
+		local znear, zfar = 1, 100	-- light znear/zfar
+		matfrustum(
+			-tanHalfFOV * znear,
+			tanHalfFOV * znear,
+			-tanHalfFOV * znear,
+			tanHalfFOV * znear,
+			znear, zfar)	-- projMatrixIndex by default
+
+		matident(viewMatrixIndex)
+
+		mattrans(-lightPosX, -lightPosY, -lightPosZ, viewMatrixIndex)
+
+		poke(lightAddr + Lights.lightEnabledOffset, 0xff)		-- light is enabled for depth-write and for surface-calculations
+
+		memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
+		memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
+
+		matpop(viewMatrixIndex)
+		matpop(projMatrixIndex)
+
+		pokef(lightAddr + Lights.lightAmbientColorOffset, .1)
+		pokef(lightAddr + Lights.lightAmbientColorOffset+4, .1)
+		pokef(lightAddr + Lights.lightAmbientColorOffset+8, .1)
+		pokef(lightAddr + Lights.lightDiffuseColorOffset, .6)
+		pokef(lightAddr + Lights.lightDiffuseColorOffset+4, .5)
+		pokef(lightAddr + Lights.lightDiffuseColorOffset+8, .4)
+		pokef(lightAddr + Lights.lightSpecularColorOffset, 1)
+		pokef(lightAddr + Lights.lightSpecularColorOffset+4, 1)
+		pokef(lightAddr + Lights.lightSpecularColorOffset+8, 1)
+		pokef(lightAddr + Lights.lightSpecularColorOffset+12, 40)
+		pokef(lightAddr + Lights.lightDistAttenOffset, 1)
+		pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
+		pokef(lightAddr + Lights.lightDistAttenOffset+8, 0)
+		pokef(lightAddr + Lights.lightCosAngleRangeOffset, math.cos(math.rad(spotOuterAngle)))
+		pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, math.cos(math.rad(spotInnerAngle)))
+
+		-- subimage/viewport on the lightmap
+		pokew(lightAddr + Lights.lightRegionOffset, lx)
+		pokew(lightAddr + Lights.lightRegionOffset+2, ly)
+		pokew(lightAddr + Lights.lightRegionOffset+4, lw)
+		pokew(lightAddr + Lights.lightRegionOffset+6, lh)
 	end
 
-	matscale(5, 5, 5)
-	matpush()
-	matscale(1/32768, 1/32768, 1/32768)
 
-	--poke(ramaddr'cullFace', 2)	-- why is this messing up the ui even if i reset cullFace?
-	mesh(1, 32, 0)	-- cube without z+
-	--poke(ramaddr'cullFace', 1)
-	matpop()
+	mattrans(0, 0, -12, viewMatrixIndex)
 
-	Lights:endFrame()
+	matpush(modelMatrixIndex)
 
-	-- [[ flush will write back to framebuffer ...
+	local x,y,z,th = quat.quat_toAngleAxis(angle:unpack())
+	matrot(th,x,y,z)
+
+	for _,cube in ipairs{
+		-- center
+		{pos=vec3(0,0,0), scale=vec3(5,5,5)},
+		-- walls
+		--{pos=vec3(8,0,0), scale=vec3(.5,16,16)},
+		{pos=vec3(-8,0,0), scale=vec3(.5,16,16)},
+		{pos=vec3(0,8,0), scale=vec3(16,.5,16)},
+		{pos=vec3(0,-8,0), scale=vec3(16,.5,16)},
+		--{pos=vec3(0,0,8), scale=vec3(16,16,.5)},
+		{pos=vec3(0,0,-8), scale=vec3(16,16,.5)},
+	} do
+		matpush(modelMatrixIndex)
+		mattrans(cube.pos:unpack())
+		matscale(cube.scale:unpack())
+
+		--poke(ramaddr'cullFace', 2)	-- why is this messing up the ui even if i reset cullFace?
+		--mesh(1, 16, 0)	-- cube without z+
+		matscale(1/32768, 1/32768, 1/32768)
+		mesh(0, 16, 0)		-- cube
+		--poke(ramaddr'cullFace', 1)
+		matpop(modelMatrixIndex)
+	end
+
+	matpop(modelMatrixIndex)
+
+	-- draw a box at the light too
+	matpush(modelMatrixIndex)
+	mattrans(lightPosX, lightPosY, lightPosZ)
+	matscale(-1/32768, -1/32768, -1/32768)
+	mesh(0, 16, 0)		-- cube
+	matpop(modelMatrixIndex)
+
+	if true then
+		Lights:endFrame()
+	end
+
+	--[[ flush will write back to framebuffer ...
 	flushHD2D()
 
 	poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
