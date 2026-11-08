@@ -84,7 +84,7 @@ update = ||do
 	if true then
 		Lights:beginFrame()
 
-		-- [==[
+		--[==[
 		-- set up a torch point light at the player
 		-- TODO lightmap block allocation system ...
 		local lightAddr, lx, ly, lw, lh = Lights:new(1024, 1024) --2048, 2048)
@@ -140,7 +140,7 @@ update = ||do
 		matpop(viewMatrixIndex)
 		matpop(projMatrixIndex)
 		--]==]
-		--[==[
+		-- [==[
 		Lights.makePointLight(lightPosX, lightPosY, lightPosZ)
 		--]==]
 	end
