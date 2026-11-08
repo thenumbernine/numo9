@@ -35,6 +35,7 @@ files = {
 	"extra-scripts/multi-atlas.rua",
 	"extra-scripts/regen-all-carts.rua",
 	"extra-scripts/savepal.rua",
+	"extra-scripts/setpal.rua",
 	"extra-scripts/voxel-histogram.rua",
 	"font.png",
 	"hello.n9",
