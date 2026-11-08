@@ -645,7 +645,7 @@ function EditSheet:init(args)
 				assert(x >= 0 and y >= 0 and x + width <= sheetRAM.image.width and y + height <= sheetRAM.image.height)
 				local image = sheetRAM.image:copy{x=x, y=y, width=width, height=height}
 				if image.channels == 1 then
-	--DEBUG:print'BAKING PALETTE'
+--DEBUG:print'BAKING PALETTE'
 					-- TODO move palette functionality inot Image
 					-- TODO offset palette by current bits / shift?
 					local rgba = Image(image.width, image.height, 4, uint8_t)
@@ -655,7 +655,7 @@ function EditSheet:init(args)
 						dstp[0],dstp[1],dstp[2],dstp[3] = rgba5551_to_rgba8888_4ch(
 							ffi.cast(palettePtrType, paletteBlob.ramptr)[srcp[0]]
 						)
-	--DEBUG:print(i, dstp[0],dstp[1],dstp[2],dstp[3])
+--DEBUG:print(i, dstp[0],dstp[1],dstp[2],dstp[3])
 						dstp = dstp + 4
 						srcp = srcp + 1
 					end
@@ -696,7 +696,7 @@ function EditSheet:init(args)
 						- use 'convert-to-8x8x4pp's trick there ...
 					--]]
 					if image.channels ~= 1 then
-	print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
+--DEBUG:print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 						assert.ge(image.channels, 3)	-- NOTICE it's only RGB right now ... not even alpha
 						image = image:rgba()
 						assert.eq(image.channels, 4, "image channels")
@@ -754,8 +754,8 @@ function EditSheet:init(args)
 						end
 					end
 					assert.eq(image.channels, 1, "image.channels")
-	--DEBUG:print'pasting image'
-	--DEBUG:print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
+--DEBUG:print'pasting image'
+--DEBUG:print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
 					for j=0,image.height-1 do
 						for i=0,image.width-1 do
 							local destx = i + x
