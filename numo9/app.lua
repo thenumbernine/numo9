@@ -2292,60 +2292,69 @@ print('run thread dead')
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		local videoModeObj = self.videoModes[self.ram.videoMode]
-
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
 		-- same condition as in flushToFinalRGB
-		local finalRGBTex = videoModeObj.framebufferRAM.tex
+		local finalRGBTex
 		if videoModeObj.bakeRGBBlitObj then
 			finalRGBTex = videoModeObj.bakeRGBTex:cur()
+assert(finalRGBTex)
+		else
+			finalRGBTex = videoModeObj.framebufferRAM
+				and videoModeObj.framebufferRAM.tex
+			if not finalRGBTex then
+-- TODO on native mode resize, for a single frame, this is nil...
+				print('!!! WARNING !!! you lost videoMode '..self.ram.videoMode..' framebufferRAM.tex')
+			end
 		end
-		if bit.band(self.ram.HD2DFlags, bit.bor(
-			ffi.C.HD2DFlags_lightingApplyToSurface,
-			ffi.C.HD2DFlags_useSSAO,
-			ffi.C.HD2DFlags_calcFromLightMap,
-			ffi.C.HD2DFlags_calcFromLights
-		)) ~= 0 then
-			finalRGBTex = videoModeObj.lightAndFBTex:cur()
-		end
-		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
-			finalRGBTex = videoModeObj.hdrTex:cur()
-		end
-		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
-			finalRGBTex = videoModeObj.dofTex:cur()
-		end
+		if finalRGBTex then
+			if bit.band(self.ram.HD2DFlags, bit.bor(
+				ffi.C.HD2DFlags_lightingApplyToSurface,
+				ffi.C.HD2DFlags_useSSAO,
+				ffi.C.HD2DFlags_calcFromLightMap,
+				ffi.C.HD2DFlags_calcFromLights
+			)) ~= 0 then
+				finalRGBTex = videoModeObj.lightAndFBTex:cur()
+			end
+			if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+				finalRGBTex = videoModeObj.hdrTex:cur()
+			end
+			if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+				finalRGBTex = videoModeObj.dofTex:cur()
+			end
 
-		-- redo ortho projection matrix
-		-- every frame for us to use a proper rectangle
-		local fx = self.width / finalRGBTex.width
-		local fy = self.height / finalRGBTex.height
-		local fmin = math.min(fx, fy)
-		local rx = (fx / fmin - 1) * .5
-		local ry = (fy / fmin - 1) * .5
-		local view = self.blitScreenView
-		self.orthoMin.x = -view.orthoSize * rx
-		self.orthoMax.x = view.orthoSize * (rx + 1)
-		self.orthoMin.y = -view.orthoSize * ry
-		self.orthoMax.y = view.orthoSize * (ry + 1)
-		view.projMat:setOrtho(
-			self.orthoMin.x,
-			self.orthoMax.x,
-			self.orthoMin.y,
-			self.orthoMax.y,
-			-1,
-			1
-		)
-		view.mvMat:setIdent()
-		view.mvProjMat:copy(view.projMat)
+			-- redo ortho projection matrix
+			-- every frame for us to use a proper rectangle
+			local fx = self.width / finalRGBTex.width
+			local fy = self.height / finalRGBTex.height
+			local fmin = math.min(fx, fy)
+			local rx = (fx / fmin - 1) * .5
+			local ry = (fy / fmin - 1) * .5
+			local view = self.blitScreenView
+			self.orthoMin.x = -view.orthoSize * rx
+			self.orthoMax.x = view.orthoSize * (rx + 1)
+			self.orthoMin.y = -view.orthoSize * ry
+			self.orthoMax.y = view.orthoSize * (ry + 1)
+			view.projMat:setOrtho(
+				self.orthoMin.x,
+				self.orthoMax.x,
+				self.orthoMin.y,
+				self.orthoMax.y,
+				-1,
+				1
+			)
+			view.mvMat:setIdent()
+			view.mvProjMat:copy(view.projMat)
 
-		local sceneObj = videoModeObj.finalBlitScreenObj
-		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		sceneObj.texs[1] = finalRGBTex
+			local sceneObj = videoModeObj.finalBlitScreenObj
+			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+			sceneObj.texs[1] = finalRGBTex
 
-		-- draw from framebuffer to screen
-		sceneObj:draw()
+			-- draw from framebuffer to screen
+			sceneObj:draw()
+		end
 
 		-- [[ DOUBLEBUFFER ON: and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)

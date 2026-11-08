@@ -76,14 +76,13 @@ update = ||do
 	matfrustum(-.1, .1, -.1, .1, .1, 100)
 	local t = time()
 	--local cx, cy = math.cos(t), math.sin(t)
-	
+
 	-- TODO I could use the makeSpotLight info here but its using a dif Euler-angle basis
 	-- which means I should change it to not evne force the makeSpotLight call to accept xyz or orientation at all...
 	mattrans(0, 0, -1, viewMatrixIndex)		-- view transform
 	matrot(.3 * t, 0, 1, 0, viewMatrixIndex)	-- view transform
 
 	if not lightInitialized then
-
 		memcpy(ramaddr'lights' + Lights.lightViewMatOffset, ramaddr'viewMat', 64)
 		memcpy(ramaddr'lights' + Lights.lightProjMatOffset, ramaddr'projMat', 64)
 

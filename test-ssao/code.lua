@@ -32,8 +32,8 @@ pokef(ramaddr'lightAmbientColor'+0, 0)
 pokef(ramaddr'lightAmbientColor'+4, 0)
 pokef(ramaddr'lightAmbientColor'+8, 0)
 
---mode(-1)	-- native res x RGB565
-mode(0)	-- 256x256xRGB565
+mode(-1)	-- native res x RGB565
+--mode(0)	-- 256x256xRGB565
 --mode(1)	-- 256x256x8bppIndex
 --mode(2)	-- 256x256 rgb332
 
@@ -75,6 +75,8 @@ update = ||do
 		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
 	end
 
+	-- init view matrix before lights
+	mattrans(0, 0, -12, viewMatrixIndex)
 
 	local w, h = getScreenSize()
 	local lightPosX = 6 * (tonumber(int16_t(peekw(ramaddr'mousePos')))/w*2-1)
@@ -87,39 +89,14 @@ update = ||do
 
 		-- set up a torch point light at the player
 		-- TODO lightmap block allocation system ...
-		local lightAddr, lx, ly, lw, lh = Lights:new()
-		if not lightAddr then return end
+		local lightAddr, lx, ly, lw, lh = Lights:new(1024, 1024) --2048, 2048)
 
-		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
-		matpush(projMatrixIndex)
-		matpush(viewMatrixIndex)	-- push the view mat
-
-		matident(projMatrixIndex)
-
-		local spotOuterAngle = 90
-		local spotInnerAngle = 0
-
-		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
-		local znear, zfar = 1, 100	-- light znear/zfar
-		matfrustum(
-			-tanHalfFOV * znear,
-			tanHalfFOV * znear,
-			-tanHalfFOV * znear,
-			tanHalfFOV * znear,
-			znear, zfar)	-- projMatrixIndex by default
-
-		matident(viewMatrixIndex)
-
-		mattrans(-lightPosX, -lightPosY, -lightPosZ, viewMatrixIndex)
-
+		-- subimage/viewport on the lightmap
 		poke(lightAddr + Lights.lightEnabledOffset, 0xff)		-- light is enabled for depth-write and for surface-calculations
-
-		memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
-		memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
-
-		matpop(viewMatrixIndex)
-		matpop(projMatrixIndex)
-
+		pokew(lightAddr + Lights.lightRegionOffset, lx)
+		pokew(lightAddr + Lights.lightRegionOffset+2, ly)
+		pokew(lightAddr + Lights.lightRegionOffset+4, lw)
+		pokew(lightAddr + Lights.lightRegionOffset+6, lh)
 		pokef(lightAddr + Lights.lightAmbientColorOffset, .1)
 		pokef(lightAddr + Lights.lightAmbientColorOffset+4, .1)
 		pokef(lightAddr + Lights.lightAmbientColorOffset+8, .1)
@@ -133,18 +110,40 @@ update = ||do
 		pokef(lightAddr + Lights.lightDistAttenOffset, 1)
 		pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
 		pokef(lightAddr + Lights.lightDistAttenOffset+8, 0)
+
+		local spotOuterAngle = 90
+		local spotInnerAngle = 0
+		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
+		local znear, zfar = 1, 100	-- light znear/zfar
+
 		pokef(lightAddr + Lights.lightCosAngleRangeOffset, math.cos(math.rad(spotOuterAngle)))
 		pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, math.cos(math.rad(spotInnerAngle)))
 
-		-- subimage/viewport on the lightmap
-		pokew(lightAddr + Lights.lightRegionOffset, lx)
-		pokew(lightAddr + Lights.lightRegionOffset+2, ly)
-		pokew(lightAddr + Lights.lightRegionOffset+4, lw)
-		pokew(lightAddr + Lights.lightRegionOffset+6, lh)
+
+		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
+		matpush(projMatrixIndex)
+		matpush(viewMatrixIndex)	-- push the view mat
+
+		matident(projMatrixIndex)
+
+		matfrustum(
+			-tanHalfFOV * znear,
+			tanHalfFOV * znear,
+			-tanHalfFOV * znear,
+			tanHalfFOV * znear,
+			znear, zfar)	-- projMatrixIndex by default
+
+		matident(viewMatrixIndex)
+
+		mattrans(-lightPosX, -lightPosY, -lightPosZ, viewMatrixIndex)
+
+		memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
+		memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
+
+		matpop(viewMatrixIndex)
+		matpop(projMatrixIndex)
 	end
 
-
-	mattrans(0, 0, -12, viewMatrixIndex)
 
 	matpush(modelMatrixIndex)
 
