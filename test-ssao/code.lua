@@ -26,6 +26,7 @@ HD2DFlags |= 8	-- 8 = use bump map
 HD2DFlags |= 16	-- 16 = use shadow in lighting
 HD2DFlags |= 32	-- 32 = use amb diff spec in light color calcs
 
+
 pokef(ramaddr'ssaoSampleRadius', .1)
 
 pokef(ramaddr'lightAmbientColor'+0, 0)
@@ -39,7 +40,9 @@ mode(0xff)	-- native res x RGB565
 
 update = ||do
 	poke(ramaddr'HD2DFlags', HD2DFlags)
-	cls(7)	-- HD2DFlags + clear() == clear lighting gbuf
+	cls(7)
+--	cls(nil, true)
+--	poke(ramaddr'HD2DFlags', 0)
 
 	matident(0)	-- model
 	matident(1)	-- view
@@ -81,69 +84,9 @@ update = ||do
 	local lightPosZ = 6
 
 
-	if true then
-		Lights:beginFrame()
+	Lights:beginFrame()
 
-		--[==[
-		-- set up a torch point light at the player
-		-- TODO lightmap block allocation system ...
-		local lightAddr, lx, ly, lw, lh = Lights:new(1024, 1024) --2048, 2048)
-
-		-- subimage/viewport on the lightmap
-		poke(lightAddr + Lights.lightEnabledOffset, 0xff)		-- light is enabled for depth-write and for surface-calculations
-		pokew(lightAddr + Lights.lightRegionOffset, lx)
-		pokew(lightAddr + Lights.lightRegionOffset+2, ly)
-		pokew(lightAddr + Lights.lightRegionOffset+4, lw)
-		pokew(lightAddr + Lights.lightRegionOffset+6, lh)
-		pokef(lightAddr + Lights.lightAmbientColorOffset, .1)
-		pokef(lightAddr + Lights.lightAmbientColorOffset+4, .1)
-		pokef(lightAddr + Lights.lightAmbientColorOffset+8, .1)
-		pokef(lightAddr + Lights.lightDiffuseColorOffset, .6)
-		pokef(lightAddr + Lights.lightDiffuseColorOffset+4, .5)
-		pokef(lightAddr + Lights.lightDiffuseColorOffset+8, .4)
-		pokef(lightAddr + Lights.lightSpecularColorOffset, 1)
-		pokef(lightAddr + Lights.lightSpecularColorOffset+4, 1)
-		pokef(lightAddr + Lights.lightSpecularColorOffset+8, 1)
-		pokef(lightAddr + Lights.lightSpecularColorOffset+12, 40)
-		pokef(lightAddr + Lights.lightDistAttenOffset, 1)
-		pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
-		pokef(lightAddr + Lights.lightDistAttenOffset+8, 0)
-
-		local spotOuterAngle = 45
-		local spotInnerAngle = 0
-		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
-		local znear, zfar = .1, 20	-- light znear/zfar
-
-		pokef(lightAddr + Lights.lightCosAngleRangeOffset, math.cos(math.rad(spotOuterAngle)))
-		pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, math.cos(math.rad(spotInnerAngle)))
-
-		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
-		matpush(projMatrixIndex)
-		matpush(viewMatrixIndex)	-- push the view mat
-
-		matident(projMatrixIndex)
-
-		matfrustum(
-			-tanHalfFOV * znear,
-			tanHalfFOV * znear,
-			-tanHalfFOV * znear,
-			tanHalfFOV * znear,
-			znear, zfar)	-- projMatrixIndex by default
-
-		matident(viewMatrixIndex)
-
-		mattrans(-lightPosX, -lightPosY, -lightPosZ, viewMatrixIndex)
-
-		memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
-		memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
-
-		matpop(viewMatrixIndex)
-		matpop(projMatrixIndex)
-		--]==]
-		-- [==[
-		Lights.makePointLight(lightPosX, lightPosY, lightPosZ)
-		--]==]
-	end
+	Lights.makePointLight(lightPosX, lightPosY, lightPosZ)
 
 	matpush(modelMatrixIndex)
 
@@ -182,9 +125,8 @@ update = ||do
 	mesh(0, 16, 0)		-- cube
 	matpop(modelMatrixIndex)
 
-	if true then
-		Lights:endFrame()
-	end
+	Lights:endFrame()
+--pokew(ramaddr'numLights', 1)
 
 	--[[ flush will write back to framebuffer ...
 	flushHD2D()
@@ -195,4 +137,9 @@ update = ||do
 	--poke(ramaddr'HD2DFlags', 0xff)
 	--poke(ramaddr'HD2DFlags', 0)
 	--cls(nil, true)	-- HD2DFlags + clear() == clear lighting gbuf
+
+
+--	flushHD2D()
+--	poke(ramaddr'HD2DFlags', 0)
+--	cls(nil, true)
 end
