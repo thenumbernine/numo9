@@ -1,0 +1,24 @@
+#!/usr/bin/env rua
+
+-- replacing an indexed image's palette with the palette a palette-png represents
+
+local Image = require 'image'
+
+local infn, palfn, outfn = ...
+if not (infn and palfn and outfn) then
+	io.stderr:write"usage: setpal infile.png palfile.png outfile.png\n"
+	os.exit(1)
+end
+
+local pal = Image(palfn)
+assert.eq(pal.channels, 4, "expected palette to be RGBA")
+
+local img = Image(infn)
+assert.eq(img.channels, 1, "expected 1-channel indexed image")
+img.palette = range(0,255):mapi(|i|do
+	local p = pal.buffer + pal.channels * i
+	return i < pal.width * pal.height
+	and {p[0], p[1], p[2], p[3]}	-- assuming format is uint8_t ...
+	or {0,0,0,0}
+end)
+img:save(outfn)
