@@ -25,15 +25,16 @@ mode(0xff)	-- NativexRGB565
 --HD2DFlags = 1|2|8|16|32		-- no SSAO, noDoF
 HD2DFlags = 0xff				-- everything
 
+-- [[
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
 pokef(ramaddr'dofFocalRange', 2)
 pokef(ramaddr'dofAperature', .3)	-- how much to multiply depth-dist to get blur amount
 pokef(ramaddr'dofBlurMax', 10)
-poke(ramaddr'cullFace', 1)
 
 -- default is 8
 pokef(ramaddr'spriteNormalExhaggeration', 64)
+--]]
 
 local player
 local playerCoins = 0
@@ -55,13 +56,17 @@ local maxFallVel = -.8
 view = {
 	-- 0 degrees = y+ is forward, x+ is right
 	yaw = 90,
-	destYaw = 90,
 	tiltUpAngle = -20,
 	--tiltUpAngle = 0,
 	followDist = 7,
 	followAlt = 2,
 	pos = vec3(),
 }
+view.destYaw = view.yaw
+view.cosYaw = math.cos(math.rad(view.yaw))
+view.sinYaw = math.sin(math.rad(view.yaw))
+view.cosPitch = math.cos(math.rad(90 + view.tiltUpAngle))
+view.sinPitch = math.sin(math.rad(90 + view.tiltUpAngle))
 view.update = |:, width, height, player|do
 	-- setup proj matrix
 	matident(2)
@@ -468,13 +473,12 @@ update=||do
 end
 
 draw=||do
+	local width, height = getScreenSize()
 	poke(ramaddr'HD2DFlags', 0)
 	cls(33)
 
 	-- draw sky
 	-- assume we are still in ortho matrix setup from the end of last frame
-	local width, height = getScreenSize()
-	poke(ramaddr'cullFace', 0)
 	spr(
 		1024,							-- spriteIndex
 		0, 0, 							-- screenX, screenY
@@ -482,7 +486,6 @@ draw=||do
 		0,								-- orientation2D
 		textwidth/256, textheight/256	-- scaleX, scaleY
 	)
-	poke(ramaddr'cullFace', 1)
 
 	-- you gotta set HD2DFlags with lighting first
 	-- before clearing the depth buffer next....
@@ -494,11 +497,14 @@ draw=||do
 
 	view:update(width, height, player)
 
+	poke(ramaddr'cullFace', 1)
+
 	voxelmap()
 
 	for _,obj in ipairs(objs) do
 		obj:draw()
 	end
+	poke(ramaddr'cullFace', 0)
 
 -- [[ use default for now.
 	pokew(ramaddr'numLights', 1)
@@ -536,10 +542,9 @@ draw=||do
 	matident(1)
 	matident(2)
 	matortho(0, textwidth, textheight, 0)
-	text(tostring('Cx '..playerCoins), 0, 0, 220, 219)
-	--]]
+	text(tostring('C x '..playerCoins), 0, 0, 220, 219)
 
-	poke(ramaddr'HD2DFlags', 0)		-- set neither
+	--poke(ramaddr'HD2DFlags', 0)		-- set neither
 	--poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
 	--poke(ramaddr'HD2DFlags', 0x40)		-- set HDR
 	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
