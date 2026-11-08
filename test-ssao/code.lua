@@ -32,17 +32,14 @@ pokef(ramaddr'lightAmbientColor'+0, 0)
 pokef(ramaddr'lightAmbientColor'+4, 0)
 pokef(ramaddr'lightAmbientColor'+8, 0)
 
-mode(-1)	-- native res x RGB565
+mode(0xff)	-- native res x RGB565
 --mode(0)	-- 256x256xRGB565
 --mode(1)	-- 256x256x8bppIndex
 --mode(2)	-- 256x256 rgb332
 
 update = ||do
-	poke(ramaddr'HD2DFlags', 0)
-	cls(7)
-
 	poke(ramaddr'HD2DFlags', HD2DFlags)
-	cls(nil, true)	-- HD2DFlags + clear() == clear lighting gbuf
+	cls(7)	-- HD2DFlags + clear() == clear lighting gbuf
 
 	matident(0)	-- model
 	matident(1)	-- view
@@ -87,6 +84,7 @@ update = ||do
 	if true then
 		Lights:beginFrame()
 
+		-- [==[
 		-- set up a torch point light at the player
 		-- TODO lightmap block allocation system ...
 		local lightAddr, lx, ly, lw, lh = Lights:new(1024, 1024) --2048, 2048)
@@ -111,14 +109,13 @@ update = ||do
 		pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
 		pokef(lightAddr + Lights.lightDistAttenOffset+8, 0)
 
-		local spotOuterAngle = 90
+		local spotOuterAngle = 45
 		local spotInnerAngle = 0
 		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
-		local znear, zfar = 1, 100	-- light znear/zfar
+		local znear, zfar = .1, 20	-- light znear/zfar
 
 		pokef(lightAddr + Lights.lightCosAngleRangeOffset, math.cos(math.rad(spotOuterAngle)))
 		pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, math.cos(math.rad(spotInnerAngle)))
-
 
 		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
 		matpush(projMatrixIndex)
@@ -142,8 +139,11 @@ update = ||do
 
 		matpop(viewMatrixIndex)
 		matpop(projMatrixIndex)
+		--]==]
+		--[==[
+		Lights.makePointLight(lightPosX, lightPosY, lightPosZ)
+		--]==]
 	end
-
 
 	matpush(modelMatrixIndex)
 
@@ -178,7 +178,7 @@ update = ||do
 	-- draw a box at the light too
 	matpush(modelMatrixIndex)
 	mattrans(lightPosX, lightPosY, lightPosZ)
-	matscale(-1/32768, -1/32768, -1/32768)
+	matscale(1/32768, 1/32768, 1/32768)
 	mesh(0, 16, 0)		-- cube
 	matpop(modelMatrixIndex)
 
@@ -191,4 +191,8 @@ update = ||do
 
 	poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
 	--]]
+	--poke(ramaddr'HD2DFlags', HD2DFlags)
+	--poke(ramaddr'HD2DFlags', 0xff)
+	--poke(ramaddr'HD2DFlags', 0)
+	--cls(nil, true)	-- HD2DFlags + clear() == clear lighting gbuf
 end
