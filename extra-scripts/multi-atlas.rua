@@ -91,6 +91,7 @@ local findDst = |src| do
 						-- isnt blocked:
 						src.placePos = vec2i(x,y)
 						print('placing', src.f, 'in sheet', dstIndex, 'at tile', src.placePos)
+						src.placedDst = dst
 						dst.placed:insert(src)
 						for i=0,src.sizeInTiles.x-1 do
 							for j=0,src.sizeInTiles.y-1 do
@@ -114,9 +115,45 @@ local findDst = |src| do
 	end
 end
 
+-- map from string-of-image-buffer to the src entry
+-- do this for hash lookup to remove duplicates
+local imgStrToSrc = {}
+
 for _,src in ipairs(srcs) do
 	print('placing', src.f)
-	findDst(src)
+
+	if cmdline.nodups then
+		local img = src.img
+		local flip = 0
+		local imgBufStr = img:bufferToStr()	-- for identical testing
+		local prevSrc = imgStrToSrc[imgBufStr]
+		if not prevSrc then
+			flip = 1
+			local imgHFlip = img:mirror()
+			local imgBufStrHFlip = imgHFlip:bufferToStr()
+			prevSrc = imgStrToSrc[imgBufStrHFlip]
+			if not prevSrc then
+				flip = 2
+				local imgBufStrVFlip = img:flip():bufferToStr()
+				prevSrc = imgStrToSrc[imgBufStrVFlip]
+				if not prevSrc then
+					flip = 3
+					local imgBufStrHVFlip = imgHFlip:flip():bufferToStr()
+					prevSrc = imgStrToSrc[imgBufStrHVFlip]
+				end
+			end
+		end
+		if prevSrc then
+			src.placePos = prevSrc.placePos
+			src.dstFlip = flip
+			prevSrc.placedDst.placed:insert(src)
+		else
+			imgStrToSrc[imgBufStr] = src
+			findDst(src)
+		end
+	else
+		findDst(src)
+	end
 end
 
 local startIndex = cmdline.startIndex or 0
@@ -175,6 +212,7 @@ dstdir'atlas.lua':write(
 			table.mapi(dst.placed, |placed| {
 				placePos = {placed.placePos:unpack()},
 				sizeInTiles = {placed.sizeInTiles:unpack()},
+				flip = placed.dstFlip and placed.dstFlip > 0 and placed.dstFlip or nil,
 				f = tostring(placed.f),
 			})
 		)
