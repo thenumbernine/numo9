@@ -22,7 +22,7 @@ local lightOrbit = vec3(7, 0, 0)
 local HD2DFlags = 0
 HD2DFlags |= 1	-- 1 = turn on light calcs
 HD2DFlags |= 2	-- 1 = apply shadowmap (where?)
---HD2DFlags |= 4	-- 4 = ssao
+HD2DFlags |= 4	-- 4 = ssao
 HD2DFlags |= 8	-- 8 = use bump map
 HD2DFlags |= 16	-- 16 = use shadow in lighting
 HD2DFlags |= 32	-- 32 = use amb diff spec in light color calcs

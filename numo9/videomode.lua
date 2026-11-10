@@ -527,7 +527,7 @@ struct Light_t {
 	vec3 viewPos;	// translation components of inverse-view-matrix of the light
 	vec3 negViewDir;	// negative-z-axis of inverse-view-matrix of the light
 	vec2 cosAngleRange;	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
-	bool enabled;
+	int enabled;
 };
 
 // spirv doesn't support binding, but I have only managed to get spirv to work with gl for compute, not frag or vert, so who cares about spirv.
@@ -619,7 +619,22 @@ if (debugDraw == 2) {
 		fragColor = vec4(lightAmbientColor.xyz, 1.);
 
 		for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
-			if (!lights[lightIndex].enabled) continue;
+			if (0 == lights[lightIndex].enabled) continue;
+
+			// this has to be calc'd here instead of in lightUpdateCalcs
+			// so that I can determine if the light is shining on the front or back face
+			vec3 surfaceToLightVec = lights[lightIndex].viewPos - worldCoord.xyz;
+			float surfaceToLightDist = length(surfaceToLightVec);
+			vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
+			float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
+
+			// see if we are testing front or back only
+			if (lights[lightIndex].enabled == 2) {
+				if (cosNormalToLightAngle < 0.) continue;
+			} else if (lights[lightIndex].enabled == 4) {
+				if (cosNormalToLightAngle > 0.) continue;
+			}
+
 
 			if (calcFromLightMap) {
 				vec4 lightClipCoord = lights[lightIndex].viewProjMat * worldCoord;
@@ -668,11 +683,7 @@ if (debugDraw == 4) {	// debug show the first light buffer
 				fragColor.xyz += vec3(1., 1., 1.);
 			} else {
 #if 1 // diffuse & specular with the world space surface normal
-				vec3 surfaceToLightVec = lights[lightIndex].viewPos - worldCoord.xyz;
-				float surfaceToLightDist = length(surfaceToLightVec);
-				vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
 				vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
-				float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
 
 				// TODO front vs back face light flags...
 //				if (cosNormalToLightAngle >= 0.)

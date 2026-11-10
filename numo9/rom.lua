@@ -376,7 +376,8 @@ local lightProjMatOffset = 0x88 -- size=0x40 type=float [16]
 ffi.cdef[[
 enum {
 	LIGHT_ENABLED_UPDATE_DEPTH_TEX = 1,
-	LIGHT_ENABLED_UPDATE_CALCS = 2,
+	LIGHT_ENABLED_UPDATE_CALCS_FRONT = 2,
+	LIGHT_ENABLED_UPDATE_CALCS_BACK = 4,
 }
 ]]
 
@@ -392,8 +393,6 @@ enum {
 	HD2DFlags_useBumpMap = 8,
 	HD2DFlags_calcFromLightMap = 0x10,		// disable for no lighting from shadows to be cast
 	HD2DFlags_calcFromLights = 0x20,		// disable to avoid the Light struct calcs.
-		// TODO flag for front-face and back-face? or separate-flags for what cals calcs on each?
-		// TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
 	HD2DFlags_useHDR = 0x40,
 	HD2DFlags_useDoF = 0x80,
 }
