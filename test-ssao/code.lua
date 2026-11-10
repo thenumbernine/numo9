@@ -148,18 +148,9 @@ update = ||do
 	Lights:endFrame()
 --pokew(ramaddr'numLights', 1)
 
-	--[[ flush will write back to framebuffer ...
+	--[[ verify flush will write back to framebuffer works ...
 	flushHD2D()
-
-	poke(ramaddr'HD2DFlags', 0)	-- 0 flags = no lighting application at end-of-frame
+	poke(ramaddr'HD2DFlags', 0)
+	cls(nil, true)
 	--]]
-	--poke(ramaddr'HD2DFlags', HD2DFlags)
-	--poke(ramaddr'HD2DFlags', 0xff)
-	--poke(ramaddr'HD2DFlags', 0)
-	--cls(nil, true)	-- HD2DFlags + clear() == clear lighting gbuf
-
-
---	flushHD2D()
---	poke(ramaddr'HD2DFlags', 0)
---	cls(nil, true)
 end
