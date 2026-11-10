@@ -254,6 +254,7 @@ function VideoMode:buildFramebuffers()
 	local channels = 1
 	if self.useNativeOutput then
 		internalFormat = gl.GL_RGB8
+		--internalFormat = gl.GL_RGB32F	-- does using a float buffer look any better? hmmm
 		channels = 3
 	elseif self.format == 'RGB565' then
 		-- framebuffer is 16bpp rgb565 -- used for mode-0
