@@ -285,6 +285,8 @@ do
 	-- TODO spotlight angle attenuation (min/max angle)
 	local MakeSpotLight = class()
 	Lights.MakeSpotLight = MakeSpotLight
+	MakeSpotLight.znear = .01
+	MakeSpotLight.zfar = 10
 	MakeSpotLight.ambient = vec3(.4, .3, .2)
 	MakeSpotLight.diffuse = vec3(1, 1, 1)
 	MakeSpotLight.specular = vec3(.6, .5, .4)
@@ -307,7 +309,7 @@ do
 
 		matident(projMatrixIndex)
 		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
-		local znear, zfar = .01, 10	-- light znear/zfar
+		local znear, zfar = self.znear, self.zfar
 		matfrustum(
 			-tanHalfFOV * znear,
 			tanHalfFOV * znear,

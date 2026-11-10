@@ -14,7 +14,8 @@ local modelMatrixIndex = require 'numo9.matstack'.modelMatrixIndex
 local viewMatrixIndex = require 'numo9.matstack'.viewMatrixIndex
 local projMatrixIndex = require 'numo9.matstack'.projMatrixIndex
 
-local angle = quat()
+local viewAngle = quat()
+local lightOrbit = vec3(7, 0, 0)
 
 -- TODO cullFace==2 affects ui
 
@@ -25,7 +26,7 @@ HD2DFlags |= 2	-- 1 = apply shadowmap (where?)
 HD2DFlags |= 8	-- 8 = use bump map
 HD2DFlags |= 16	-- 16 = use shadow in lighting
 HD2DFlags |= 32	-- 32 = use amb diff spec in light color calcs
-
+--HD2DFlags = 0xff				-- everything
 
 pokef(ramaddr'ssaoSampleRadius', .1)
 
@@ -39,63 +40,79 @@ mode(0xff)	-- native res x RGB565
 --mode(2)	-- 256x256 rgb332
 
 update = ||do
-	poke(ramaddr'HD2DFlags', HD2DFlags)
+	poke(ramaddr'HD2DFlags', 0)
 	cls(7)
---	cls(nil, true)
---	poke(ramaddr'HD2DFlags', 0)
+	poke(ramaddr'HD2DFlags', HD2DFlags)
+	cls(nil, true)
 
-	matident(0)	-- model
-	matident(1)	-- view
-	matident(2)	-- proj
+	-- setup projection matrix
 
-	local ar = getAspectRatio()
-
+	local w, h = getScreenSize()
+	local ar = w / h
 	local zn, zf = 1, 100
-	matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)	-- proj transform
+	matident(projMatrixIndex)
+	matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)
+
+	-- setup view matrix
+
+	matident(viewMatrixIndex)
 
 	local th = .05
 	if btn'left' then
 		--matrot(.1, 0, 1, 0)
-		local x,y,z,w = quat.quat_fromAngleAxis(-th, 0, 1, 0)
-		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxisUnit(-th, 0, 1, 0)
+		viewAngle:set(quat.quat_mul(x,y,z,w, viewAngle:unpack()))
 	end
 	if btn'right' then
 		--matrot(-.1, 0, 1, 0)
-		local x,y,z,w = quat.quat_fromAngleAxis(th, 0, 1, 0)
-		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxisUnit(th, 0, 1, 0)
+		viewAngle:set(quat.quat_mul(x,y,z,w, viewAngle:unpack()))
 	end
 	if btn'up' then
-		local x,y,z,w = quat.quat_fromAngleAxis(-th, 1, 0, 0)
-		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxisUnit(-th, 1, 0, 0)
+		viewAngle:set(quat.quat_mul(x,y,z,w, viewAngle:unpack()))
 		--matrot(.1, 1, 0, 0)
 	end
 	if btn'down' then
 		--matrot(-.1, 1, 0, 0)
-		local x,y,z,w = quat.quat_fromAngleAxis(th, 1, 0, 0)
-		angle:set(quat.quat_mul(x,y,z,w, angle:unpack()))
+		local x,y,z,w = quat.quat_fromAngleAxisUnit(th, 1, 0, 0)
+		viewAngle:set(quat.quat_mul(x,y,z,w, viewAngle:unpack()))
 	end
 
-	-- init view matrix before lights
 	mattrans(0, 0, -12, viewMatrixIndex)
 
-	local w, h = getScreenSize()
-	local lightPosX = 6 * (tonumber(int16_t(peekw(ramaddr'mousePos')))/w*2-1)
-	local lightPosY = -6 * (tonumber(int16_t(peekw(ramaddr'mousePos'+2)))/h*2-1)
-	local lightPosZ = 6
+	do
+		local lx = tonumber(int16_t(peekw(ramaddr'lastMousePos')))
+		local ly = tonumber(int16_t(peekw(ramaddr'lastMousePos'+2)))
+		local x = tonumber(int16_t(peekw(ramaddr'mousePos')))
+		local y = tonumber(int16_t(peekw(ramaddr'mousePos'+2)))
+		local dx = x - lx
+		local dy = y - ly
+		local d = math.sqrt(dx^2 + dy^2)
+		if d > 0 then
+			local q = quat(dy, dx, 0, math.rad(d)):fromAngleAxis()
+			q:rotate(lightOrbit, lightOrbit)
+		end
+	end
 
+	matident(modelMatrixIndex)	-- model
 
+	Lights.MakeLight.znear = .01
+	Lights.MakeLight.zfar = 100
 	Lights:beginFrame()
 
-	Lights.makePointLight(lightPosX, lightPosY, lightPosZ)
+	Lights.makePointLight(lightOrbit:unpack())
+	--Lights.makeSpotLight(lightOrbit.x, lightOrbit.y, lightOrbit.z, 0, 0, math.pi*.25, 0)
 
-	matpush(modelMatrixIndex)
-
-	local x,y,z,th = quat.quat_toAngleAxis(angle:unpack())
+	local x,y,z,th = quat.quat_toAngleAxis(viewAngle:unpack())
 	matrot(th,x,y,z)
 
 	for _,cube in ipairs{
 		-- center
-		{pos=vec3(0,0,0), scale=vec3(5,5,5)},
+		--{pos=vec3(0,0,0), scale=vec3(5,5,5)},
+		{pos=vec3(3,0,0), scale=vec3(1,1,1)},
+		{pos=vec3(0,3,0), scale=vec3(1,1,1)},
+		{pos=vec3(0,0,3), scale=vec3(1,1,1)},
 		-- walls
 		--{pos=vec3(8,0,0), scale=vec3(.5,16,16)},
 		{pos=vec3(-8,0,0), scale=vec3(.5,16,16)},
@@ -116,14 +133,15 @@ update = ||do
 		matpop(modelMatrixIndex)
 	end
 
-	matpop(modelMatrixIndex)
-
 	-- draw a box at the light too
+	-- but disable casting-shadows
+	poke(ramaddr'HD2DFlags', 0)
 	matpush(modelMatrixIndex)
-	mattrans(lightPosX, lightPosY, lightPosZ)
+	mattrans(lightOrbit:unpack())
 	matscale(1/32768, 1/32768, 1/32768)
 	mesh(0, 16, 0)		-- cube
 	matpop(modelMatrixIndex)
+	poke(ramaddr'HD2DFlags', HD2DFlags)
 
 	Lights:endFrame()
 --pokew(ramaddr'numLights', 1)

@@ -386,12 +386,14 @@ enum {
 -- TODO MAYBE but cull face triggers enable/disable cull test, which is different from uniform upload, so maybe that's an argument to keep it separate?
 ffi.cdef[[
 enum {
-	HD2DFlags_lightingApplyToSurface = 1,
-	HD2DFlags_lightingCastShadows = 2,
+	HD2DFlags_lightingApplyToSurface = 1,	// set for ... ? lighting calcs to work? per-fragment?
+	HD2DFlags_lightingCastShadows = 2,		// set this to draw geometry to shadowmap.  disable to not update shadowmap.
 	HD2DFlags_useSSAO = 4,
 	HD2DFlags_useBumpMap = 8,
 	HD2DFlags_calcFromLightMap = 0x10,		// disable for no lighting from shadows to be cast
-	HD2DFlags_calcFromLights = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
+	HD2DFlags_calcFromLights = 0x20,		// disable to avoid the Light struct calcs.
+		// TODO flag for front-face and back-face? or separate-flags for what cals calcs on each?
+		// TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
 	HD2DFlags_useHDR = 0x40,
 	HD2DFlags_useDoF = 0x80,
 }

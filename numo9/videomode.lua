@@ -640,9 +640,10 @@ if (debugDraw == 2) {
 				// zero gets depth alias stripes
 				// nonzero is dependent on the scene
 				// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-				//const float lightDepthTestEpsilon = 0.;		// not enough
-				//const float lightDepthTestEpsilon = 0.0001;	// not enough
-				const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+//const float lightDepthTestEpsilon = 0.;		// not enough
+//const float lightDepthTestEpsilon = 0.0001;	// not enough
+const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+//const float lightDepthTestEpsilon = 0.01;
 
 if (debugDraw == 4) {	// debug show the first light buffer
 	fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
@@ -656,6 +657,8 @@ if (debugDraw == 4) {	// debug show the first light buffer
 	return;
 }
 				// TODO normal test here as well?
+				// or just in the light color calc?
+
 				if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
 					continue;
 				}
@@ -671,47 +674,51 @@ if (debugDraw == 4) {	// debug show the first light buffer
 				vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
 				float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
 
-				float cos_lightToSurface_to_lightFwd = dot(
-					-surfaceToLightNormalized,
-					-lights[lightIndex].negViewDir);
+				// TODO front vs back face light flags...
+				if (cosNormalToLightAngle >= 0.) {
 
-				// TODO i need an input/output map or bias or something
-				// outdoor lights need to disable this
-				// and I have no way to do so ...
-				// I can just do mx+b and then ... clamp range ...
-				// thats 4 args ...
-				// in min, in max, out min, out max
-				float atten =
-					// clamp this?  at least above zero... no negative lights.
-					clamp(
-						(cos_lightToSurface_to_lightFwd - lights[lightIndex].cosAngleRange.x)
-						* lights[lightIndex].cosAngleRange.y,	// .y holds 1/(cos(inner) - cos(outer))
-						0., 1.
-					);
+					float cos_lightToSurface_to_lightFwd = dot(
+						-surfaceToLightNormalized,
+						-lights[lightIndex].negViewDir);
 
-				vec3 lightColor =
-					lights[lightIndex].ambientColor
-					+ lights[lightIndex].diffuseColor * abs(cosNormalToLightAngle)
-					// maybe you just can't do specular lighting in [0,1]^3 space ...
-					// maybe I should be doing inverse-frustum-projection stuff here
-					// hmmmmmmmmmm
-					// I really don't want to split projection and modelview matrices ...
-					+ lights[lightIndex].specularColor.xyz * pow(
-						abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
-						lights[lightIndex].specularColor.w
-					);
-				atten *= 1. /
-					max(1e-7,
-						lights[lightIndex].distAtten.x
-						+ surfaceToLightDist * (lights[lightIndex].distAtten.y
-							+ surfaceToLightDist * lights[lightIndex].distAtten.z
-						)
-					);
+					// TODO i need an input/output map or bias or something
+					// outdoor lights need to disable this
+					// and I have no way to do so ...
+					// I can just do mx+b and then ... clamp range ...
+					// thats 4 args ...
+					// in min, in max, out min, out max
+					float atten =
+						// clamp this?  at least above zero... no negative lights.
+						clamp(
+							(cos_lightToSurface_to_lightFwd - lights[lightIndex].cosAngleRange.x)
+							* lights[lightIndex].cosAngleRange.y,	// .y holds 1/(cos(inner) - cos(outer))
+							0., 1.
+						);
 
-				// TODO scale atten by angle range
+					vec3 lightColor =
+						lights[lightIndex].ambientColor
+						+ lights[lightIndex].diffuseColor * abs(cosNormalToLightAngle)
+						// maybe you just can't do specular lighting in [0,1]^3 space ...
+						// maybe I should be doing inverse-frustum-projection stuff here
+						// hmmmmmmmmmm
+						// I really don't want to split projection and modelview matrices ...
+						+ lights[lightIndex].specularColor.xyz * pow(
+							abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
+							lights[lightIndex].specularColor.w
+						);
+					atten *= 1. /
+						max(1e-7,
+							lights[lightIndex].distAtten.x
+							+ surfaceToLightDist * (lights[lightIndex].distAtten.y
+								+ surfaceToLightDist * lights[lightIndex].distAtten.z
+							)
+						);
 
-				// apply bumpmap lighting
-				fragColor.xyz += lightColor * atten;
+					// TODO scale atten by angle range
+
+					// apply bumpmap lighting
+					fragColor.xyz += lightColor * atten;
+				}
 #else	// plain
 				fragColor.xyz += vec3(.9, .9, .9);
 #endif
