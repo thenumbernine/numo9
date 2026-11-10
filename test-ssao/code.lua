@@ -91,21 +91,22 @@ update = ||do
 		local d = math.sqrt(dx^2 + dy^2)
 		if d > 0 then
 			local q = quat(dy, dx, 0, math.rad(d)):fromAngleAxis()
+			q = viewAngle:conj() * q * viewAngle
 			q:rotate(lightOrbit, lightOrbit)
 		end
 	end
 
+	local x,y,z,th = quat.quat_toAngleAxis(viewAngle:unpack())
+	matrot(th,x,y,z, viewMatrixIndex)
+
 	matident(modelMatrixIndex)	-- model
 
-	Lights.MakeLight.znear = .01
-	Lights.MakeLight.zfar = 100
+	Lights.MakePointCubeLight.znear = .1
+	Lights.MakePointCubeLight.zfar = 100
 	Lights:beginFrame()
 
 	Lights.makePointLight(lightOrbit:unpack())
 	--Lights.makeSpotLight(lightOrbit.x, lightOrbit.y, lightOrbit.z, 0, 0, math.pi*.25, 0)
-
-	local x,y,z,th = quat.quat_toAngleAxis(viewAngle:unpack())
-	matrot(th,x,y,z)
 
 	for _,cube in ipairs{
 		-- center

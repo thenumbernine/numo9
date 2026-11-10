@@ -675,7 +675,8 @@ if (debugDraw == 4) {	// debug show the first light buffer
 				float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
 
 				// TODO front vs back face light flags...
-				if (cosNormalToLightAngle >= 0.) {
+//				if (cosNormalToLightAngle >= 0.)
+				{
 
 					float cos_lightToSurface_to_lightFwd = dot(
 						-surfaceToLightNormalized,
