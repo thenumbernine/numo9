@@ -3995,10 +3995,7 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 
 --DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
 			-- only pass the enabled flags that the shader will use, so I can zero test without an & operation every fragment
-			fragUniLight.enabled = bit.band(light.enabled, bit.bor(
-				ffi.C.LIGHT_ENABLED_UPDATE_CALCS_FRONT,
-				ffi.C.LIGHT_ENABLED_UPDATE_CALCS_BACK
-			))
+			fragUniLight.enabled = light.enabled
 
 			fragUniLight.region.x = tonumber(light.region[0]) / tonumber(ram.lightmapWidth)
 			fragUniLight.region.y =	tonumber(light.region[1]) / tonumber(ram.lightmapHeight)

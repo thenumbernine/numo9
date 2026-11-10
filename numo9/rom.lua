@@ -378,6 +378,7 @@ enum {
 	LIGHT_ENABLED_UPDATE_DEPTH_TEX = 1,
 	LIGHT_ENABLED_UPDATE_CALCS_FRONT = 2,
 	LIGHT_ENABLED_UPDATE_CALCS_BACK = 4,
+	LIGHT_ENABLED_OUTSIDE_CLIP = 8,		// set this to calc lighting even when outside the light clip volume bounds
 }
 ]]
 

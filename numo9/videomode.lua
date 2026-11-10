@@ -629,32 +629,38 @@ if (debugDraw == 2) {
 			float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
 
 			// see if we are testing front or back only
-			if (lights[lightIndex].enabled == 2) {
+			if ((lights[lightIndex].enabled & 6) == <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_FRONT?>) {
 				if (cosNormalToLightAngle < 0.) continue;
-			} else if (lights[lightIndex].enabled == 4) {
+			} else if ((lights[lightIndex].enabled & 6) == <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_BACK?>) {
 				if (cosNormalToLightAngle > 0.) continue;
 			}
 
 
 			if (calcFromLightMap) {
 				vec4 lightClipCoord = lights[lightIndex].viewProjMat * worldCoord;
+
 				// frustum test before homogeneous transform
 				if (!(lightClipCoord.w > 0.
 					&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
 					&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
-				)) continue;
+				)) {
+					// flag for light-on-clip vs shadow-on-clip
+					if (0 == (lights[lightIndex].enabled & <?=ffi.C.LIGHT_ENABLED_OUTSIDE_CLIP?>)) {
+						continue;
+					}
+					// otherwise ... oob lightmap, skip the shadow depth testing
+				} else {
+					vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
+					vec3 lightND01Coord = lightNDCoord * .5 + .5;
 
-				vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
-				vec3 lightND01Coord = lightNDCoord * .5 + .5;
+					vec2 lightTC = lightND01Coord.xy * lights[lightIndex].region.zw + lights[lightIndex].region.xy;
 
-				vec2 lightTC = lightND01Coord.xy * lights[lightIndex].region.zw + lights[lightIndex].region.xy;
+					// in bounds
+					float lightBufferDepth = texture(lightDepthTex, lightTC).x;
 
-				// in bounds
-				float lightBufferDepth = texture(lightDepthTex, lightTC).x;
-
-				// zero gets depth alias stripes
-				// nonzero is dependent on the scene
-				// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+					// zero gets depth alias stripes
+					// nonzero is dependent on the scene
+					// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
 //const float lightDepthTestEpsilon = 0.;		// not enough
 //const float lightDepthTestEpsilon = 0.0001;	// not enough
 const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
@@ -671,11 +677,12 @@ if (debugDraw == 4) {	// debug show the first light buffer
 	fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
 	return;
 }
-				// TODO normal test here as well?
-				// or just in the light color calc?
+					// TODO normal test here as well?
+					// or just in the light color calc?
 
-				if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
-					continue;
+					if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
+						continue;
+					}
 				}
 			}
 
