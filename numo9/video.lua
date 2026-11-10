@@ -4065,6 +4065,8 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 		view.mvProjMat:setOrtho(0,1,0,1,-1,1)
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
+		sceneObj.uniforms.debugDraw = self.lightDebugDraw
+
 		videoMode.lightAndFBTex.fbo:bind()
 		sceneObj:draw()
 		videoMode.lightAndFBTex.fbo:unbind()

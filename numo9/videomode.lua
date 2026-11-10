@@ -247,7 +247,15 @@ function VideoMode:buildFramebuffers()
 
 	local width, height = self.width, self.height
 	local internalFormat, gltype
-	if self.format == 'RGB565' then
+
+	-- this is Image # channels with the ctypeForGLType, not the # rgb channels
+	-- i.e. RGB565 ctypeForGLType is uint16_t, so that would be just 1 channel of uint16_t
+	-- whereas RGB8 ctypeForGLType is uint8_t, so that would be 3 channels
+	local channels = 1
+	if self.useNativeOutput then
+		internalFormat = gl.GL_RGB8
+		channels = 3
+	elseif self.format == 'RGB565' then
 		-- framebuffer is 16bpp rgb565 -- used for mode-0
 		-- [[
 		internalFormat = gl.GL_RGB565
@@ -375,7 +383,7 @@ function VideoMode:buildFramebuffers()
 			self.framebufferRAM.addrEnd = 0
 
 			local ctype = assert.index(GLTypes.ctypeForGLType, gltype)
-			local image = Image(width, height, 1, ctype)
+			local image = Image(width, height, channels, ctype)
 			self.framebufferRAM.image = image
 
 			self.framebufferRAM.tex = GLTex2D{
@@ -409,7 +417,7 @@ function VideoMode:buildFramebuffers()
 				addr = framebufferAddr,
 				width = width,
 				height = height,
-				channels = 1,
+				channels = channels,
 				internalFormat = internalFormat,
 				glformat = formatInfo.format,
 				gltype = gltype,
@@ -866,33 +874,32 @@ uniform <?=rgbTex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=self.calcLightTex:cur():getGLSLSamplerType()?> calcLightTex;
 
-void doLighting() {
-
-#if 0	// debugging - show calcLight tex
-fragColor.xyz = texture(calcLightTex, tcv).xyz;
-return;
-#endif
-
-#if 1	// show calcLight tex - only where alpha=0 i.e. lightmap debug display
-vec4 lightColor = texture(calcLightTex, tcv);
-if (lightColor.w == 0.) {
-	fragColor.xyz = lightColor.xyz;
-	return;
-}
-#endif
-
-	fragColor.xyz *= texture(calcLightTex, tcv).xyz;
-}
+uniform int debugDraw;
 
 void main() {
-	fragColor = texture(framebufferTex, tcv);
-	doLighting();
+	vec4 lightColor = texture(calcLightTex, tcv);
+
+	if (debugDraw == 7) {
+		// debugging - show calcLight tex
+		fragColor = vec4(lightColor.xyz, 1.);
+		return;
+	}
+
+	// use lightColor.w as a flag for determining where to apply lighting.
+	// notice esp in calcLightBlitObj that all the debug draws write 0 to lightColor.w
+	if (lightColor.w == 0.) {
+		fragColor = vec4(lightColor.xyz, 1.);
+	} else {
+		vec4 fbColor = texture(framebufferTex, tcv);
+		fragColor = vec4(fbColor.xyz * lightColor.xyz, 1.);
+	}
 }
 ]],			{
 				self = self,
 				rgbTex = rgbTex,
 			}),
 			uniforms = {
+				debugDraw = 0,
 				framebufferTex = 0,
 				framebufferPosTex = 1,
 				calcLightTex = 2,
