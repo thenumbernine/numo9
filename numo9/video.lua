@@ -3953,10 +3953,10 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 		--sceneObj.texs[3] = self.noiseTex
 		--sceneObj.texs[4] = self.lightDepthTex
 
-	--DEBUG(lighting):print('drawing lighting')
-	--DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
-	--DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
-	--DEBUG(lighting):print()
+--DEBUG(lighting):print('drawing lighting')
+--DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
+--DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
+--DEBUG(lighting):print()
 
 	--[[ if we dont break out of the sandbox...
 		sceneObj:draw()
@@ -3993,9 +3993,12 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 			local light = ram.lights + i
 			local fragUniLight = fragUniCPU.lights + i
 
-	--DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
+--DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
 			-- only pass the enabled flags that the shader will use, so I can zero test without an & operation every fragment
-			fragUniLight.enabled = bit.band(light.enabled, bit.bnot(ffi.C.LIGHT_ENABLED_UPDATE_DEPTH_TEX))
+			fragUniLight.enabled = bit.band(light.enabled, bit.bor(
+				ffi.C.LIGHT_ENABLED_UPDATE_CALCS_FRONT,
+				ffi.C.LIGHT_ENABLED_UPDATE_CALCS_BACK
+			))
 
 			fragUniLight.region.x = tonumber(light.region[0]) / tonumber(ram.lightmapWidth)
 			fragUniLight.region.y =	tonumber(light.region[1]) / tonumber(ram.lightmapHeight)
@@ -4013,8 +4016,8 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 			fragUniLight.viewProjMat:mul4x4(light.projMat, light.viewMat)
 			self.lightViewInvMat:inv4x4(light.viewMat)
 
-	--DEBUG(lighting):print('lighting lightView\n'..light.viewMat)
-	--DEBUG(lighting):print('lighting lightProj\n'..light.projMat)
+--DEBUG(lighting):print('lighting lightView\n'..light.viewMat)
+--DEBUG(lighting):print('lighting lightProj\n'..light.projMat)
 
 			ffi.copy(fragUniLight.viewPos.s, self.lightViewInvMat.ptr + 12, ffi.sizeof(vec3f))
 			ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))

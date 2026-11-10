@@ -95,6 +95,7 @@ do
 	end
 
 	local sunlight = Lights.sunlight := {
+		lightCalcSides = 3,
 		yaw = 45,
 		pitch = 45,
 		ambient = vec3(0,0,0),
@@ -143,7 +144,7 @@ do
 			viewMatrixIndex)
 --]]
 
-		poke(lightAddr + self.lightEnabledOffset, 0xff)	-- light is enabled for depth-write and for surface-calculations
+		poke(lightAddr + self.lightEnabledOffset, 1 | (sunlight.lightCalcSides << 1))	-- light is enabled for depth-write and for surface-calculations
 
 		memcpy(lightAddr + self.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
 		memcpy(lightAddr + self.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
@@ -179,6 +180,7 @@ do
 	-- static, singleton, class for object
 	local MakeLight = class()
 	Lights.MakeLight = MakeLight
+	MakeLight.lightCalcSides = 3
 	MakeLight.znear = .01
 	MakeLight.zfar = 10
 	MakeLight.ambient = vec3(.4, .3, .2)
@@ -199,7 +201,7 @@ do
 			if lightAddr then
 				-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
 
-				poke(lightAddr + Lights.lightEnabledOffset, 0xff)
+				poke(lightAddr + Lights.lightEnabledOffset, 1 | (self.lightCalcSides << 1))
 				-- subimage/viewport on the lightmap
 				pokew(lightAddr + Lights.lightRegionOffset, lx)
 				pokew(lightAddr + Lights.lightRegionOffset+2, ly)
@@ -285,6 +287,7 @@ do
 	-- TODO spotlight angle attenuation (min/max angle)
 	local MakeSpotLight = class()
 	Lights.MakeSpotLight = MakeSpotLight
+	MakeSpotLight.lightCalcSides = 3	-- 1 = front, 2 = back
 	MakeSpotLight.znear = .01
 	MakeSpotLight.zfar = 10
 	MakeSpotLight.ambient = vec3(.4, .3, .2)
@@ -323,7 +326,7 @@ do
 
 		mattrans(-x, -y, -z, viewMatrixIndex)
 
-		poke(lightAddr + Lights.lightEnabledOffset, 0xff)		-- light is enabled for depth-write and for surface-calculations
+		poke(lightAddr + Lights.lightEnabledOffset, 1 | (self.lightCalcSides << 1))		-- light is enabled for depth-write and for surface-calculations
 
 		memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
 		memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2

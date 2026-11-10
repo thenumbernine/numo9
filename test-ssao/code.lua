@@ -101,6 +101,7 @@ update = ||do
 
 	matident(modelMatrixIndex)	-- model
 
+	Lights.MakePointCubeLight.lightCalcSides = 1	-- front only
 	Lights.MakePointCubeLight.znear = .1
 	Lights.MakePointCubeLight.zfar = 100
 	Lights:beginFrame()
