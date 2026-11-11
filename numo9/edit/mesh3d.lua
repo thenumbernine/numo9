@@ -662,7 +662,6 @@ assert(tj2)
 		local function onMeshEditModeTextChange()
 			local value = self.meshEditModeText
 			-- do this after every change ...
-print('value', value)
 			-- TODO don't add these to the text at all
 			-- in fact TODO better capture-keyboard-focus overall...
 
