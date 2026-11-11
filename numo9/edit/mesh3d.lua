@@ -547,12 +547,36 @@ assert(tj2)
 		self.uiTrisChildren = table()
 		local x, y = x, y
 
+		self.uiTrisChildren:insert(UIButton{
+			owner = self,
+			pos = {x, y},
+			text = 'H',
+			tooltip = 'handed-flip',
+			events = {
+				click = function()
+					local vs, ts = self:getMeshVtxAndTriList()
+					local selTriInds = table.keys(self.selectedTriIndexSet)
+					if #selTriInds == 0 then return end
+
+					for _,ti in ipairs(selTriInds) do
+						local t = ts[1+ti]
+						t[2], t[3] = t[3], t[2]
+					end
+
+					self.undo:push()
+					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+					--anything else?
+				end,
+			},
+		})
+		x = x + 6
+
 		-- TODO maybe flip-edge should maybe be an edge function?
 		self.uiTrisChildren:insert(UIButton{
 			owner = self,
 			pos = {x, y},
 			text = 'F',
-			tooltip = 'flip',
+			tooltip = 'adj-edge-flip',
 			events = {
 				click = function()
 					-- flip tris ...
@@ -611,7 +635,7 @@ print'flipping'
 						end
 					end
 				end,
-			}
+			},
 		})
 		x = x + 6
 	end

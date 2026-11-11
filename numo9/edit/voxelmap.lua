@@ -333,7 +333,7 @@ function EditVoxelMap:init(args)
 		owner = self,
 		pos = {x, y},
 		text = 'C',
-		tooltip = function() return 'cull='..tostring(self.menuCullFace) end,
+		tooltip = function() return 'cull='..tostring(self.menuUseCullFace) end,
 		events = {
 			click = function()
 				self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
