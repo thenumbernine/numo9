@@ -553,7 +553,7 @@ assert(tj2)
 			pos = {x, y},
 			text = 'F',
 			tooltip = 'flip',
-			evets = {
+			events = {
 				click = function()
 					-- flip tris ...
 					-- 1) get tris selected
@@ -602,6 +602,7 @@ assert(tj2)
 						if not found then
 							print"couldn't find, not flipping"
 						else
+print'flipping'
 							self.undo:push()
 							self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 
