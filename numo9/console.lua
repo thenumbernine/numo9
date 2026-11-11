@@ -210,7 +210,7 @@ function Console:update()
 		app:drawSolidRect(
 			(cursorDrawLoc % maxcol) * menuFontWidth,
 			promptStartY + math.floor(cursorDrawLoc / maxcol) * 8,
-			8, 8, self.fgColor
+			8, 8, 0x0c
 		)
 	end
 	--cursorPosX = #cmdBufWithPrompt * menuFontWidth
