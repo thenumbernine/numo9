@@ -68,6 +68,8 @@ function EditMesh3D:init(args)
 	}
 	self.tileSel.pos.x = 2	-- initialize to one 16x16 past the 0,0 tile (which is very often clear)
 
+	self.meshEditModeText = ''
+
 	self:newUI_setup()
 	self:newUI_addEditTabs()
 
@@ -613,60 +615,6 @@ assert(tj2)
 		x = x + 6
 	end
 
-	-- collect translate/scale/rotate text input ...
-	-- TODO maybe, don't addChild unless we are in meshEditMode
-	self.meshEditModeTextField = UITextField{
-		owner = self,
-		pos = {0, 48},
-		width = 10,
-		value = tostring(self.meshEditModeText),	-- TODO dynamic
-		events = {
-			change = function(value)
-				-- do this after every change ...
-
-				value = value:gsub('[xyz]', '')
-				-- TODO don't add these to the text at all
-				-- in fact TODO better capture-keyboard-focus overall...
-
-				-- upon enter, right?
-				-- do I even need to write self.meshEditModeText?
-				-- do I even need self.meshEditModeText?
-				self.meshEditModeText = value
-
-				local parts = string.split(value, ','):mapi(function(x)
-					return tonumber(string.trim(x))
-				end)
-
-				if self.meshEditMode == 'translate' then
-					local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
-					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
-					if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
-					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
-					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
-					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
-					applyMeshEditMode()
-				elseif self.meshEditMode == 'scale' then
-					self.totalScale = parts[1] or 1
-					applyMeshEditMode()
-				elseif self.meshEditMode == 'rotate' then
-					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
-					-- it should already by set to whatever fixed axis by axisFlags already, right?
-					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
-					applyMeshEditMode()
-				end
-
-				self.meshEditMode = nil
-				self.axisFlags = {}
-				if self:removeDegenTris() then
-					-- TODO just stop using indexes for these...
-					self.mouseoverVertexIndexSet = {}
-					self.selectedVertexIndexSet = {}
-				end
-			end,
-		},
-	}
 
 	self.uiRoot:addEventListener('keydown', function(root, e)
 		local app = self.app
@@ -711,6 +659,38 @@ assert(tj2)
 			end
 		end
 
+		local function onMeshEditModeTextChange()
+			local value = self.meshEditModeText
+			-- do this after every change ...
+print('value', value)
+			-- TODO don't add these to the text at all
+			-- in fact TODO better capture-keyboard-focus overall...
+
+			local parts = string.split(value, ','):mapi(function(x)
+				return tonumber(string.trim(x))
+			end)
+
+			if self.meshEditMode == 'translate' then
+				local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
+				local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+				if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
+				if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
+				if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
+				if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
+				self:applyMeshEditMode()
+			elseif self.meshEditMode == 'scale' then
+				self.totalScale = parts[1] or 1
+				self:applyMeshEditMode()
+			elseif self.meshEditMode == 'rotate' then
+				self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
+				-- it should already by set to whatever fixed axis by axisFlags already, right?
+				self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
+				self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
+				self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
+				self:applyMeshEditMode()
+			end
+		end
+
 		local sdlkey = e.sdl.key.key
 
 		local uikey
@@ -727,23 +707,60 @@ assert(tj2)
 			end
 		else	-- non-ctrl:
 
-			if sdlkey == sdl.SDLK_BACKSPACE
-			or sdlkey == sdl.SDLK_DELETE
-			then
-				-- if we're in an edit mode then reset it
-				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
-				if self.meshEditMode then
+			-- if we're in an edit mode then reset it
+			-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
+			if self.meshEditMode then
 
-					--[[
-					if #self.meshEditModeText > 0 then
-						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
-					else
-						resetVtxEditPos()
-						self.meshEditMode = nil
-					end
-					--]]
-
+				--[[
+				if #self.meshEditModeText > 0 then
+					self.meshEditModeText = self.meshEditModeText:sub(1, -2)
 				else
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				end
+				--]]
+
+				if sdlkey == sdl.SDLK_G
+				or sdlkey == sdl.SDLK_S
+				or sdlkey == sdl.SDLK_R
+				then
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				elseif sdlkey == sdl.SDLK_X then
+					self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
+					resetVtxEditPos()
+				elseif sdlkey == sdl.SDLK_Y then
+					self.axisFlags.y = not self.axisFlags.y or nil
+					resetVtxEditPos()
+				elseif sdlkey == sdl.SDLK_Z then
+					self.axisFlags.z = not self.axisFlags.z or nil
+					resetVtxEditPos()
+				elseif (sdlkey >= sdl.SDLK_0 and sdlkey <= sdl.SDLK_9)
+				or sdlkey == sdl.SDLK_MINUS
+				or sdlkey == sdl.SDLK_COMMA
+				or sdlkey == sdl.SDLK_PERIOD
+				then
+					self.meshEditModeText = self.meshEditModeText .. string.char(sdlkey)
+					onMeshEditModeTextChange()
+				elseif sdlkey == sdl.SDLK_BACKSPACE then
+					self.meshEditModeText = self.meshEditModeText:sub(1, -2)
+					onMeshEditModeTextChange()
+				elseif sdlkey == sdl.SDLK_RETURN then
+					self.meshEditMode = nil
+					self.axisFlags = {}
+					if self:removeDegenTris() then
+						-- TODO just stop using indexes for these...
+						self.mouseoverVertexIndexSet = {}
+						self.selectedVertexIndexSet = {}
+						self:refreshSelection()
+					end
+				end
+			else
+
+				if sdlkey == sdl.SDLK_BACKSPACE
+				or sdlkey == sdl.SDLK_DELETE
+				then
+
 					-- if we're not in an edit mode then delete vertexes
 					-- and then regen blobs or something
 					-- hmm
@@ -821,54 +838,34 @@ assert(tj2)
 					self:refreshSelection()
 
 					-- return and don't let anything else use the invalidated mesh functions until we refresh things
-					return
-				end
-			elseif sdlkey == sdl.SDLK_A then
-				if next(self.selectedVertexIndexSet) == nil then
-					local numVtxs = mesh3DBlob:getNumVertexes()
-					-- select all
-					self.selectedVertexIndexSet = {}
-					for i=0,numVtxs-1 do
-						self.selectedVertexIndexSet[i] = true
+				elseif sdlkey == sdl.SDLK_A then
+					if next(self.selectedVertexIndexSet) == nil then
+						local numVtxs = mesh3DBlob:getNumVertexes()
+						-- select all
+						self.selectedVertexIndexSet = {}
+						for i=0,numVtxs-1 do
+							self.selectedVertexIndexSet[i] = true
+						end
+					else
+						-- select none
+						self.selectedVertexIndexSet = {}
 					end
-				else
-					-- select none
-					self.selectedVertexIndexSet = {}
-				end
-				self:refreshSelection()
-				return
-			elseif sdlkey == sdl.SDLK_G then
-				if self.meshEditMode ~= nil then
-					-- TODO maybe even pop the last undo push?
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
+					self:refreshSelection()
+				elseif sdlkey == sdl.SDLK_G then
 					self.meshEditMode = 'translate'
 					self.meshEditModeText = ''
 					setVtxEditPos()
 					calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
 					self.totalTranslation:set(0,0,0)
 					self.undo:push()
-				end
-				return
-			elseif sdlkey == sdl.SDLK_S then
-				if self.meshEditMode ~= nil then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
+				elseif sdlkey == sdl.SDLK_S then
 					self.meshEditMode = 'scale'
 					self.meshEditModeText = ''
 					setVtxEditPos()
 					calcSelVtxCOM()
 					self.totalScreenTranslate:set(0,0)
 					self.undo:push()
-				end
-				return
-			elseif sdlkey == sdl.SDLK_R then
-				if self.meshEditMode ~= nil then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
+				elseif sdlkey == sdl.SDLK_R then
 					self.meshEditMode = 'rotate'
 					self.meshEditModeText = ''
 					setVtxEditPos()
@@ -885,48 +882,26 @@ assert(tj2)
 						drawViewInvMat.ptr[9],
 						drawViewInvMat.ptr[10]
 					):normalize()
+
+				-- TODO or maybe use this for flipping common edge between two tris?
+				elseif sdlkey == sdl.SDLK_F then
+					self.drawFaces = not self.drawFaces
+				elseif sdlkey == sdl.SDLK_N then
+					self.drawNormals = not self.drawNormals
+				elseif sdlkey == sdl.SDLK_W then
+					self.wireframe = not self.wireframe
+				elseif sdlkey == sdl.SDLK_O then
+					orbit.ortho = not orbit.ortho
+
+				elseif sdlkey == sdl.SDLK_V then
+					self.meshEditForm = 'vertexes'
+				elseif sdlkey == sdl.SDLK_E then
+					self.meshEditForm = 'edges'
+				elseif sdlkey == sdl.SDLK_T then
+					self.meshEditForm = 'tris'
 				end
-				return
-
-			-- TODO or maybe use this for flipping common edge between two tris?
-			elseif sdlkey == sdl.SDLK_F then
-				self.drawFaces = not self.drawFaces
-				return
-			elseif sdlkey == sdl.SDLK_N then
-				self.drawNormals = not self.drawNormals
-				return
-			elseif sdlkey == sdl.SDLK_W then
-				self.wireframe = not self.wireframe
-				return
-			elseif sdlkey == sdl.SDLK_O then
-				orbit.ortho = not orbit.ortho
-				return
-
-			elseif sdlkey == sdl.SDLK_V then
-				self.meshEditForm = 'vertexes'
-				return
-			elseif sdlkey == sdl.SDLK_E then
-				self.meshEditForm = 'edges'
-				return
-			elseif sdlkey == sdl.SDLK_T then
-				self.meshEditForm = 'tris'
-				return
-
-			elseif sdlkey == sdl.SDLK_X then
-				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
-				resetVtxEditPos()
-				return
-			elseif sdlkey == sdl.SDLK_Y then
-				self.axisFlags.y = not self.axisFlags.y or nil
-				resetVtxEditPos()
-				return
-			elseif sdlkey == sdl.SDLK_Z then
-				self.axisFlags.z = not self.axisFlags.z or nil
-				resetVtxEditPos()
-				return
 			end
 		end
-
 	end)
 
 	require 'numo9.ui.addgetset'(self, {
@@ -1114,6 +1089,77 @@ function EditMesh3D:refreshSelection(skipEdges, skipTris)
 	end
 end
 
+function EditMesh3D:applyMeshEditMode()
+	local app = self.app
+	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
+	if not mesh3DBlob then return end
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local vtxs = mesh3DBlob:getVertexPtr()
+
+	local usedx = self.axisFlags.x
+	local usedy = self.axisFlags.y
+	local usedz = self.axisFlags.z
+	-- none set == all set
+	if next(self.axisFlags) == nil then
+		usedx, usedy, usedz = true, true, true
+	end
+
+	for i in pairs(self.selectedVertexIndexSet) do
+		if i >= 0 and i < numVtxs then
+			local v = vtxs + i
+			local orig = self.vtxOrig[1+i]
+			if self.meshEditMode == 'translate' then
+				if not self.editTexCoords then
+					v.x, v.y, v.z = orig.x, orig.y, orig.z
+					if usedx then v.x = v.x + self.totalTranslation.x end
+					if usedy then v.y = v.y + self.totalTranslation.y end
+					if usedz then v.z = v.z + self.totalTranslation.z end
+				else
+					-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
+					v.u, v.v = orig.u, orig.v
+					if usedx then v.u = tonumber(v.u) + self.totalTranslation.x end
+					if usedy then v.v = tonumber(v.v) + self.totalTranslation.y end
+				end
+			elseif self.meshEditMode == 'scale' then
+				if not self.editTexCoords then
+					v.x, v.y, v.z = orig.x, orig.y, orig.z
+					if usedx then v.x = (v.x - self.selVtxCOM.x) * self.totalScale + self.selVtxCOM.x end
+					if usedy then v.y = (v.y - self.selVtxCOM.y) * self.totalScale + self.selVtxCOM.y end
+					if usedz then v.z = (v.z - self.selVtxCOM.z) * self.totalScale + self.selVtxCOM.z end
+				else
+					v.u, v.v = orig.u, orig.v
+					if usedx then v.u = (tonumber(v.u) - self.selTexCoordCOM.x) * self.totalScale + self.selTexCoordCOM.x end
+					if usedy then v.v = (tonumber(v.v) - self.selTexCoordCOM.y) * self.totalScale + self.selTexCoordCOM.y end
+				end
+			elseif self.meshEditMode == 'rotate' then
+				if not self.editTexCoords then
+					local q = quatd():fromAngleAxis(
+						self.screenRotateAngle.x,
+						self.screenRotateAngle.y,
+						self.screenRotateAngle.z,
+						self.screenRotateAngle.w
+					)
+					local pos = vec3d(orig.x, orig.y, orig.z) - self.selVtxCOM
+					pos = q:rotate(pos)
+					pos = pos + self.selVtxCOM
+					v.x, v.y, v.z = pos.x, pos.y, pos.z
+				else
+					local cosTheta = math.cos(math.rad(self.screenRotateAngle.w))
+					local sinTheta = math.sin(math.rad(self.screenRotateAngle.w))
+					local pos = vec2d(orig.u, orig.v) - self.selTexCoordCOM
+					pos = vec2d(
+						pos.x * cosTheta - pos.y * sinTheta,
+						pos.x * sinTheta + pos.y * cosTheta
+					)
+					pos = pos + self.selTexCoordCOM
+					v.u, v.v = pos.x, pos.y
+				end
+			end
+		end
+	end
+end
+
+
 function EditMesh3D:update()
 	local app = self.app
 
@@ -1151,70 +1197,6 @@ function EditMesh3D:update()
 		inds = mesh3DBlob:getIndexPtr()
 	end
 
-
-	local function applyMeshEditMode()
-		local usedx = self.axisFlags.x
-		local usedy = self.axisFlags.y
-		local usedz = self.axisFlags.z
-		-- none set == all set
-		if next(self.axisFlags) == nil then
-			usedx, usedy, usedz = true, true, true
-		end
-
-		for i in pairs(self.selectedVertexIndexSet) do
-			if i >= 0 and i < numVtxs then
-				local v = vtxs + i
-				local orig = self.vtxOrig[1+i]
-				if self.meshEditMode == 'translate' then
-					if not self.editTexCoords then
-						v.x, v.y, v.z = orig.x, orig.y, orig.z
-						if usedx then v.x = v.x + self.totalTranslation.x end
-						if usedy then v.y = v.y + self.totalTranslation.y end
-						if usedz then v.z = v.z + self.totalTranslation.z end
-					else
-						-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
-						v.u, v.v = orig.u, orig.v
-						if usedx then v.u = tonumber(v.u) + self.totalTranslation.x end
-						if usedy then v.v = tonumber(v.v) + self.totalTranslation.y end
-					end
-				elseif self.meshEditMode == 'scale' then
-					if not self.editTexCoords then
-						v.x, v.y, v.z = orig.x, orig.y, orig.z
-						if usedx then v.x = (v.x - self.selVtxCOM.x) * self.totalScale + self.selVtxCOM.x end
-						if usedy then v.y = (v.y - self.selVtxCOM.y) * self.totalScale + self.selVtxCOM.y end
-						if usedz then v.z = (v.z - self.selVtxCOM.z) * self.totalScale + self.selVtxCOM.z end
-					else
-						v.u, v.v = orig.u, orig.v
-						if usedx then v.u = (tonumber(v.u) - self.selTexCoordCOM.x) * self.totalScale + self.selTexCoordCOM.x end
-						if usedy then v.v = (tonumber(v.v) - self.selTexCoordCOM.y) * self.totalScale + self.selTexCoordCOM.y end
-					end
-				elseif self.meshEditMode == 'rotate' then
-					if not self.editTexCoords then
-						local q = quatd():fromAngleAxis(
-							self.screenRotateAngle.x,
-							self.screenRotateAngle.y,
-							self.screenRotateAngle.z,
-							self.screenRotateAngle.w
-						)
-						local pos = vec3d(orig.x, orig.y, orig.z) - self.selVtxCOM
-						pos = q:rotate(pos)
-						pos = pos + self.selVtxCOM
-						v.x, v.y, v.z = pos.x, pos.y, pos.z
-					else
-						local cosTheta = math.cos(math.rad(self.screenRotateAngle.w))
-						local sinTheta = math.sin(math.rad(self.screenRotateAngle.w))
-						local pos = vec2d(orig.u, orig.v) - self.selTexCoordCOM
-						pos = vec2d(
-							pos.x * cosTheta - pos.y * sinTheta,
-							pos.x * sinTheta + pos.y * cosTheta
-						)
-						pos = pos + self.selTexCoordCOM
-						v.u, v.v = pos.x, pos.y
-					end
-				end
-			end
-		end
-	end
 
 	local tileSelHandled = self.tileSel:doPopup()
 	if mesh3DBlob then
@@ -1773,7 +1755,7 @@ function EditMesh3D:update()
 				-- for translate, this is self.totalTranslation
 				-- for scale, this is self.totalScale
 				-- for rotate, this is self.screenRotateAngle
-				applyMeshEditMode()
+				self:applyMeshEditMode()
 			end
 
 			local function drawVertexSet(set, color)
