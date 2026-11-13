@@ -259,6 +259,7 @@ function EditTilemap:init(args)
 					self.tileSel.pos.y = (result - self.tileSel.pos.x) / spriteSheetSizeInTiles.x
 					self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
 					self.orientation = bit.band(7, bit.rshift(result, 13))
+					self:refreshTileSel()	-- because we're editing a member, we have to manually refresh tileSelPosTextField
 				end
 			end,
 		},
@@ -380,9 +381,17 @@ function EditTilemap:init(args)
 				if v == private[k] then return end
 				private[k] = v
 				self:refreshTileSel()
-			end
+			end,
 		},
 	})
+
+	-- because the two are interdependent, i have to clear and set them one at a time ...
+	self.orientation = nil
+	self.orientation = 1
+	self.selPalHiOffset = nil
+	self.selPalHiOffset = 1
+	assert.eq(rawget(self, 'orientation'), nil)
+	assert.eq(rawget(self, 'selPalHiOffset'), nil)
 
 	self:onCartLoad()
 end
@@ -762,6 +771,7 @@ function EditTilemap:update()
 					self.selPalHiOffset = bit.band(7, bit.rshift(tileSelIndex, 10))
 					self.orientation = bit.band(7, bit.rshift(tileSelIndex, 13))
 					self.tileOrAutotile = 'tile'
+					self:refreshTileSel()	-- because we're editing a member, we have to manually refresh tileSelPosTextField
 				end
 			end
 		elseif self.drawMode == 'draw' then
