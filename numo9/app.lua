@@ -3374,10 +3374,10 @@ function App:writePersistent()
 --DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(saveStr))
 		local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 		if len == 0 then
---DEBUG:print('clearing persist file: '..cartPersistFile)
+print('clearing persist file: '..cartPersistFile)
 			cartPersistFile:remove()
 		else
---DEBUG:print('saving persist file: '..cartPersistFile)
+print('saving persist file: '..cartPersistFile)
 			cartPersistFile:write(saveStr)
 		end
 		-- now where does self.cfg get written?
