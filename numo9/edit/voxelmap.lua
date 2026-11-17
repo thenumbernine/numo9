@@ -1318,6 +1318,8 @@ function EditVoxelMap:update()
 		if app.ram.HD2DFlags ~= pushHD2DFlags then
 			app.ram.HD2DFlags = pushHD2DFlags
 			app:onHD2DFlagsChange()
+
+			app:flushToFinalRGB(true)
 		end
 
 		orbit:endDraw()

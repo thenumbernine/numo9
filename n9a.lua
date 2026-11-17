@@ -508,7 +508,7 @@ elseif cmd == 'a' or cmd == 'r' then
 	if cmd == 'r' then
 		print('running from', path:cwd())
 		print('running file', n9path)
-		assert(os.execute('luajit run.lua -nosplash '..n9path:escape()))
+		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))
 	end
 
 elseif cmd == 'n9tobin' then
@@ -1592,7 +1592,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	assert(basepath'code.lua':write(code))
 
 	if cmd == 'p8run' then
-		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+		assert(os.execute('luajit n9a.lua r "'..path(fn):setext'n9'..'"'))
 	end
 
 	if next(sections) then
@@ -1845,7 +1845,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	basepath'code.lua':write(code:concat'\n')
 
 	if cmd == 'ticrun' then
-		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+		assert(os.execute('luajit n9a.lua r "'..path(fn):setext'n9'..'"'))
 	end
 
 elseif cmd == 'nes' or cmd == 'nesrun' then
@@ -2040,7 +2040,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	-- TODO TODO instead, disasm the asm, and transpile it into Lua instructions.
 
 	if cmd == 'nesrun' then
-		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+		assert(os.execute('luajit n9a.lua r "'..path(fn):setext'n9'..'"'))
 	end
 
 else

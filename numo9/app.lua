@@ -3335,13 +3335,21 @@ function App:openCart(filename)
 		if f then break end
 		f = nil
 	end
-	if not f then return nil, basemsg..': failed to find file.  checked '..checked:concat', ' end
+	if not f then
+		local errmsg = basemsg..': failed to find file.  checked '..checked:concat', '
+		print(errmsg)
+		return nil, errmsg
+	end
 
 	-- [[ do I bother implement fs:open'r' ?
 	local d = f.data
 	local msg = not d and 'is not a file' or nil
 	--]]
-	if not d then return nil, basemsg..(msg or '') end
+	if not d then
+		local errmsg = basemsg..(msg or '')
+		print(errmsg)
+		return nil, errmsg
+	end
 
 	self:setBlobs(cartImageToBlobs(d))
 
