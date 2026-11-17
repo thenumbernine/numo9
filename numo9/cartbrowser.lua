@@ -1,4 +1,5 @@
 local ffi = require 'ffi'
+local sdl = require 'sdl'
 local table = require 'ext.table'
 local path = require 'ext.path'
 local Image = require 'image'
@@ -223,6 +224,30 @@ function CartBrowser:refreshThumbTex()
 		-- store 'false' in cache so we know not to try again
 		self.thumbTex = false
 	end)
+end
+
+function CartBrowser:event(e, ...)
+	local app = self.app
+	if e[0].type == sdl.SDL_EVENT_MOUSE_WHEEL then
+		local dy
+		if e[0].wheel.y < 0 then
+			dy = 1
+		elseif e[0].wheel.y > 0 then
+			dy = -1
+		end
+		if dy then
+			self.menuTabIndex = self.menuTabIndex + dy
+			if self.menuTabCounter and self.menuTabCounter > 0 then
+				self.menuTabIndex = self.menuTabIndex % self.menuTabCounter
+			else
+				self.menuTabIndex = 0
+			end
+			local w = self.widgetForTabIndex[self.menuTabIndex]
+			if w then self.uiRoot:setFocusWidget(w) end
+			return true
+		end
+	end
+	return CartBrowser.super.event(self, e, ...)
 end
 
 return CartBrowser

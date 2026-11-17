@@ -336,19 +336,18 @@ function UIRoot:setFocusWidget(widget, ...)
 		-- which to use ...
 		local container = self	-- has .scroll
 		--local container = widget.parent
-		if widget.ssbbox.max.x < 0 then
-			container.scroll.x = container.scroll.x + viewPadding - widget.ssbbox.max.x
+		if widget.ssbbox.min.x < 0 then
+			container.scroll.x = container.scroll.x - (widget.ssbbox.min.x + viewPadding)
 		end
-		if widget.ssbbox.max.y < 0 then
-			container.scroll.y = container.scroll.y + viewPadding - widget.ssbbox.max.y
+		if widget.ssbbox.min.y < 0 then
+			container.scroll.y = container.scroll.y - (widget.ssbbox.min.y + viewPadding)
 		end
-		if widget.ssbbox.min.x >= app.width then
-			container.scroll.x = container.scroll.x - widget.ssbbox.max.x - app.width + viewPadding
+		if widget.ssbbox.max.x >= app.width then
+			container.scroll.x = container.scroll.x - (widget.ssbbox.max.x - app.width + viewPadding)
 		end
-		if widget.ssbbox.min.y >= app.height then
-			container.scroll.y = container.scroll.y - widget.ssbbox.max.y - app.height + viewPadding
+		if widget.ssbbox.max.y >= app.height then
+			container.scroll.y = container.scroll.y - (widget.ssbbox.max.y - app.height + viewPadding)
 		end
-
 		self:bubbleCallback(self.activeElement, 'onFocusIn_bubbleIn', 'onFocusIn', ...)
 		self.activeElement:onFocus(...)
 	end
