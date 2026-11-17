@@ -13,12 +13,22 @@ local table = require 'ext.table'
 local range = require 'ext.range'
 local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
+local timer = require 'ext.timer'
 local op = require 'ext.op'
 local string = require 'ext.string'
 local assert = require 'ext.assert'
 local vector = require 'stl.vector-lua'
+local LuaFixedParser = require 'langfix.parser'
+local LuaFixedEnv = require 'langfix.env'
 local Image = require 'image'
 local AudioWAV = require 'audio.io.wav'
+
+-- record working dir
+local rundir = assert(path:cwd())
+
+-- chdir to the script location (or do that before requiring everything to prevent local dir overrides...)
+-- so that we can require the numo9.* correctly
+assert(path(arg[0]):getdir():cd())
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -53,6 +63,7 @@ local BlobSFX = blobClassForName.sfx
 -- special hack for n9a, tell the blob classes to skip GPU resource allocation
 -- why?  no problem in Linux or OSX, but in Windows it will poop itself if you try to touch OpenGL before GL context initialization
 require 'numo9.blob.voxelmap'.skipGPU = true
+
 
 
 local int8_t = ffi.typeof'int8_t'
@@ -111,7 +122,7 @@ assert(cmd and fn, "expected: `n9a.lua cmd filename`")
 
 -- should probably use the same lib as numo9 uses for its compression/saving ...
 if cmd == 'l' then
-	local n9path = path(fn)
+	local n9path = rundir/fn
 	local blobs = cartImageToBlobs((assert(n9path:read())))
 	for _,blobClassName in ipairs(table.keys(blobs):sort()) do
 		local blobsForType = blobs[blobClassName]
@@ -124,8 +135,8 @@ if cmd == 'l' then
 
 elseif cmd == 'x' then
 
-	local n9path = path(fn)
-	local basepath = getbasepath(fn)
+	local n9path = rundir/fn
+	local basepath = getbasepath(n9path)
 
 	assert(n9path:exists(), tostring(fn).." doesn't exist")
 	basepath:mkdir()
@@ -184,8 +195,8 @@ elseif cmd == 'x' then
 
 elseif cmd == 'a' or cmd == 'r' then
 
-	local n9path = path(fn)
-	local basepath = getbasepath(fn)
+	local n9path = rundir/fn
+	local basepath = getbasepath(n9path)
 
 	assert(basepath:isdir(), "couldn't find resource directory "..basepath)
 
@@ -290,7 +301,6 @@ elseif cmd == 'a' or cmd == 'r' then
 			end
 		end
 
-		local LuaFixedParser = require 'langfix.parser'
 		local parser = LuaFixedParser()
 
 		local i = 1
@@ -415,7 +425,7 @@ elseif cmd == 'a' or cmd == 'r' then
 		--resetPalette(bank)
 	end
 
-	require 'ext.timer'('compiling/transpiling code', function()
+	timer('compiling/transpiling code', function()
 		-- ok I am getting tired of my transpile load time
 		-- so I came up with a fix
 		-- optional save transpiled code or save bytecode
@@ -452,7 +462,7 @@ elseif cmd == 'a' or cmd == 'r' then
 						}, {
 							__index = _G,
 						})
-						local langfixState = require 'langfix.env'(loadenv)
+						local langfixState = LuaFixedEnv(loadenv)
 						local langfix = loadenv.langfix
 						code, msg = langfix.luaToFixed(code)
 						if not code then
@@ -492,7 +502,7 @@ elseif cmd == 'a' or cmd == 'r' then
 	end)
 
 	print'saving cart...'
-	assert(path(fn):write(blobsToCartImage(blobs, labelImage)))
+	assert((rundir/fn):write(blobsToCartImage(blobs, labelImage)))
 	print'...done saving cart'
 
 	if cmd == 'r' then
@@ -501,8 +511,8 @@ elseif cmd == 'a' or cmd == 'r' then
 
 elseif cmd == 'n9tobin' then
 
-	local n9path = path(fn)
-	local basepath = getbasepath(fn)
+	local n9path = rundir/fn
+	local basepath = getbasepath(n9path)
 	local binpath = n9path:setext'bin'
 
 	local blobsAsStrWithSig = assert(cartImageToBlobStrWithSig(
@@ -512,13 +522,13 @@ elseif cmd == 'n9tobin' then
 
 elseif cmd == 'binton9' then
 
-	local n9path = path(fn)
-	local basepath = getbasepath(fn)
+	local n9path = rundir/fn
+	local basepath = getbasepath(n9path)
 	local binpath = n9path:setext'bin'
 
 	local blobsAsStrWithSig = assert(binpath:read())
 
-	assert(path(fn):write(
+	assert(n9path:write(
 		(assert(blobStrWithSigToCartImage(blobsAsStrWithSig)))
 	))
 
@@ -535,7 +545,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 	- proper pico8-lua language parser
 	--]]
 
-	local p8path = path(fn)
+	local p8path = rundir/rn
 	-- TODO this above to make sure 'basepath' is always local?
 	-- or TODO here as well always put basepath in the input folder
 	local baseNameAndDir, ext = p8path:getext()
@@ -666,7 +676,7 @@ print('replacing', string.bytes(k):concat',', string.bytes(p8):concat',')
 		end
 		local height = #ls
 print('toImage', name, 'width', width, 'height', height)
---print(require 'ext.tolua'(ls))
+--print(tolua(ls))
 		local image = Image(width, height, 1, uint8_t):clear()
 		-- for now output 4bpp -> 8bpp
 		for j=0,height-1 do
@@ -1590,7 +1600,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 -- TODO make this auto-detect 'x' and 'r' based on extension
 elseif cmd == 'tic' or cmd == 'ticrun' then
 
-	local ticpath = path(fn)
+	local ticpath = rundir/fn
 	local baseNameAndDir, ext = ticpath:getext()
 	assert.eq(ext, 'tic')
 	local basepath = select(2, baseNameAndDir:getdir())
@@ -1838,7 +1848,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 
 elseif cmd == 'nes' or cmd == 'nesrun' then
 
-	local nespath = path(fn)
+	local nespath = rundir/fn
 	local baseNameAndDir, ext = nespath:getext()
 	assert.eq(ext, 'nes')
 	local basepath = select(2, baseNameAndDir:getdir())

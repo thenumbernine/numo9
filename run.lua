@@ -1,6 +1,10 @@
 #!/usr/bin/env luajit
 local assert = require 'ext.assert'
 local string = require 'ext.string'
+local path = require 'ext.path'
+
+local rundir = assert(path:cwd())
+assert(path(arg[0]):getdir():cd())
 
 -- TODO cli here
 cmdline = {...}	-- global for later
@@ -58,4 +62,6 @@ end
 
 require 'gl.setup'(cmdline.gl)
 
-return require 'numo9.app'():run()
+return require 'numo9.app'{
+	rundir = rundir,
+}:run()

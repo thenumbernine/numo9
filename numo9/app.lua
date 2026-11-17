@@ -208,6 +208,11 @@ local function tointCode(x)
 	return 'ffi.cast(int32_t, '..x..')'
 end
 
+function App:init(args, ...)
+	self.rundir = args.rundir
+	return App.super.init(self, args, ...)
+end
+
 function App:initGL()
 	self.mainThread = coroutine.running()
 	gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
@@ -1482,7 +1487,7 @@ print('package.loaded', package.loaded)
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
 			if cmdline and cmdline[1] then
-				self:openCart(cmdline[1])	-- or what about starting a server game?  and then net_openCart?
+				self:openCart(self.rundir/cmdline[1])	-- or what about starting a server game?  and then net_openCart?
 				self:runCart()
 			end
 
