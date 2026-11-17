@@ -25,30 +25,40 @@ local float_3 = ffi.typeof'float[3]'
 local float_4 = ffi.typeof'float[4]'
 
 
-local version = table{1,4,6}
-local versionSig = version:mapi(function(x) return string.char(x) end):concat()
+local version = table{1,4,7}
+
+--[[
+before in the name of FC i was doing 1-byte major/minor/patch
+but I patched it too often
+so I dont want to compare patch version
+but i dont want to break cart load compat just right now
+so I'll just zero patch version in file compare
+--]]
+local versionSig = version:sub(1,2):mapi(function(ch) return string.char(ch) end):concat()
+
 local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
-	..'f'
 
 local numo9FileSig = 'NuMo9'
 
 -- [[ signature add & remove
 assert.len(numo9FileSig, 5)
-assert.len(versionSig, 3)
+assert.len(versionSig, 2)
 
 local function addSig(s)
-	return numo9FileSig..versionSig..s
+	return numo9FileSig
+		..versionSig..'\0'	-- no more patch level compare.  bad idea.  mabye this byte will become minor-hi if i ever have more than 255 minor versions...
+		..s
 end
 
 local function removeSig(s)
 	assert.eq(s:sub(1,5), numo9FileSig, "Cartridge Signature Mismatch!")
-	local gotVerSig = s:sub(6,8)
+	local gotVerSig = s:sub(6,7)
 	if gotVerSig ~= versionSig then
 		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 		print('!!! WARNING              !!!')
 		print('!!! SIGNATURES DIFFER    !!!')
-		print('!!! CONSOLE:   '..string.hex(versionSig)..'    !!!')
-		print('!!! CARTRIDGE: '..string.hex(gotVerSig)..'    !!!')
+		print('!!! CONSOLE:   '..string.hex(versionSig)..'     !!!')
+		print('!!! CARTRIDGE: '..string.hex(gotVerSig)..'     !!!')
 		print('!!! PROCEED WITH CAUTION !!!')
 		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 	end
