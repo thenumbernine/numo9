@@ -506,7 +506,9 @@ elseif cmd == 'a' or cmd == 'r' then
 	print'...done saving cart'
 
 	if cmd == 'r' then
-		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))
+		print('running from', path:cwd())
+		print('running file', n9path)
+		assert(os.execute('luajit run.lua -nosplash '..n9path:escape()))
 	end
 
 elseif cmd == 'n9tobin' then

@@ -209,6 +209,11 @@ local function tointCode(x)
 end
 
 function App:init(args, ...)
+	-- rundir isn't enough
+	-- because carts are loaded from the virtfs that is loaded from numo9 startup,
+	-- that means this has to start up in the dir that the cart is
+	-- that means separating all numo9/ resources from all cart-local resources
+	-- (or it means making a virtfs adapter for true OS fs ...)
 	self.rundir = args.rundir
 	return App.super.init(self, args, ...)
 end
@@ -1487,7 +1492,10 @@ print('package.loaded', package.loaded)
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
 			if cmdline and cmdline[1] then
-				self:openCart(self.rundir/cmdline[1])	-- or what about starting a server game?  and then net_openCart?
+				self:openCart(
+					--self.rundir/
+					cmdline[1]	-- or what about starting a server game?  and then net_openCart?
+				)
 				self:runCart()
 			end
 
