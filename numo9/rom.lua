@@ -25,7 +25,7 @@ local float_3 = ffi.typeof'float[3]'
 local float_4 = ffi.typeof'float[4]'
 
 
-local version = table{1,4,7}
+local version = table{1,4,8}
 
 --[[
 before in the name of FC i was doing 1-byte major/minor/patch
