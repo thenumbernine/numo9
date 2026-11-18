@@ -1035,7 +1035,9 @@ function App:initGL()
 	self.env.require = function(modname)
 		-- NOTICE if no game is running then it'll fall back on self.env's package.loaded and then you'll get different results for require() than when a game is running
 		if not self.gameEnv then
-			print'!!! WARNING !!! using require() from outside gameEnv'
+			-- tehre's no default env.package, just gameEnv, so ...
+			return
+			--self.con:print'!!! WARNING !!! using require() from outside gameEnv'
 		end
 		local env = self.gameEnv or self.env
 		local loaded = env.package.loaded
@@ -1183,7 +1185,7 @@ print('package.loaded', package.loaded)
 	FileSystem = require 'numo9.filesystem'
 	self.fs = FileSystem{app=self}
 	-- copy over a local filetree somewhere in the app ...
-	for fn in path:dir() do
+	for fn in self.rundir:dir() do
 		if select(2, fn:getext()) == 'n9'
 		or (select(2, fn:getext()) == 'png'
 			and select(2, fn:getext():getext()) == 'n9')
@@ -3290,6 +3292,9 @@ function App:openCart(filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 
+	-- clear gameEnv here, build it upon runCart()
+	self.gameEnv = nil
+
 	--[[ before resizing the memory range, make sure all memory is synced, so that when we move addresses later it doesn't try to sync to CPU mem that is stale / dangling
 	self:allRAMRegionsCheckDirtyGPU()
 	self:allRAMRegionsCheckDirtyCPU()
@@ -4021,8 +4026,35 @@ function App:event(e)
 		return
 	end
 
+	-- handle drop file
+	if e[0].type == sdl.SDL_EVENT_DROP_FILE then
+		local fp, success
+		xpcall(function()
+			fp = ffi.string(e[0].drop.data)
+			print('getting file drop for', fp)
+			fp = path(fp)
+			assert(fp:exists())
+			local d = assert(fp:read())
+
+			-- 1) copy to virtfs
+			local name = fp:getname()
+			local vf = assert(self.fs:create(name))
+			vf.data = d
+			-- 2) copy to local dir
+			assert(self.rundir(name):write(d))
+			-- 3) run the cart
+			self:openCart(name)
+			self:runCart()
+			-- 4) don't keep handling event
+			success = true
+		end, function(err)
+			print('file drop failed:')
+			if fp then print('for file', fp) end
+			print(err..'\n'..debug.traceback())
+		end)
+		if success then return end
 	-- handle gamepad add/remove events here
-	if e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
+	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
 
 		local controllerIndex
 		for j=1,maxPlayersPerConn do
