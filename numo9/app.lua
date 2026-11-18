@@ -1494,10 +1494,13 @@ print('package.loaded', package.loaded)
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
 			if cmdline and cmdline[1] then
-				self:openCart(
-					--self.rundir/
-					cmdline[1]	-- or what about starting a server game?  and then net_openCart?
-				)
+				-- TODO ... rundir is the cwd when the app was launched
+				-- and then the virtfs is loaded from that rundir
+				-- and then this will load the file in virtfs (fail on subdirs)
+				-- ... I should have a cartdir for rundir + relpath of cmdline[1]
+				-- ... and use that for virtfs loading and this here
+				self:openCart(cmdline[1])
+				-- or what about starting a server game?  and then net_openCart?
 				self:runCart()
 			end
 
