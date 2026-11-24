@@ -25,7 +25,7 @@ local float_3 = ffi.typeof'float[3]'
 local float_4 = ffi.typeof'float[4]'
 
 
-local version = table{1,4,8}
+local version = table{1,4,9}
 
 --[[
 before in the name of FC i was doing 1-byte major/minor/patch
@@ -607,7 +607,7 @@ local vertexCoordMax = 32767
 local vertexTexcoordMin = -128
 local vertexTexcoordMax = 127
 -- how much the obj file is scaled by
-local vertexMeshFileCoordScale = 256
+local vertexMeshFileCoordScale = 128
 local vertexMeshFileTexcoordScale = 256
 
 ffi.cdef[[
@@ -636,7 +636,7 @@ local Voxel = ffi.typeof'Voxel'
 assert.eq(ffi.sizeof(Voxel), 4)
 local voxelMapEmptyValue = 0xffffffff
 local voxelmapSizeType = uint32_t	-- type for the header's size xyz
-local voxelVertexScale = 16384		-- scale from mesh coords [-32768,32767] to voxel coords [-.5, .5] (before translation)
+local voxelVertexScale = 8192		-- scale from mesh coords [-8192,8192] to voxel coords [-.5, .5] (before translation)
 
 return {
 	version = version,
