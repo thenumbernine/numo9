@@ -113,7 +113,7 @@ end
 -- assumes 'palette' is a Lua table -- the kind that are used in Image's .palette fields
 local function savePal(palette, outfn)
 	Image(16, 16, 4, uint8_t, range(0,16*16*4-1):mapi(function(i)
-		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
+		return palette[(i >> 2)+1][(i & 3)+1]
 	end)):save(tostring(outfn))
 end
 
@@ -674,7 +674,7 @@ print('replacing', string.bytes(k):concat',', string.bytes(p8):concat',')
 		for i=2,#ls do assert.eq(#ls[1], #ls[i]) end
 		local width = #ls[1]
 		if _8bpp then
-			width = bit.rshift(width, 1)
+			width = width >> 1
 		end
 		local height = #ls
 print('toImage', name, 'width', width, 'height', height)
@@ -783,10 +783,7 @@ print('toImage', name, 'width', width, 'height', height)
 			local p = ffi.cast(uint16_t_p, tilemapImg.buffer)
 			for j=0,tilemapImg.height-1 do
 				for i=0,tilemapImg.width-1 do
-					p[0] = bit.bor(
-						bit.band(0x0f, p[0]),
-						bit.lshift(bit.band(0xf0, p[0]), 1)
-					)
+					p[0] = (0x0f & p[0]) | ((0xf0 & p[0]) << 1)
 					p=p+1
 				end
 			end
@@ -801,16 +798,13 @@ print('toImage', name, 'width', width, 'height', height)
 			for j=64,127 do
 				for i=0,63 do
 					local dstp
-					if bit.band(j, 1) == 0 then
-						dstp = p + i + tilemapImg.width * bit.rshift(j, 1)
+					if j & 1 == 0 then
+						dstp = p + i + tilemapImg.width * (j >> 1)
 					else
-						dstp = p + i + 64 + tilemapImg.width * bit.rshift(j, 1)
+						dstp = p + i + 64 + tilemapImg.width * (j >> 1)
 					end
-					local srcp = gfxImg.buffer + bit.lshift(i, 1) + gfxImg.width * j
-					dstp[0] = bit.bor(
-						bit.band(0x0f, srcp[0]),
-						bit.lshift(bit.band(0x0f, srcp[1]), 5)
-					)
+					local srcp = gfxImg.buffer + (i << 1) + gfxImg.width * j
+					dstp[0] = (0x0f & srcp[0]) | ((0x0f & srcp[1]) << 5)
 				end
 			end
 		end
@@ -921,16 +915,16 @@ print('toImage', name, 'width', width, 'height', height)
 			local w = table()
 			for i,a in ipairs(waveform) do
 				--[==[
-				w:insert(bit.band(bit.rshift(a, 4), 15) / 15 * 255)
-				w:insert(bit.band(a, 15) / 15 * 255)
+				w:insert(((a >> 4) & 15) / 15 * 255)
+				w:insert((a & 15) / 15 * 255)
 				--]==]
 				-- [==[ "out: 16 bytes as in picowave, each byte contains 2 values so 32 samples in total, one is -8 to 7, on 4 bits"
 				local function _4bit_unsigned_as_signed_to_8bit_unsigned(x)
 					if x >= 8 then x = x - 16 end	-- convert values [8, 15] to [-8, -1] so now all oru values go from [0,15] to [-8,7]
 					return (x / 8) * 127 + 128		-- convert from [-8,7] 0-centered to [0,255] 128-centered
 				end
-				w:insert(_4bit_unsigned_as_signed_to_8bit_unsigned(bit.band(bit.rshift(a, 4), 15)))
-				w:insert(_4bit_unsigned_as_signed_to_8bit_unsigned(bit.band(a, 15)))
+				w:insert(_4bit_unsigned_as_signed_to_8bit_unsigned(((a >> 4) & 15)))
+				w:insert(_4bit_unsigned_as_signed_to_8bit_unsigned((a & 15)))
 				--]==]
 			end
 			return w
@@ -1162,7 +1156,7 @@ print('toImage', name, 'width', width, 'height', height)
 						-- maybe I should generate the patterns again myself ...
 						local waveformData,waveformLen
 						if note.waveform < 8 then
-							local waveformIndex = bit.band(7,note.waveform)
+							local waveformIndex = 7 & note.waveform
 							waveformData  = waveforms[waveformIndex+1].data
 							waveformLen = waveforms[waveformIndex+1].len
 						else
@@ -1181,7 +1175,7 @@ print('toImage', name, 'width', width, 'height', height)
 							assert.eq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
 						end
 
-						local f = wavefuncs[bit.band(7,note.waveform)+1]
+						local f = wavefuncs[(7 & note.waveform)+1]
 						local volume = baseVolume * note.volume / 7
 						local freq = C0freq * chromastep^note.pitch
 						for i=0,sampleFramesPerNote-1 do
@@ -1258,8 +1252,8 @@ print("total SFX data size if I'd use BRR: "..(
 		for musicTrackIndexPlusOne,line in ipairs(musicSrc) do
 			local musicTrackIndex = musicTrackIndexPlusOne-1
 			local flags = tonumber(line:sub(1,2), 16)
-			local beginLoop = 0 ~= bit.band(1, flags)
-			local endLoop = 0 ~= bit.band(2, flags)
+			local beginLoop = 0 ~= 1 & flags
+			local endLoop = 0 ~= 2 & flags
 			if beginLoop then
 				lastBegin = musicTrackIndex
 			end
@@ -1271,7 +1265,7 @@ print("total SFX data size if I'd use BRR: "..(
 				loopTo = endLoop
 					and assert(lastBegin, "music has an end-loop without a begin-loop...")
 					or musicTrackIndex + 1,	-- or just play through to the next track
-				stopAtEnd = 0 ~= bit.band(4, flags),
+				stopAtEnd = 0 ~= 4 & flags,
 				sfxs = table{
 					line:sub(4):gsub('..', function(h)
 						-- btw what are those top 2 bits for?
@@ -1616,13 +1610,13 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	local endptr = ptr + #data
 	local ticbanks = {}	-- ticbanks[0-7][chunkType]
 	while ptr < endptr do
-		local bankNo = bit.rshift(ptr[0], 5)
+		local bankNo = ptr[0] >> 5
 		local bank = ticbanks[bankNo]
 		if not bank then
 			bank = {}
 			ticbanks[bankNo] = bank
 		end
-		local chunkType = bit.band(ptr[0], 0x1f)
+		local chunkType = ptr[0] & 0x1f
 		local chunkSize = ffi.cast(uint16_t_p, ptr+1)[0]
 		ptr = ptr + 4
 		if ptr >= endptr then break end
@@ -1730,19 +1724,19 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 				-- TODO maybe keep 2bpp and 1bpp copies as well
 				-- is it stored as sequential sprites, or is it one giant texture like pico8?
 				-- looks like TIC-80 is a lot more like a proper console than Pico8
-				local spriteIndex = bit.rshift(i, 5)
-				local x = bit.lshift(bit.band(i, 3), 1)
-				local y = bit.band(bit.rshift(i, 2), 7)
-				local spriteX = bit.band(spriteIndex, 0xf)
-				local spriteY = bit.rshift(spriteIndex, 4)
-				local dstx = x + bit.lshift(spriteX, 3)
-				local dsty = y + bit.lshift(spriteY, 3)
+				local spriteIndex = i >> 5
+				local x = (i & 3) << 1
+				local y = (i >> 2) & 7
+				local spriteX = spriteIndex & 0xf
+				local spriteY = spriteIndex >> 4
+				local dstx = x + (spriteX << 3)
+				local dsty = y + (spriteY << 3)
 				assert(0 <= dstx and dstx < subimg.width)
 				assert(0 <= dsty and dsty < subimg.height)
 				local destindex = dstx + subimg.width * dsty
 				assert(0 <= destindex and destindex < subimg.width * subimg.height)
-				subimg.buffer[destindex] = bit.band(ptr[i], 0xf)
-				subimg.buffer[destindex+1] = bit.rshift(ptr[i], 4)
+				subimg.buffer[destindex] = ptr[i] & 0xf
+				subimg.buffer[destindex+1] = ptr[i] >> 4
 			end
 			local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, uint8_t)
 				:clear()
@@ -1770,10 +1764,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 				local x = i % srcw
 				local y = (i - x) / srcw
 				-- change sprite index from 16x16 to 32x32
-				image.buffer[0 + 3 * (x + image.width * y)] = bit.bor(
-					bit.band(0x0f, ptr[i]),
-					bit.lshift(bit.band(0xf0, ptr[i]), 1)
-				)
+				image.buffer[0 + 3 * (x + image.width * y)] = (0x0f & ptr[i]) | ((0xf0 & ptr[i]) << 1)
 			end
 			image:save(bankpath'tilemap.png'.path)
 		end
@@ -1790,7 +1781,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 				..range(0,#flagSrc-1):mapi(function(index)
 					local s = ('0x%02x,'):format(flagSrc:byte(index+1))
 					if index==0 then s='[0]='..s end
-					if bit.band(index, 0xf) == 0xf then s = s .. '\n' end
+					if index & 0xf == 0xf then s = s .. '\n' end
 					return s
 				end):concat()
 				..'}\n'
@@ -1867,11 +1858,11 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local header = data:sub(1, 0x10)
 	data = data:sub(0x10+1)
 
-	local nes_PRG_ROM_size = bit.lshift(header:byte(4+1), 14)
+	local nes_PRG_ROM_size = header:byte(4+1) << 14
 	print('nes_PRG_ROM_size', ('0x%x'):format(nes_PRG_ROM_size))
-	local nes_CHR_ROM_size = bit.lshift(header:byte(5+1), 13)
+	local nes_CHR_ROM_size = header:byte(5+1) << 13
 	print('nes_CHR_ROM_size', ('0x%x'):format(nes_CHR_ROM_size))
-	if bit.band(header:byte(6+1), 2) ~= 0 then
+	if header:byte(6+1) & 2 ~= 0 then
 		header = header .. data:sub(1, 0x200)
 		data = data:sub(0x200+1)
 	end
@@ -1920,9 +1911,9 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 		0xFFFFFF, 0x57A5FF, 0x8287FF, 0xB46DFF, 0xDF60FF, 0xF863C6, 0xF8746D, 0xDE9020, 0xB3AE00, 0x81C800, 0x56D522, 0x3DD36F, 0x3EC1C8, 0x4E4E4E, 0x000000, 0x000000,
 		0xFFFFFF, 0xBEE0FF, 0xCDD4FF, 0xE0CAFF, 0xF1C4FF, 0xFCC4EF, 0xFDCACE, 0xF5D4AF, 0xE6DF9C, 0xD3E99A, 0xC2EFA8, 0xB7EFC4, 0xB6EAE5, 0xB8B8B8, 0x000000, 0x000000,
 	}:mapi(function(c)
-		local r = bit.rshift(c, 16)
-		local g = bit.band(0xFF, bit.rshift(c, 8))
-		local b = bit.band(0xFF, c)
+		local r = c >> 16
+		local g = 0xFF & (c >> 8)
+		local b = 0xFF & c
 		return {r,g,b,0xFF}
 	end)
 	:rep(4)	-- 64 -> 256
@@ -1934,7 +1925,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 		local palindex = (i - 0x3F00)
 		local v = VRAM:byte(i+1)
 		--palindex &= 0xf	-- mirror? or nah?
-		palette[palindex+1] = table(palette[bit.bor(0xC0, bit.band(v, 0x3F))+1])
+		palette[palindex+1] = table(palette[(0xC0 | (v & 0x3F))+1])
 	end
 
 	-- convert palette array to image ... also in p8 above
@@ -1946,30 +1937,18 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	for i=0,0x1FFF do
 		local v = VRAM:byte(i+1)
 		-- duplicated from n9a_nes_glue.lua nespoke PPUMemPtr < 0x2000  :
-		local y = bit.band(0x7, i)					-- bits 012 = row
-		local hi = bit.band(1, bit.rshift(i, 3))	-- bit 3 = hi bit
-		local sprIndex = bit.rshift(i, 4)
-		local sprX = bit.band(0x1F, sprIndex)
-		local sprY = bit.rshift(sprIndex, 5)
+		local y = 0x7 & i		-- bits 012 = row
+		local hi = 1 & (i >> 3)	-- bit 3 = hi bit
+		local sprIndex = i >> 4
+		local sprX = 0x1F & sprIndex
+		local sprY = sprIndex >> 5
 --trace('...to sprIndex='..sprIndex..' sprX='..sprX..' sprY='..sprY..' hi='..hi)
 		for x=0,7 do
-			local addr = bit.bor(
-				x,
-				bit.lshift(sprX, 3),
-				bit.lshift(
-					bit.bor(
-						y,
-						bit.lshift(sprY, 3)
-					),
-					8
-				)
-			)
+			local addr = (x | (sprX << 3))
+				| ((y | (sprY << 3)) << 8)
 			local pix = sheetImg.buffer[addr]
-			pix = bit.band(pix, bit.bnot(bit.lshift(1, hi)))
-			pix = bit.bor(pix, bit.lshift(
-				bit.band(1, bit.rshift(v, 7 - x)),
-				hi
-			))
+			pix = pix & ~(1 << hi)
+			pix = pix | ((1 & (v >> (7 - x))) << hi)
 			sheetImg.buffer[addr] = pix
 		end
 	end
@@ -1986,24 +1965,15 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	for i=0x2000,0x3FFF do
 		local v = VRAM:byte(i+1)
 
-		local tileIndex = bit.band(3, bit.rshift(i, 10))
-		local pageaddr = bit.band(0x3FF, i)
+		local tileIndex = 3 & (i >> 10)
+		local pageaddr = 0x3FF & i
 		--if pageaddr < 960 then
-			local x = bit.band(0x1f, pageaddr)
-			local y = bit.rshift(pageaddr, 5)
+			local x = 0x1f & pageaddr
+			local y = pageaddr >> 5
 			-- 32x30 tilemap
-			tilemapImg.buffer[3 * bit.bor(
-				bit.bor(
-					x,
-					bit.lshift(bit.band(1, tileIndex), 5)
-				),
-				bit.lshift(
-					bit.bor(
-						y,
-						bit.lshift(bit.band(2, tileIndex), 4)
-					),
-					8
-				)
+			tilemapImg.buffer[3 * (
+				x | ((tileIndex & 1) << 5)
+				| ((y | ((tileIndex & 2) << 4)) << 8)
 			)] = v
 		--else
 			-- attribute-flags

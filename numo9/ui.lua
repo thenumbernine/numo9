@@ -229,7 +229,7 @@ function UI:edit_tset(tilemapBlobIndex, x, y, value)
 	end
 
 	local addr = app.blobs.tilemap[tilemapBlobIndex+1].addr
-		+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		+ ((x | (y << tilemapSizeInBits.x)) << 1)
 
 	if app:peekw(addr) == value then return end
 

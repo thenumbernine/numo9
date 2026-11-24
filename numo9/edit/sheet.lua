@@ -230,7 +230,7 @@ function EditSheet:init(args)
 		owner = self,
 		pos = {16, 200},
 		tooltip = function()
-			return 'pal bpp='..bit.lshift(1, self.log2PalBits)
+			return 'pal bpp='..(1 << self.log2PalBits)
 		end,
 		setValue = function(dx)
 			self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
@@ -244,7 +244,7 @@ function EditSheet:init(args)
 			return 'pal ofs='..self.paletteOffset
 		end,
 		setValue = function(dx)
-			self.paletteOffset = bit.band(0xff, self.paletteOffset + dx)
+			self.paletteOffset = 0xff & (self.paletteOffset + dx)
 		end,
 	})
 	-- adjust pen size
@@ -466,17 +466,8 @@ function EditSheet:init(args)
 					self.undo:pushContinuous()
 
 					local selColorValue = self:getPaletteSelIndexColor()
-					local mask = bit.lshift(0x1f, info.shift)
-					selColorValue = bit.bor(
-						bit.band(
-							bit.lshift(result, info.shift),
-							mask
-						),
-						bit.band(
-							selColorValue,
-							bit.bnot(mask)
-						)
-					)
+					local mask = 0x1f << info.shift
+					selColorValue = ((result << info.shift) & mask) | (selColorValue & ~mask)
 					self:setPaletteSelIndexColor(selColorValue)
 				end,
 			},
@@ -488,17 +479,8 @@ function EditSheet:init(args)
 			setValue = function(dx)
 				self.undo:pushContinuous()
 				local selColorValue = self:getPaletteSelIndexColor()
-				local mask = bit.lshift(0x1f, info.shift)
-				selColorValue = bit.bor(
-					bit.band(
-						selColorValue + bit.lshift(dx, info.shift),
-						mask
-					),
-					bit.band(
-						selColorValue,
-						bit.bnot(mask)
-					)
-				)
+				local mask = 0x1f << info.shift
+				selColorValue = ((selColorValue + (dx << info.shift)) & mask) | (selColorValue & ~mask)
 				self:setPaletteSelIndexColor(selColorValue)
 			end,
 		})
@@ -510,18 +492,18 @@ function EditSheet:init(args)
 		text = 'A',
 		isset = function()
 			local selColorValue = self:getPaletteSelIndexColor()
-			local alpha = 0 ~= bit.band(selColorValue, 0x8000)
+			local alpha = 0 ~= selColorValue & 0x8000
 			return alpha
 		end,
 		events = {
 			click = function()
 				local selColorValue = self:getPaletteSelIndexColor()
-				local alpha = 0 ~= bit.band(selColorValue, 0x8000)
+				local alpha = 0 ~= selColorValue & 0x8000
 				self.undo:pushContinuous()
 				if alpha then	-- if it was set then clear it
-					selColorValue = bit.band(selColorValue, 0x7fff)
+					selColorValue = selColorValue & 0x7fff
 				else	-- otherwise set it
-					selColorValue = bit.bor(selColorValue, 0x8000)
+					selColorValue = selColorValue | 0x8000
 				end
 				self:setPaletteSelIndexColor(selColorValue)
 			end,
@@ -711,7 +693,7 @@ function EditSheet:init(args)
 								-- TODO build a mapping and then use 'applyColorMap' to go quicker
 								local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
 								--local r,g,b = srcp[0], srcp[1], srcp[2]
-								local bestIndex = bit.band(0xff, self.paletteOffset)
+								local bestIndex = 0xff & self.paletteOffset
 								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bestIndex])
 								local bestDistSq
 								if palA == 0 then
@@ -720,7 +702,7 @@ function EditSheet:init(args)
 									bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
 								end
 								for j=1,self.pasteTargetNumColors-1 do
-									local colorIndex = bit.band(0xff, j + self.paletteOffset)
+									local colorIndex = 0xff & (j + self.paletteOffset)
 									local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[colorIndex])
 									local distSq
 									if palA == 0 then
@@ -742,7 +724,7 @@ function EditSheet:init(args)
 							image = image:toIndexed()
 							for i,color in ipairs(image.palette) do
 								self:edit_pokew(
-									paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
+									paletteRAM.addr + ((0xff & (i-1 + self.paletteOffset)) << 1),
 									rgba8888_4ch_to_5551(
 										color[1],
 										color[2],
@@ -807,7 +789,7 @@ function EditSheet:init(args)
 			set = function(private, self, k, v)
 				local oldvalue = private[k]
 
-				private[k] = bit.band(0xff, tonumber(v) or private[k])
+				private[k] = 0xff & (tonumber(v) or private[k])
 
 				if private[k] ~= oldvalue then
 					self.paletteSelIndexTextField.value = tostring(private[k])
@@ -917,17 +899,11 @@ function EditSheet:updatePaletteSelIndexColor()
 	local selColorValue = self:getPaletteSelIndexColor()
 
 	self.selColorValueTextField.value = ('%04X'):format(selColorValue)
-	self.selColorRedValueTextField.value = ('%02X'):format(
-		bit.band(selColorValue, 0x1f)
-	)
-	self.selColorGreenValueTextField.value = ('%02X'):format(
-		bit.band(bit.rshift(selColorValue, 5), 0x1f)
-	)
-	self.selColorBlueValueTextField.value = ('%02X'):format(
-		bit.band(bit.rshift(selColorValue, 10), 0x1f)
-	)
+	self.selColorRedValueTextField.value = ('%02X'):format(selColorValue & 0x1f)
+	self.selColorGreenValueTextField.value = ('%02X'):format((selColorValue >> 5) & 0x1f)
+	self.selColorBlueValueTextField.value = ('%02X'):format((selColorValue >> 10) & 0x1f)
 
-	local alpha = bit.band(selColorValue,0x8000)~=0
+	local alpha = selColorValue & 0x8000 ~= 0
 	self.alphaLabel.text = 'opaque' or 'clear'
 end
 
@@ -935,7 +911,7 @@ function EditSheet:getPaletteSelIndexColor()
 	local app = self.app
 	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
 	local paletteRAM = paletteBlob.ramgpu
-	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
+	local selPaletteAddr = paletteRAM.addr + (self.paletteSelIndex << 1)
 	local selColorValue = app:peekw(selPaletteAddr)
 	return selColorValue
 end
@@ -944,7 +920,7 @@ function EditSheet:setPaletteSelIndexColor(selColorValue)
 	local app = self.app
 	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
 	local paletteRAM = paletteBlob.ramgpu
-	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
+	local selPaletteAddr = paletteRAM.addr + (self.paletteSelIndex << 1)
 	self:edit_pokew(selPaletteAddr, selColorValue)
 
 	-- change all C R G B A fields:
@@ -961,11 +937,7 @@ function EditSheet:getpixel(tx, ty)
 	-- TODO HERE draw a pixel to the sprite sheet ...
 	-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 	-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-	local mask = bit.lshift(
-		bit.lshift(1, self.spriteBitDepth) - 1,
-		self.spriteBit
-	)
-
+	local mask = ((1 << self.spriteBitDepth) - 1) << self.spriteBit
 
 	-- TODO since shift is shift, should I be subtracing it here?
 	-- or should I just be AND'ing it?
@@ -979,14 +951,7 @@ function EditSheet:getpixel(tx, ty)
 	local currentSheetAddr = sheetBlob.addr
 
 	local addr = currentSheetAddr + texelIndex
-	return bit.band(
-		0xff,
-		self.paletteOffset
-		+ bit.rshift(
-			bit.band(mask, app:peek(addr)),
-			self.spriteBit
-		)
-	)
+	return 0xff & (self.paletteOffset + ((mask & app:peek(addr)) >> self.spriteBit))
 end
 
 function EditSheet:putpixel(tx,ty, putValue)
@@ -999,11 +964,7 @@ function EditSheet:putpixel(tx,ty, putValue)
 	-- TODO HERE draw a pixel to the sprite sheet ...
 	-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 	-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-	local mask = bit.lshift(
-		bit.lshift(1, self.spriteBitDepth) - 1,
-		self.spriteBit
-	)
-
+	local mask = ((1 << self.spriteBitDepth) - 1) << self.spriteBit
 
 	local texelIndex = tx + spriteSheetSize.x * ty
 	assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
@@ -1014,19 +975,8 @@ function EditSheet:putpixel(tx,ty, putValue)
 	local currentSheetAddr = sheetBlob.addr
 
 	local addr = currentSheetAddr + texelIndex
-	local value = bit.bor(
-		bit.band(
-			bit.bnot(mask),
-			app:peek(addr)
-		),
-		bit.band(
-			mask,
-			bit.lshift(
-				putValue - self.paletteOffset,
-				self.spriteBit
-			)
-		)
-	)
+	local value = (~mask & app:peek(addr))
+		| (mask & ((putValue - self.paletteOffset) << self.spriteBit))
 	self:edit_poke(addr, value)
 	self.hist = nil	-- invalidate histogram
 
@@ -1248,12 +1198,12 @@ function EditSheet:update()
 			sely * spriteSize.y + self.spritePanOffset.y,
 			selw * spriteSize.x,
 			selh * spriteSize.y,
-			0,		-- orientation2D
+			0,								-- orientation2D
 			self.sheetBlobIndex,
-			self.paletteOffset,						-- paletteIndex
-			-1,										-- transparentIndex
-			self.spriteBit,							-- spriteBit
-			bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
+			self.paletteOffset,				-- paletteIndex
+			-1,								-- transparentIndex
+			self.spriteBit,					-- spriteBit
+			(1 << self.spriteBitDepth)-1	-- spriteMask
 		)
 	end
 	app.ram.paletteBlobIndex = pushPalBlobIndex
@@ -1424,14 +1374,14 @@ function EditSheet:update()
 	-- log2PalBits == 1 <=> palBits == 2 <=> showing 1<<2 = 4 colors <=> showing 2 x 2 colors
 	-- log2PalBits == 0 <=> palBits == 1 <=> showing 1<<1 = 2 colors <=> showing 2 x 1 colors
 	-- means showing 1 << 8 = 256 palettes, means showing 1 << 4 = 16 per width and height
-	local palCount = bit.lshift(1, bit.lshift(1, self.log2PalBits))
+	local palCount = 1 << (1 << self.log2PalBits)
 	local palBlockWidth = math.sqrt(palCount)
 	local palBlockHeight = math.ceil(palCount / palBlockWidth)
 	local bw = w / palBlockWidth
 	local bh = h / palBlockHeight
 	for j=0,palBlockHeight-1 do
 		for i=0,palBlockWidth-1 do
-			local paletteIndex = bit.band(0xff, self.paletteOffset + i + palBlockWidth * j)
+			local paletteIndex = 0xff & (self.paletteOffset + i + palBlockWidth * j)
 			local rx = x + bw * i
 			local ry = y + bh * j
 
@@ -1468,8 +1418,8 @@ function EditSheet:update()
 				elseif leftButtonDown then
 					if self.paletteSelDown then
 						local move = paletteIndex - self.paletteSelDown
-						self.paletteOffset = bit.band(0xff, self.paletteOffset - move)
-						self.paletteSelDown = bit.band(0xff, paletteIndex - move)
+						self.paletteOffset = 0xff & (self.paletteOffset - move)
+						self.paletteSelDown = 0xff & (paletteIndex - move)
 					end
 				else
 					self.paletteSelDown = nil
@@ -1491,7 +1441,7 @@ function EditSheet:update()
 	end
 	for j=0,palBlockHeight-1 do
 		for i=0,palBlockWidth-1 do
-			local paletteIndex = bit.band(0xff, self.paletteOffset + i + palBlockWidth * j)
+			local paletteIndex = 0xff & (self.paletteOffset + i + palBlockWidth * j)
 			local rx = x + bw * i
 			local ry = y + bh * j
 			if self.paletteSelIndex == paletteIndex then

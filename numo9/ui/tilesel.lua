@@ -65,7 +65,7 @@ function TileSelect:makeButton(args)
 			return self.pickOpen
 		end,
 		tooltip = function()
-			local tileIndex = bit.bor(self.pos.x, bit.lshift(self.pos.y, 5))
+			local tileIndex = self.pos.x | (self.pos.y << 5)
 			return 'tile='..tileIndex
 		end,
 		events = {
@@ -260,8 +260,8 @@ function TileSelect:drawSelected()
 	local thickness = math.clamp(app.width / 256, 1, 2)
 	local function tc(vtx)
 		return
-			tonumber(vtx.u + bit.lshift(edit.tileSel.pos.x, 3)),
-			tonumber(vtx.v + bit.lshift(edit.tileSel.pos.y, 3))
+			tonumber(vtx.u + (edit.tileSel.pos.x << 3)),
+			tonumber(vtx.v + (edit.tileSel.pos.y << 3))
 	end
 	-- draw the texcoords offset by the getMeshIndex tileSel.pos etc
 	local mesh3DIndex = self.getMeshIndex and self:getMeshIndex()

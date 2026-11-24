@@ -200,7 +200,7 @@ function EditTilemap:init(args)
 		owner = self,
 		pos = {x, y},
 		setValue = function(dx)
-			self.orientation = bit.band(7, self.orientation + dx)
+			self.orientation = 7 & (self.orientation + dx)
 		end,
 		tooltip = function()
 			return 'orient='..tostring(self.orientation)
@@ -212,7 +212,7 @@ function EditTilemap:init(args)
 		owner = self,
 		pos = {x, y},
 		setValue = function(dx)
-			self.selPalHiOffset = bit.band(7, self.selPalHiOffset + dx)
+			self.selPalHiOffset = 7 & (self.selPalHiOffset + dx)
 		end,
 		tooltip = function()
 			return 'palhi='..self.selPalHiOffset
@@ -257,8 +257,8 @@ function EditTilemap:init(args)
 					-- TODO why don't I have a struct for this?
 					self.tileSel.pos.x = result % spriteSheetSizeInTiles.x
 					self.tileSel.pos.y = (result - self.tileSel.pos.x) / spriteSheetSizeInTiles.x
-					self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
-					self.orientation = bit.band(7, bit.rshift(result, 13))
+					self.selPalHiOffset = 7 & (result >> 10)
+					self.orientation = 7 & (result >> 13)
 					self:refreshTileSel()	-- because we're editing a member, we have to manually refresh tileSelPosTextField
 				end
 			end,
@@ -292,8 +292,8 @@ function EditTilemap:init(args)
 				local channels = 4
 				local imageRGBA = Image(image.width, image.height, channels, uint8_t)
 				for i=0,image.width*image.height-1 do
-					imageRGBA.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
-					imageRGBA.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))
+					imageRGBA.buffer[0 + channels * i] = 0xff & image.buffer[i]
+					imageRGBA.buffer[1 + channels * i] = 0xff & (image.buffer[i] >> 8)
 					imageRGBA.buffer[2 + channels * i] = 0
 					imageRGBA.buffer[3 + channels * i] = 0xff
 				end
@@ -328,8 +328,8 @@ function EditTilemap:init(args)
 								local c = 0
 								local readChannels = math.min(image.channels, 2)	-- don't include alpha channel... heck only need R and G ...
 								for ch=readChannels-1,0,-1 do
-									c = bit.lshift(c, 8)
-									c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
+									c = c << 8
+									c = c | (image.buffer[ch + image.channels * (i + image.width * j)])
 								end
 								self:edit_tset(self.tilemapBlobIndex, destx, desty, c)
 							end
@@ -433,12 +433,9 @@ end
 
 function EditTilemap:refreshTileSel()
 	-- on any of tileSel.pos, selPalHiOffset, orientation ....
-	local tileSelIndex = bit.bor(
-		self.tileSel.pos.x
-		+ spriteSheetSizeInTiles.x * self.tileSel.pos.y,
-		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
-		bit.lshift(bit.band(7, self.orientation), 13)
-	)
+	local tileSelIndex =  (self.tileSel.pos.x + spriteSheetSizeInTiles.x * self.tileSel.pos.y)
+		| ((7 & self.selPalHiOffset) << 10)
+		| ((7 & self.orientation) << 13)
 	self.tileSelPosTextField.value = ('%04X'):format(tileSelIndex)
 end
 
@@ -470,7 +467,7 @@ function EditTilemap:update()
 	local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 
 	local tileBits = self.draw16Sprites and 4 or 3
-	local tileSize = bit.lshift(1, tileBits)
+	local tileSize = 1 << tileBits
 
 	-- draw map
 	local mapX = 0
@@ -479,8 +476,8 @@ function EditTilemap:update()
 	local mapSizeInTiles = vec2i(frameBufferSizeInTiles:unpack())
 	-- size of the map on the screen, in pixels
 	local mapSizeInPixels = vec2i(
-		bit.lshift(mapSizeInTiles.x, tileBits),
-		bit.lshift(mapSizeInTiles.y, tileBits))
+		mapSizeInTiles.x << tileBits,
+		mapSizeInTiles.y << tileBits)
 
 	local function tilemapPanWheel(dx,dy)	-- dx, dy in screen coords right?
 		self.tilemapPanOffset.x = self.tilemapPanOffset.x + dx
@@ -498,10 +495,10 @@ function EditTilemap:update()
 	app:drawQuadTex(
 		app.paletteMenuTex,
 		app.checkerTex,
-		-1, -1,									-- x y
-		2+bit.lshift(tilemapSize.x, tileBits),	-- w
-		2+bit.lshift(tilemapSize.y, tileBits),	-- h
-		0, 0,									-- tx ty tw th
+		-1, -1,								-- x y
+		2 + (tilemapSize.x << tileBits),	-- w
+		2 + (tilemapSize.y << tileBits),	-- h
+		0, 0,								-- tx ty tw th
 		self.scale*1024, self.scale*1024	--2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
 	)
 
@@ -524,13 +521,13 @@ function EditTilemap:update()
 
 --self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
 	if self.drawGrid then
-		local step = bit.lshift(self.gridSpacing, tileBits)
+		local step = self.gridSpacing << tileBits
 		local gx = math.floor(self.tilemapPanOffset.x / step) * step
 		local gy = math.floor(self.tilemapPanOffset.y / step) * step
 		local xmin = math.max(0, gx-step)
-		local xmax = math.min(gx+3*step+frameBufferSize.x/self.scale, bit.lshift(tilemapSize.x, tileBits))
+		local xmax = math.min(gx+3*step+frameBufferSize.x/self.scale, tilemapSize.x << tileBits)
 		local ymin = math.max(0, gy-step)
-		local ymax = math.min(gy+3*step+frameBufferSize.y/self.scale, bit.lshift(tilemapSize.y, tileBits))
+		local ymax = math.min(gy+3*step+frameBufferSize.y/self.scale, tilemapSize.y << tileBits)
 		for i=xmin,xmax,step do
 			app:drawSolidLine(i, ymin, i, ymax, 1)
 		end
@@ -558,8 +555,8 @@ function EditTilemap:update()
 
 	local function fbToTileCoord(cx, cy)
 		return
-			(cx - mapX) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale) + self.tilemapPanOffset.x / bit.lshift(spriteSize.x, draw16As0or1),
-			(cy - mapY) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale) + self.tilemapPanOffset.y / bit.lshift(spriteSize.y, draw16As0or1)
+			(cx - mapX) / ((spriteSize.x << draw16As0or1) * self.scale) + self.tilemapPanOffset.x / (spriteSize.x << draw16As0or1),
+			(cy - mapY) / ((spriteSize.y << draw16As0or1) * self.scale) + self.tilemapPanOffset.y / (spriteSize.y << draw16As0or1)
 	end
 	local txf, tyf = fbToTileCoord(mouseX, mouseY)
 	local tx = math.floor(txf)
@@ -650,18 +647,15 @@ function EditTilemap:update()
 						if tile then
 							-- TODO how about a 'drawTile' function like we have 'drawvoxel' to go with 'voxelmap'
 							app:drawSprite(
-								bit.bor(
-									bit.band(tile, 0x3ff),
-									bit.lshift(self.sheetBlobIndex, 10)
-								),
+								(tile & 0x3ff) | (self.sheetBlobIndex << 10),
 								px + (dx + self.autotilePreviewBorder) * tileSize,
 								py + (dy + self.autotilePreviewBorder) * tileSize,
 								1,
 								1,
-								bit.band(7, bit.rshift(tile, 13)),
+								7 & (tile >> 13),
 								1,
 								1,
-								bit.lshift(bit.band(7, bit.rshift(tile, 10)), 5),	-- palette offset
+								(7 & (tile >> 10)) >> 5,	-- palette offset
 								nil,
 								nil,
 								nil
@@ -702,8 +696,8 @@ function EditTilemap:update()
 			or app.ram.mouseWheel.y ~= 0
 			then
 				tilemapPanWheel(
-					-bit.lshift(spriteSize.x, draw16As0or1) * app.ram.mouseWheel.x,
-					-bit.lshift(spriteSize.y, draw16As0or1) * app.ram.mouseWheel.y
+					-(spriteSize.x << draw16As0or1) * app.ram.mouseWheel.x,
+					-(spriteSize.y << draw16As0or1) * app.ram.mouseWheel.y
 				)
 			end
 		end
@@ -726,8 +720,8 @@ function EditTilemap:update()
 					local tx = tx1 - tx0
 					local ty = ty1 - ty0
 					if tx ~= 0 or ty ~= 0 then
-						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx * bit.lshift(spriteSize.x, draw16As0or1)
-						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty * bit.lshift(spriteSize.y, draw16As0or1)
+						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx * (spriteSize.x << draw16As0or1)
+						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty * (spriteSize.y << draw16As0or1)
 						self.tilePanDownPos:set(mouseX, mouseY)
 					end
 				end
@@ -744,12 +738,9 @@ function EditTilemap:update()
 
 		-- TODO move the dx,dy out of this function ... and fix it.
 		local function puttile(tx, ty, dx, dy)
-			local tileSelIndex = bit.bor(
-				self.tileSel.pos.x + (dx % self.tileSel.size.x)
-				+ spriteSheetSizeInTiles.x * (self.tileSel.pos.y + (dy % self.tileSel.size.y)),
-				bit.lshift(bit.band(7, self.selPalHiOffset), 10),
-				bit.lshift(bit.band(7, self.orientation), 13)
-			)
+			local tileSelIndex = (self.tileSel.pos.x + (dx % self.tileSel.size.x) + spriteSheetSizeInTiles.x * (self.tileSel.pos.y + (dy % self.tileSel.size.y)))
+				| ((7 & self.selPalHiOffset) << 10)
+				| ((7 & self.orientation) << 13)
 
 			self.undo:pushContinuous()
 			self:edit_tset(self.tilemapBlobIndex, tx, ty, tileSelIndex)
@@ -768,8 +759,8 @@ function EditTilemap:update()
 				if tileSelIndex then
 					self.tileSel.pos.x = tileSelIndex % spriteSheetSizeInTiles.x
 					self.tileSel.pos.y = ((tileSelIndex - self.tileSel.pos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
-					self.selPalHiOffset = bit.band(7, bit.rshift(tileSelIndex, 10))
-					self.orientation = bit.band(7, bit.rshift(tileSelIndex, 13))
+					self.selPalHiOffset = 7 & (tileSelIndex >> 10)
+					self.orientation = 7 & (tileSelIndex >> 13)
 					self.tileOrAutotile = 'tile'
 					self:refreshTileSel()	-- because we're editing a member, we have to manually refresh tileSelPosTextField
 				end
@@ -788,12 +779,12 @@ function EditTilemap:update()
 					local l = math.floor((r-1)/2)
 					-- hmm right now penSize is the border in tiles around the stamp
 					-- should instead penSize be the number of stamps to plot in a grid?
-					for dy=-l,-l + r-1 + math.ceil(self.tileSel.size.y / bit.lshift(1,draw16As0or1))-1 do
+					for dy=-l,-l + r-1 + math.ceil(self.tileSel.size.y / (1 << draw16As0or1))-1 do
 						-- hmm how should stamps and pensizes work together?
 						local ty = ty0 + dy
-						for dx=-l,-l + r-1 + math.ceil(self.tileSel.size.x / bit.lshift(1,draw16As0or1))-1 do
+						for dx=-l,-l + r-1 + math.ceil(self.tileSel.size.x / (1 << draw16As0or1))-1 do
 							local tx = tx0 + dx
-							puttile(tx,ty, bit.lshift(dx, draw16As0or1), bit.lshift(dy, draw16As0or1))
+							puttile(tx, ty, dx << draw16As0or1, dy << draw16As0or1)
 						end
 					end
 				elseif self.tileOrAutotile == 'autotile' then
@@ -846,12 +837,9 @@ function EditTilemap:update()
 			then
 				local srcTile = gettile(tx, ty)
 
-				local tileSelIndex = bit.bor(
-					self.tileSel.pos.x
-					+ spriteSheetSizeInTiles.x * self.tileSel.pos.y,
-					bit.lshift(bit.band(7, self.selPalHiOffset), 10),
-					bit.lshift(bit.band(7, self.orientation), 13)
-				)
+				local tileSelIndex = (self.tileSel.pos.x + spriteSheetSizeInTiles.x * self.tileSel.pos.y)
+					| ((7 & self.selPalHiOffset) << 10)
+					| ((7 & self.orientation) << 13)
 
 				if srcTile ~= tileSelIndex then
 					local fillstack = table()

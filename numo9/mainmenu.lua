@@ -382,7 +382,7 @@ function MainMenu:setCurrentMenu(name)
 					end
 					if not isHost then
 						for b=0,7 do
-							local remoteJPIndexPlusOne = bit.bor(bit.lshift(j-1,3),b)+1
+							local remoteJPIndexPlusOne = (((j - 1) << 3) | b) + 1
 							local h = conn.remoteButtonIndicator[remoteJPIndexPlusOne]*8
 							app:drawSolidRect(
 								x+b, cursorY+9+8-h, 1, h, 	-- x, y, w, h
@@ -447,8 +447,8 @@ function MainMenu:setCurrentMenu(name)
 		for playerIndexPlusOne=1,maxPlayersPerConn do
 			local active = playerIndexPlusOne <= app.cfg.numLocalPlayers
 			local playerIndex = playerIndexPlusOne-1
-			cursorX = bit.band(playerIndex, 1) * 128 + 8
-			cursorY = pushCursorY + bit.band(bit.rshift(playerIndex, 1), 1) * (#buttonSingleCharLabels + 3) * 9
+			cursorX = (playerIndex & 1) * 128 + 8
+			cursorY = pushCursorY + ((playerIndex >> 1) & 1) * (#buttonSingleCharLabels + 3) * 9
 
 			menuLabel('player '..playerIndexPlusOne)
 			local playerInfo = app.cfg.playerInfos[playerIndexPlusOne]

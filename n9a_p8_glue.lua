@@ -177,7 +177,7 @@ if remapping==2 then trace"TODO pal(map,2)" end
 			from=math.floor(from)
 			to=math.floor(to)
 			if from>=0 and from<=16 and to>=0 and to<16 then
-				from=bit.band(from,0xf)
+				from=from&0xf
 				if remapping==1 then
 					pal(to,p8palette[from+1])
 				else
@@ -308,30 +308,30 @@ end
 
 --[[ TODO technically ... if pico8 is fixed 32bpp ... then I should be floor(x*2^16) to both args before performing ops, then x/2^16 back afterwards.
 p8bit={
-	band=|a,b|bit.band(a or 0, b or 0),
-	bor=|a,b|bit.bor(a or 0, b or 0),
-	bxor=|a,b|bit.bxor(a or 0, b or 0),
-	bnot=|a|bit.bnot(a or 0),
-	shl=|a,b|bit.lshift(a or 0, b or 0),
-	shr=|a,b|bit.rshift(a or 0, b or 0),
-	lshr=|a,b|bit.arshift(a or 0, b or 0),
-	rotl=|a,b|bit.rol(a or 0, b or 0),
-	rotr=|a,b|bit.ror(a or 0, b or 0),
+	band=|a,b|((a or 0)&(b or 0)),
+	bor=|a,b|((a or 0)|(b or 0)),
+	bxor=|a,b|((a or 0)~(b or 0)),
+	bnot=|a|~(a or 0),
+	shl=|a,b|((a or 0)<<(b or 0)),
+	shr=|a,b|((a or 0)>>(b or 0)),
+	lshr=|a,b|((a or 0)>>>(b or 0)),
+	rotl=|a,b|bit.rol(a or 0,b or 0),
+	rotr=|a,b|bit.ror(a or 0,b or 0),
 }
 --]]
 -- [[
 bitfrom=|x|math.floor((x or 0)*2^16+.5)
 bitto=|x|((x or 0)/2^16)	-- don't re-offset.  leave 0 at 0.
 p8bit={
-	band=|a,b|bitto(bit.band(bitfrom(a), bitfrom(b))),
-	bor=|a,b|bitto(bit.bor(bitfrom(a), bitfrom(b))),
-	bxor=|a,b|bitto(bit.bxor(bitfrom(a), bitfrom(b))),
-	bnot=|a|bitto(bit.bnot(bitfrom(a))),
-	shl=|a,b|bitto(bit.lshift(bitfrom(a), bitfrom(b))),
-	shr=|a,b|bitto(bit.rshift(bitfrom(a), bitfrom(b))),
-	lshr=|a,b|bitto(bit.arshift(bitfrom(a), bitfrom(b))),
-	rotl=|a,b|bitto(bit.rol(bitfrom(a), bitfrom(b))),
-	rotr=|a,b|bitto(bit.ror(bitfrom(a), bitfrom(b))),
+	band=|a,b|bitto(bitfrom(a)&bitfrom(b)),
+	bor=|a,b|bitto(bitfrom(a)|bitfrom(b)),
+	bxor=|a,b|bitto(bitfrom(a)~bitfrom(b)),
+	bnot=|a|bitto(~bitfrom(a)),
+	shl=|a,b|bitto(bitfrom(a)<<bitfrom(b)),
+	shr=|a,b|bitto(bitfrom(a)>>bitfrom(b)),
+	lshr=|a,b|bitto(bitfrom(a)>>>bitfrom(b)),
+	rotl=|a,b|bitto(bit.rol(bitfrom(a),bitfrom(b))),
+	rotr=|a,b|bitto(bit.ror(bitfrom(a),bitfrom(b))),
 }
 --]]
 

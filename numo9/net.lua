@@ -242,9 +242,9 @@ end
 local function to7bitvec(i, dstvec)
 	assert.ge(i, 0)
 	repeat
-		local n = bit.band(i, 0x7f)
-		i = bit.rshift(i, 7)
-		if i ~= 0 then n = bit.bor(n, 0x80) end
+		local n = i & 0x7f
+		i = i >> 7
+		if i ~= 0 then n = n | 0x80 end
 --DEBUG:print('...7bit inserting', ('$%02x'):format(n))
 		dstvec:emplace_back()[0] = n
 	until i == 0
@@ -264,11 +264,11 @@ local function read7bit(sock)
 	local res = assert(receive(sock, 1, 10)):byte(1)
 --DEBUG:print('...7bit sock reading', ('$%02x'):format(res), 'result so far', ('$%x'):format(res))
 	if res < 0x80 then return res end
-	res = bit.band(res, 0x7f)
+	res = res & 0x7f
 	local sh = 7
 	::loop::
 		local i = assert(receive(sock, 1, 10)):byte(1)
-		res = bit.bor(res, bit.lshift(bit.band(i, 0x7f), sh))
+		res = res | ((i & 0x7f) << sh)
 --DEBUG:print('...7bit sock reading', ('$%02x'):format(i), 'result so far', ('$%x'):format(res))
 		if i < 0x80 then return res end
 		sh = sh + 7
@@ -282,13 +282,13 @@ local function from7bitvec(ptr, endptr)
 	assert.le(ptr, endptr)
 --DEBUG:print('...7bit vec reading', ('$%02x'):format(res), 'result so far', ('$%x'):format(res))
 	if res < 0x80 then return res, ptr end
-	res = bit.band(res, 0x7f)
+	res = res & 0x7f
 	local sh = 7
 	::loop::
 		local i = ptr[0]
 		ptr = ptr + 1
 		assert.le(ptr, endptr)
-		res = bit.bor(res, bit.lshift(bit.band(i, 0x7f), sh))
+		res = res | ((i & 0x7f) << sh)
 --DEBUG:print('...7bit vec reading', ('$%02x'):format(i), 'result so far', ('$%x'):format(res))
 		if i < 0x80 then return res, ptr end
 		sh = sh + 7
@@ -861,7 +861,7 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			local index, value = bytep[0], bytep[1]	-- byte-offset, byte-value
 
 			-- index is byte-offset, 2 bytes per player
-			local destPlayerIndex = bit.rshift(index, 1)
+			local destPlayerIndex = index >> 1
 
 			-- if we're sending 8 bytes of button flag press bits ...
 			-- welp ... not many possible entries
@@ -869,7 +869,7 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			-- one player = 8 keys = 1 byte = 8 bits, addresible by 3 bits.
 			-- 8 players = 64 keys = 8 bytes = 64 bits, addressible by 6 bits.
 			-- and just 1 value byte ...
-			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+			local buttonPtr = app.ram.keyPressFlags + (firstJoypadKeyCode >> 3)
 			if destPlayerIndex < 0
 			or destPlayerIndex >= self.numLocalPlayers
 			then	-- max # players / # of button key bitflag bytes in a row
@@ -879,15 +879,15 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 				-- so we can display them to the server to let them know who is connected
 				-- is this a useless feature?
 				for b=0,7 do
-					local remoteJPIndexPlusOne = bit.bor(b, bit.lshift(index, 3)) + 1
-					if bit.band(value, bit.lshift(1, b)) ~= 0 then
+					local remoteJPIndexPlusOne = (b | (index << 3)) + 1
+					if value & (1 << b) ~= 0 then
 						self.remoteButtonIndicator[remoteJPIndexPlusOne] = 1
 					end
 				end
 
 				local hostPlayerIndex = self.playerInfos[destPlayerIndex+1].hostPlayerIndex
 				if hostPlayerIndex then
-					buttonPtr[bit.bor(bit.lshift(hostPlayerIndex, 1), bit.band(index, 1))] = value
+					buttonPtr[(hostPlayerIndex << 1) | (index & 1)] = value
 				end
 			end
 		end
@@ -1041,7 +1041,7 @@ print()
 					string.char(netmsgs.deltaCmds)
 					..to7bitstr(#deltaStr)
 					..deltaStr
---DEBUG:assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
+--DEBUG:assert.eq(#data & 1, 0, "how did I send data that wasn't 2-byte-aligned?")
 				conn.toSend:insert(data)
 			end
 
@@ -1522,9 +1522,9 @@ assert.len(deltaStr, deltaBufLen)
 
 			-- TODO send any input button changes ...
 			self.inputMsgVec:resize(0)
---DEBUG(@5):print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
+--DEBUG(@5):print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + (firstJoypadKeyCode >> 3), 4)))
 --DEBUG(@5):print('PREV', string.hexdump(ffi.string(self.lastButtons, 8)))
-			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+			local buttonPtr = app.ram.keyPressFlags + (firstJoypadKeyCode >> 3)
 --DEBUG(@5):print('delta compressing...')
 			deltaCompress(
 				self.lastButtons,	-- uint8_t*

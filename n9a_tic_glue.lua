@@ -162,15 +162,15 @@ trace(('TODO poke $%x '):format(addr)..tostring(value))
 end
 -- default to 0 ... does tic80 really need this?
 ticbit={
-	band=|a,b|bit.band(a or 0, b or 0),
-	bor=|a,b|bit.bor(a or 0, b or 0),
-	bxor=|a,b|bit.bxor(a or 0, b or 0),
-	bnot=|a|bit.bnot(a or 0),
-	lshift=|a,b|bit.lshift(a or 0, b or 0),
-	rshift=|a,b|bit.rshift(a or 0, b or 0),
-	arshift=|a,b|bit.arshift(a or 0, b or 0),
-	rol=|a,b|bit.rol(a or 0, b or 0),
-	ror=|a,b|bit.ror(a or 0, b or 0),
+	band=|a,b|((a or 0)&(b or 0)),
+	bor=|a,b|((a or 0)|(b or 0)),
+	bxor=|a,b|((a or 0)~(b or 0)),
+	bnot=|a|~(a or 0),
+	lshift=|a,b|((a or 0)<<(b or 0)),
+	rshift=|a,b|((a or 0)>>(b or 0)),
+	arshift=|a,b|((a or 0)>>>(b or 0)),
+	rol=|a,b|bit.rol(a or 0,b or 0),
+	ror=|a,b|bit.ror(a or 0,b or 0),
 }
 ticton9btnmap={[0]=3,1,2,0,4,5,6,7}
 local newG = {
@@ -312,7 +312,7 @@ local newG = {
 		flip = flip or 0
 		rotate = rotate or 0
 		n=math.floor(n)
-		local bankno=bit.rshift(n, 8)
+		local bankno=n>>8
 		n&=0xff
 		local nx=n&0xf
 		local ny=(n>>4)&0xf

@@ -99,7 +99,7 @@ keyCodeNames:append{
 assert.eq(#keyCodeNames % 8, 0)
 
 local firstJoypadKeyCode = #keyCodeNames
-assert.eq(bit.band(firstJoypadKeyCode, 7), 0)	-- make sure we are 8-aligned so the keyflag bits are byte-aligned, for net reflection
+assert.eq(firstJoypadKeyCode & 7, 0)	-- make sure we are 8-aligned so the keyflag bits are byte-aligned, for net reflection
 
 -- indexed code+1 because 1-based array...
 -- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
@@ -133,7 +133,7 @@ local buttonSingleCharLabels = table{
 }
 
 assert.eq(#buttonNames, #buttonSingleCharLabels)
-assert.eq(bit.band(#buttonNames, 7), 0, "need to be byte-aligned for networking at least to work")
+assert.eq(#buttonNames & 7, 0, "need to be byte-aligned for networking at least to work")
 
 -- key = name, value = 0-based index
 local buttonCodeForName = buttonNames:mapi(function(name,indexPlusOne)

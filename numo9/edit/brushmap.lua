@@ -163,7 +163,7 @@ function EditBrushmap:init(args)
 			return 'orient='..tostring(self.orientation)
 		end,
 		setValue = function(dx)
-			self.orientation = bit.band(7, self.orientation + dx)
+			self.orientation = (7 & self.orientation) + dx
 			for stamp in pairs(self.selected) do
 				stamp.orientation = self.orientation
 			end
@@ -239,8 +239,8 @@ function EditBrushmap:update()
 
 	local draw16As0or1 = self.draw16Sprites and 1 or 0
 	local tileBits = self.draw16Sprites and 4 or 3
-	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
-	local tileSizeInPixels = bit.lshift(1, tileBits)
+	local tileSizeInTiles = 1 << draw16As0or1
+	local tileSizeInPixels = 1 << tileBits
 
 	if self.pickOpen then
 		local pickX = 2 * spriteSize.x
@@ -324,8 +324,8 @@ function EditBrushmap:update()
 			local mapSizeInTiles = vec2i(frameBufferSizeInTiles:unpack())
 			-- size of the map on the screen, in pixels
 			local mapSizeInPixels = vec2i(
-				bit.lshift(mapSizeInTiles.x, tileBits),
-				bit.lshift(mapSizeInTiles.y, tileBits))
+				mapSizeInTiles.x << tileBits,
+				mapSizeInTiles.y << tileBits)
 
 
 			app:matMenuReset()
@@ -388,8 +388,8 @@ function EditBrushmap:update()
 							local tx = tx1 - tx0
 							local ty = ty1 - ty0
 							if tx ~= 0 or ty ~= 0 then
-								self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx * bit.lshift(spriteSize.x, draw16As0or1)
-								self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty * bit.lshift(spriteSize.y, draw16As0or1)
+								self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx * (spriteSize.x << draw16As0or1)
+								self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty * (spriteSize.y << draw16As0or1)
 								self.tilePanDownPos:set(mouseX, mouseY)
 							end
 						end

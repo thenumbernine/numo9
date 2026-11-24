@@ -531,7 +531,7 @@ function EditMusic:update()
 					channel.sfxID,
 					sfxBlob.addr,
 					sfxBlob.addr + ffi.cast(SFX_p, sfxBlob.ramptr).loopOffset,
-					bit.rshift(channel.offset, pitchPrec-1),
+					channel.offset >> (pitchPrec-1),
 					channel.volume[0],
 					channel.volume[1],
 					channel.pitch

@@ -1321,8 +1321,8 @@ function EditMesh3D:update()
 				app.ram.paletteBlobIndex = self.paletteBlobIndex
 				app:drawMesh3D(
 					self.mesh3DBlobIndex,
-					bit.lshift(self.tileSel.pos.x, tileSizeInBits),
-					bit.lshift(self.tileSel.pos.y, tileSizeInBits),
+					self.tileSel.pos.x << tileSizeInBits,
+					self.tileSel.pos.y << tileSizeInBits,
 					self.sheetBlobIndex
 				)
 				app.ram.paletteBlobIndex = pushPalBlobIndex

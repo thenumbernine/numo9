@@ -194,7 +194,7 @@ function RAMGPUTex:updateAddr(newaddr)
 --DEBUG:print'checkDirtyCPU'
 	self:checkDirtyCPU()
 -- clamp or allow OOB? or error?  or what?
-	newaddr = math.clamp(bit.bor(0, newaddr), 0, self.app.memSize - self.size)
+	newaddr = math.clamp(0 | newaddr, 0, self.app.memSize - self.size)
 --DEBUG:print(('new addr: $%x'):format(newaddr))
 	self.addr = newaddr
 --DEBUG:print('self.addr', self.addr)

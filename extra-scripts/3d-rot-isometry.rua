@@ -138,8 +138,8 @@ calculate side transformation based on orientation or its inverse
 --]]
 
 local sideToVec = |sideIndex| do
-	local sign = 1 - 2 * bit.band(1, sideIndex)
-	local axis = bit.rshift(sideIndex, 1)
+	local sign = 1 - 2 * (1 & sideIndex)
+	local axis = sideIndex >> 1
 	local v = matrix{0,0,0}
 	v[axis+1] = sign
 	return v

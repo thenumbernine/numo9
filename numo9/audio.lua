@@ -247,7 +247,7 @@ function AppAudio:updateSoundEffects()
 					local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 
 					-- where in sfx we are currently playing
-					local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
+					local offset = (channel.offset >> pitchPrec) << 1
 --DEBUG:assert.ge(offset, 0)
 					local sfxAmplAddr = sfxAmplsAddr + offset
 					if sfxAmplAddr < 0 or sfxAmplAddr >= self.memSize-1 then
@@ -259,7 +259,7 @@ function AppAudio:updateSoundEffects()
 --DEBUG:print('offset', ('0x%x'):format(channel.offset),'addr', ('0x%x'):format(sfxAmplAddr), 'ampl', ('0x%04x'):format(ampl))
 
 						channel.offset = channel.offset + channel.pitch
-						local offsetOver = channel.offset - bit.lshift(sfxLen, pitchPrec-1)
+						local offsetOver = channel.offset - (sfxLen << (pitchPrec-1))
 --DEBUG:print('offsetOver', offsetOver)
 						if offsetOver >= 0 then
 --DEBUG:print('sfx looping over', offsetOver)
@@ -268,9 +268,9 @@ function AppAudio:updateSoundEffects()
 									channel.offset = 0
 								else
 									-- offset modulo length, to make sure it doesn't pass the end
-									channel.offset = offsetOver % bit.lshift(sfxLen, pitchPrec-1)
+									channel.offset = offsetOver % (sfxLen << (pitchPrec-1))
 								end
---DEBUG:assert.eq(bit.band(offset, 1), 0)
+--DEBUG:assert.eq(offset & 1, 0)
 							else
 --DEBUG:print('done and not looping -- stopping')
 								-- TODO change to channel-0 ... should channel-0 be empty always?
@@ -415,7 +415,7 @@ print('music changed music - failed to find music', value)
 		local channelIndex = (index - channelByteOffset) / ffi.sizeof(Numo9Channel)
 		-- 7 cuz max # playing tracks is 8
 assert.eq(audioMusicPlayingCount, 8)
-		channelIndex = bit.band(7, channelIndex + musicPlaying.channelOffset)
+		channelIndex = 7 & (channelIndex + musicPlaying.channelOffset)
 
 		--[[ play using delta encoding's offset into all channels
 		channelPtr[index] = value
@@ -446,7 +446,7 @@ assert.eq(audioMusicPlayingCount, 8)
 			if sfxBlob then
 				local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
 -- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
---assert.eq(bit.band(sfxAmplsAddr, 1), 0)
+--assert.eq(sfxAmplsAddr & 1, 0)
 -- erm no longer the case?  that's on you to make sure your music blobs are alignd...
 				-- THEN SHIFT IT ... 11 ... which is 12 minus 1
 				-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
@@ -526,7 +526,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 		end
 	end
 --DEBUG:assert.eq(audioMixChannels, 8)
-	channelIndex = bit.band(channelIndex, 7)
+	channelIndex = channelIndex & 7
 	local channel = self.ram.channels + channelIndex
 
 	if sfxID == -1 then
@@ -535,7 +535,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 --DEBUG:print('sfxID == -1, returning')
 		return
 	end
-	sfxID = bit.band(sfxID, 0xff)
+	sfxID = sfxID & 0xff
 	local sfxBlob = self.blobs.sfx[sfxID+1]
 	if not sfxBlob then
 --DEBUG:print('failed to find blob for sfx', sfxID)

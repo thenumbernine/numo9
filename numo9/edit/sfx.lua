@@ -76,7 +76,7 @@ function EditSFX:init(args)
 	function self:updateOffsetLabel()
 		local app = self.app
 		local channel = app.ram.channels+0
-		local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
+		local offset = (channel.offset >> pitchPrec) << 1
 		self.offsetLabel.text = ('@$%04x b'):format(offset)
 	end
 
@@ -90,7 +90,7 @@ function EditSFX:init(args)
 	function self:updatePlayLenLabel()
 		local app = self.app
 		local channel = app.ram.channels+0
-		local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
+		local offset = (channel.offset >> pitchPrec) << 1
 		local playLen = offset * secondsPerByte
 		self.playLenLabel.text = ('@%02.3fs'):format(playLen)
 	end
@@ -205,7 +205,7 @@ function EditSFX:init(args)
 end
 
 function EditSFX:onCartLoad()
-	self.pitch = bit.lshift(1, pitchPrec)
+	self.pitch = 1 << pitchPrec
 
 	self.sfxBlobIndex = 0	-- this is 0 based.  all my other BlobIndex's are 1-based.  maybe they should be 0-based too?
 	self.offsetScrollX = 0
@@ -245,7 +245,7 @@ function EditSFX:update()
 	self:updateLoopInSecondsLabel()
 	self:updateIsPlayingButton()
 
-	local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
+	local offset = (channel.offset >> pitchPrec) << 1
 
 	-- TODO render the wave ...
 	local prevAmpl
@@ -266,7 +266,7 @@ function EditSFX:update()
 		--]]
 		-- [[
 		app:drawSolidRect(
-			bit.rshift(i,1) + 4,
+			(i >> 1) + 4,
 			math.min(ampl, prevAmpl) / 32768 * 64 + 64 + 18,
 			1,
 			math.floor(math.abs(ampl - prevAmpl) / 32768 * 64) + 1,
@@ -292,7 +292,7 @@ function EditSFX:update()
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
-		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
+		self.offsetScrollX = self.offsetScrollX & ~1
 		if leftButtonRelease then
 			self.draggingScroll = false
 		end
@@ -300,9 +300,9 @@ function EditSFX:update()
 
 	local isPlaying = channel.flags.isPlaying == 1
 	if isPlaying then
-		self.offsetScrollX = bit.rshift(channel.offset, pitchPrec-1)
+		self.offsetScrollX = channel.offset >> (pitchPrec-1)
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
-		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
+		self.offsetScrollX = self.offsetScrollX & ~1
 	end
 
 	if isPlaying then

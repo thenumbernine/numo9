@@ -284,7 +284,7 @@ function VideoMode:buildFramebuffers()
 		-- and somehow preserve the upper/lower nibbles on the sprite edges?
 		-- maybe this is too tedious ...
 		internalFormat = gl.GL_R8UI
-		--width = bit.rshift(width, 1) + bit.band(width, 1)
+		--width = (width >> 1) + (width & 1)
 	else
 		error("unknown format "..tostring(self.format))
 	end
@@ -481,7 +481,7 @@ function VideoMode:buildFramebuffers()
 	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
 	-- then in the light combine pass it wont combine
 	gl.glClearColor(1,1,1,1)
-	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	gl.glClear(gl.GL_DEPTH_BUFFER_BIT | gl.GL_COLOR_BUFFER_BIT)
 	self.calcLightTex.fbo
 		:unbind()
 --]]
@@ -608,7 +608,7 @@ if (debugDraw == 2) {
 	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
 	float clipDepth = worldCoordAndClipDepth.w;
 
-	if ((HD2DFlags & <?=bit.bor(ffi.C.HD2DFlags_calcFromLightMap, ffi.C.HD2DFlags_calcFromLights)?>) == 0) {
+	if ((HD2DFlags & <?=ffi.C.HD2DFlags_calcFromLightMap | ffi.C.HD2DFlags_calcFromLights?>) == 0) {
 		// no light calcs = full light
 		fragColor = vec4(1., 1., 1., 1.);
 	} else {

@@ -108,7 +108,7 @@ App.title = 'NuMo9'
 App.width = cmdline and cmdline.window and cmdline.window[1] or 720
 App.height = cmdline and cmdline.window and cmdline.window[2] or 512
 
-App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO, sdl.SDL_INIT_GAMEPAD)
+App.sdlInitFlags = App.sdlInitFlags | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_GAMEPAD
 
 -- give it the benefit of the doubt or startup will stall
 App.hasFocus = true
@@ -191,7 +191,7 @@ App.sdlGlAttrs[sdl.SDL_GL_DOUBLEBUFFER] = nil
 -- don't gl swap every frame - only do after draws
 function App:postUpdate() end
 
--- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast(int) ? int() ? bit.bor(0) ?
+-- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast(int) ? int() ? x|0 ?
 -- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
 -- I think this has something to do with, even in C casting tests, casting between signed and unsigned, different bitness, and floating-point, when going from floating point back it will zero the value.
 -- I think the TLDR is
@@ -201,7 +201,7 @@ function App:postUpdate() end
 -- * this is used for auto converting API inputs to ints ...
 -- 		... that's safe to use with address calcs, careful where you pass this.
 local function toint(x)
-	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
+	--return x | 0				-- seems nice but I think it rounds instead of truncates ...
 	return ffi.cast(int32_t, x)	-- use int32 so Lua has no problem with it
 end
 local function tointCode(x)
@@ -427,13 +427,13 @@ function App:initGL()
 		end,
 
 		pal = function(colorIndex, value)
-			local paletteBlobIndex = bit.rshift(colorIndex, 8)
-			colorIndex = bit.band(colorIndex, 0xff)
+			local paletteBlobIndex = colorIndex >> 8
+			colorIndex = colorIndex & 0xff
 			local blob = self.blobs.palette[1+paletteBlobIndex]
 			if value then
-				return self:net_pokew(blob.ramgpu.addr + bit.lshift(colorIndex, 1), value)
+				return self:net_pokew(blob.ramgpu.addr + (colorIndex << 1), value)
 			else
-				return self:peekw(blob.ramgpu.addr + bit.lshift(colorIndex, 1))
+				return self:peekw(blob.ramgpu.addr + (colorIndex << 1))
 			end
 		end,
 
@@ -622,9 +622,9 @@ function App:initGL()
 				scaleY = scaleY or 1
 				-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 				spriteIndex = math.floor(spriteIndex or 0)
-				local tx = bit.band(spriteIndex, 0x1f)
-				local ty = bit.band(bit.rshift(spriteIndex, 5), 0x1f)
-				local sheetIndex = bit.rshift(spriteIndex, 10)
+				local tx = spriteIndex & 0x1f
+				local ty = (spriteIndex >> 5) & 0x1f
+				local sheetIndex = spriteIndex >> 10
 
 				paletteIndex = paletteIndex or 0
 				transparentIndex = transparentIndex or -1
@@ -637,10 +637,10 @@ function App:initGL()
 				cmd.y = screenY
 				cmd.w = tilesWide * spriteSize.x * scaleX
 				cmd.h = tilesHigh * spriteSize.y * scaleY
-				cmd.tx = bit.lshift(tx, 3)
-				cmd.ty = bit.lshift(ty, 3)
-				cmd.tw = bit.lshift(tilesWide, 3)
-				cmd.th = bit.lshift(tilesHigh, 3)
+				cmd.tx = tx << 3
+				cmd.ty = ty << 3
+				cmd.tw = tilesWide << 3
+				cmd.th = tilesHigh << 3
 				cmd.orientation2D = orientation2D
 				cmd.paletteIndex = paletteIndex
 				cmd.transparentIndex = transparentIndex
@@ -1312,8 +1312,8 @@ print('package.loaded', package.loaded)
 			--[[ print or so something cheesy idk
 			--for i=1,30 do env.yield() end
 			for i=0,15 do
-				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
-				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
+				self.con.fgColor = 0xf0 | i	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
+				self.con.bgColor = 0xf0 | (0xf & (i+1))
 				self.con:print'hello world'
 				--for i=1,3 do env.yield() end
 			end
@@ -1336,10 +1336,10 @@ print('package.loaded', package.loaded)
 					print(...)
 					local ofs = 9
 					local function inc(d)
-						fgColor = bit.bor((fgColor-ofs+d)%4+ofs,0xf0)
-						--bgColor = bit.bor((self.bgColor-ofs+d)%3+ofs,0xf0)
+						fgColor = ((fgColor-ofs+d)%4+ofs) | 0xf0
+						--bgColor = ((self.bgColor-ofs+d)%3+ofs) | 0xf0
 					end
-					inc(bit.rshift(cursorPosX,3)+bit.rshift(cursorPosY,3))
+					inc((cursorPosX >> 3) + (cursorPosY >> 3))
 					for i=1,select('#', ...) do
 						if i > 1 then
 							addChar'\t'
@@ -1426,10 +1426,7 @@ print('package.loaded', package.loaded)
 				self.blobs.sheet[1].ramgpu.dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
-						env.tset(0, i, j, bit.bor(
-							i,
-							bit.lshift(j, 5)
-						))
+						env.tset(0, i, j, i | (j << 5))
 					end
 				end
 
@@ -1441,8 +1438,8 @@ print('package.loaded', package.loaded)
 					env.cls()
 					for i=t,0,-1 do		-- i = across all diagonals so far
 						for j=0,i do	-- j = along diagonal
-							local x = bit.lshift(i-j, 3)
-							local y = bit.lshift(j, 3)
+							local x = (i-j) << 3
+							local y = j << 3
 							env.matident()
 							env.mattrans(x+4, y+4)
 							local r = ((t-i)/16 + .5)*2*math.pi
@@ -1552,7 +1549,7 @@ function App:tget(tilemapBlobIndex, x, y)
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
 	then
 		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
-			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+			+ ((x | (y << tilemapSizeInBits.x)) << 1)
 		return self:peekw(addr)
 	end
 	-- TODO return default oob value?  or return nil?
@@ -2033,7 +2030,7 @@ print('run thread dead')
 			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenApplyLightObj to draw it
 --			self:triBuf_flush()
 			-- hmm, without glClear here, console buffer gets jumbled
-			--gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			--gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 			-- You gotta use clearScreen(), not glClear,
 			--  *and* you gotta have the HD2DFlags set for light depth to be cleared as well during clearScreen()
 			-- (TODO maybe make clearScreen() flags for clearing light buffer?)
@@ -2148,7 +2145,7 @@ print('run thread dead')
 			-- TODO how come this is what also determines whether the previous screen is blitted onto the menu fb ... which is being done before the menu update ... ?
 			-- TODO this is also clearing the game's framebuffer..... even if its not mode-255.....
 			-- TODO FIXME PLZ I NEED A FEW MORE BUFFERS FOR LIGHTING AND FOR DEPTH OF FIELD
-			--gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			--gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 			--gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 			--self:clearScreen()
 
@@ -2213,14 +2210,14 @@ print('run thread dead')
 		do
 			local holdptr = self.ram.keyHoldCounter
 			for keycode=0,keyCount-1 do
-				local bi = bit.band(keycode, 7)
-				local by = bit.rshift(keycode, 3)
+				local bi = keycode & 7
+				local by = keycode >> 3
 --DEBUG:assert(by >= 0 and by < keyPressFlagSize)
 --DEBUG:assert(by >= 0 and by < ffi.sizeof(self.ram.keyPressFlags))
 --DEBUG:assert(by >= 0 and by < ffi.sizeof(self.ram.lastKeyPressFlags))
-				local keyFlag = bit.lshift(1, bi)
-				local down = 0 ~= bit.band(self.ram.keyPressFlags[by], keyFlag)
-				local lastDown = 0 ~= bit.band(self.ram.lastKeyPressFlags[by], keyFlag)
+				local keyFlag = 1 << bi
+				local down = 0 ~= self.ram.keyPressFlags[by] & keyFlag
+				local lastDown = 0 ~= self.ram.lastKeyPressFlags[by] & keyFlag
 				if down and lastDown then
 					holdptr[0] = holdptr[0] + 1
 				else
@@ -2312,7 +2309,7 @@ print('run thread dead')
 		local videoModeObj = self.videoModes[self.ram.videoMode]
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
-		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
 		-- same condition as in flushToFinalRGB
 		local finalRGBTex
@@ -2328,18 +2325,18 @@ assert(finalRGBTex)
 			end
 		end
 		if finalRGBTex then
-			if bit.band(self.ram.HD2DFlags, bit.bor(
-				ffi.C.HD2DFlags_lightingApplyToSurface,
-				ffi.C.HD2DFlags_useSSAO,
-				ffi.C.HD2DFlags_calcFromLightMap,
-				ffi.C.HD2DFlags_calcFromLights
-			)) ~= 0 then
+			if self.ram.HD2DFlags & (
+				ffi.C.HD2DFlags_lightingApplyToSurface
+				| ffi.C.HD2DFlags_useSSAO
+				| ffi.C.HD2DFlags_calcFromLightMap
+				| ffi.C.HD2DFlags_calcFromLights
+			) ~= 0 then
 				finalRGBTex = videoModeObj.lightAndFBTex:cur()
 			end
-			if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+			if self.ram.HD2DFlags & ffi.C.HD2DFlags_useHDR ~= 0 then
 				finalRGBTex = videoModeObj.hdrTex:cur()
 			end
-			if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+			if self.ram.HD2DFlags & ffi.C.HD2DFlags_useDoF ~= 0 then
 				finalRGBTex = videoModeObj.dofTex:cur()
 			end
 
@@ -3171,7 +3168,7 @@ function App:net_tset(tilemapBlobIndex, x, y, value)
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
 	then
 		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
-			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+			+ ((x | (y << tilemapSizeInBits.x)) << 1)
 		-- use poke over netplay, cuz i'm lazy.
 		local server = self.server
 		if server then
@@ -3810,11 +3807,10 @@ end
 -------------------- INPUT HANDLING --------------------
 
 function App:keyForBuffer(keycode, buffer)
-	local bi = bit.band(keycode, 7)
-	local by = bit.rshift(keycode, 3)
+	local bi = keycode & 7
+	local by = keycode >> 3
 	if by < 0 or by >= keyPressFlagSize then return end
-	local keyFlag = bit.lshift(1, bi)
-	return bit.band(buffer[by], keyFlag) ~= 0
+	return buffer[by] & (1 << bi) ~= 0
 end
 
 function App:key(keycode)
@@ -4217,14 +4213,13 @@ function App:handleGameplayEvent(e)
 
 		local keycode = sdlSymToKeyCode[e[0].key.key]
 		if keycode then
-			local bi = bit.band(keycode, 7)
-			local by = bit.rshift(keycode, 3)
-			local flag = bit.lshift(1, bi)
-			local mask = bit.bnot(flag)
-			self.ram.keyPressFlags[by] = bit.bor(
-				bit.band(mask, self.ram.keyPressFlags[by]),
-				down and flag or 0
-			)
+			local bi = keycode & 7
+			local by = keycode >> 3
+			if down then
+				self.ram.keyPressFlags[by] = self.ram.keyPressFlags[by] | (1 << bi)
+			else
+				self.ram.keyPressFlags[by] = self.ram.keyPressFlags[by] & ~(1 << bi)
+			end
 		end
 	elseif e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN
 	or e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_UP
@@ -4241,14 +4236,13 @@ function App:handleGameplayEvent(e)
 			keycode = keyCodeForName.mouse_right
 		end
 		if keycode then
-			local bi = bit.band(keycode, 7)
-			local by = bit.rshift(keycode, 3)
-			local flag = bit.lshift(1, bi)
-			local mask = bit.bnot(flag)
-			self.ram.keyPressFlags[by] = bit.bor(
-				bit.band(mask, self.ram.keyPressFlags[by]),
-				down and flag or 0
-			)
+			local bi = keycode & 7
+			local by = keycode >> 3
+			if down then
+				self.ram.keyPressFlags[by] = self.ram.keyPressFlags[by] | (1 << bi)
+			else
+				self.ram.keyPressFlags[by] = self.ram.keyPressFlags[by] & ~(1 << bi)
+			end
 		end
 	elseif e[0].type == sdl.SDL_EVENT_MOUSE_WHEEL then
 		-- TODO scale mousewheel?  flip mousewheel?
@@ -4363,16 +4357,15 @@ function App:processButtonEvent(down, ...)
 			end
 
 			if match then
-				local buttonCode = bit.bor(buttonIndex, bit.lshift(playerIndex, 4))
+				local buttonCode = buttonIndex | (playerIndex << 4)
 				local keycode = buttonCode + firstJoypadKeyCode
-				local bi = bit.band(keycode, 7)
-				local by = bit.rshift(keycode, 3)
-				local flag = bit.lshift(1, bi)
-				local mask = bit.bnot(flag)
-				self.ram.keyPressFlags[by] = bit.bor(
-					bit.band(mask, self.ram.keyPressFlags[by]),
-					down and flag or 0
-				)
+				local bi = keycode & 7
+				local by = keycode >> 3
+				if down then
+					self.ram.keyPressFlags[by] = self.ram.keyPressFlags[by] | (1 << bi)
+				else
+					self.ram.keyPressFlags[by] = self.ram.keyPressFlags[by] & ~(1 << bi)
+				end
 			end
 		end
 	end
@@ -4446,7 +4439,7 @@ function App:getEventName(sdlEventID, a,b,c)
 		local s = table()
 		local ds = 'udlr'
 		for i=1,4 do
-			if 0 ~= bit.band(d,bit.lshift(1,i-1)) then
+			if 0 ~= d & (1 << (i-1)) then
 				s:insert(ds:sub(i,i))
 			end
 		end

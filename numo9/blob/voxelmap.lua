@@ -215,9 +215,9 @@ local orientationMul = {
 
 
 local function shiftDownAndRoundUp(x, bits)
-	local y = bit.rshift(x, bits)
-	local mask = bit.lshift(1, bits) - 1
-	if bit.band(x, mask) ~= 0 then y = y + 1 end
+	local y = x >> bits
+	local mask = (1 << bits) - 1
+	if x & mask ~= 0 then y = y + 1 end
 	return y
 end
 
@@ -229,7 +229,7 @@ local Chunk = class()
 
 -- static member
 Chunk.bitsize = vec3i(5, 5, 5)
-Chunk.size = Chunk.bitsize:map(function(x) return bit.lshift(1, x) end)
+Chunk.size = Chunk.bitsize:map(function(x) return 1 << x end)
 Chunk.bitmask = Chunk.size - 1
 Chunk.volume = Chunk.size:volume()	-- same as 1 << bitsize:sum() (if i had a :sum() function...)
 
@@ -300,16 +300,16 @@ function Chunk:rebuildMesh(app)
 
 	local nbhd = vec3i()
 	for k=0,Chunk.size.z-1 do
-		local vk = bit.bor(k, bit.lshift(ck, Chunk.bitsize.z))
+		local vk = k | (ck << Chunk.bitsize.z)
 		if vk < voxelmapSize.z then
 			for j=0,Chunk.size.y-1 do
-				local vj = bit.bor(j, bit.lshift(cj, Chunk.bitsize.y))
+				local vj = j | (cj << Chunk.bitsize.y)
 				if vj < voxelmapSize.y then
 
 					-- traverse cols
-					local vptr = voxels + (bit.lshift(ci, Chunk.bitsize.x) + voxelmapSize.x * (vj + voxelmapSize.y * vk))
+					local vptr = voxels + ((ci << Chunk.bitsize.x) + voxelmapSize.x * (vj + voxelmapSize.y * vk))
 					for i=0,Chunk.size.x-1 do
-						local vi = bit.bor(i, bit.lshift(ci, Chunk.bitsize.x))
+						local vi = i | (ci << Chunk.bitsize.x)
 --DEBUG:print('cpos', ci, cj, ck, 'pos', i, j, k, 'vpos', vi, vj, vk)
 
 						-- chunks can extend beyond the voxelmap when it isnt chunk-aligned in size
@@ -406,8 +406,8 @@ function Chunk:rebuildMesh(app)
 									mp[0], mp[1], mp[2] = -mp[0], -mp[1], -mp[2]
 								end
 
-								local uofs = bit.lshift(vptr.tileXOffset, 3)
-								local vofs = bit.lshift(vptr.tileYOffset, 3)
+								local uofs = vptr.tileXOffset << 3
+								local vofs = vptr.tileYOffset << 3
 
 								local mesh = app.blobs.mesh3d[vptr.mesh3DIndex+1]
 								if mesh then
@@ -439,8 +439,8 @@ function Chunk:rebuildMesh(app)
 											sideIndex = rotateSideByOrientation[sideIndex+1][vptr.orientation+1]
 
 											-- offet into 'sideIndex'
-											local sign = 1 - 2 * bit.band(1, sideIndex)
-											local axis = bit.rshift(sideIndex, 1)
+											local sign = 1 - 2 * (1 & sideIndex)
+											local axis = sideIndex >> 1
 
 											nbhd.x, nbhd.y, nbhd.z = vi,vj,vk
 											nbhd.s[axis] = nbhd.s[axis] + sign
@@ -454,13 +454,13 @@ function Chunk:rebuildMesh(app)
 												if nbhdmesh
 												and not specialOrientation[nbhdVox.orientation]
 												then
-													local oppositeSideIndex = bit.bxor(1, sideIndex)
+													local oppositeSideIndex = 1 ~ sideIndex
 													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][orientationInv[nbhdVox.orientation+1]+1]
 													occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
 												end
 											else
 												-- if nbhd is oob then use voxelmapCullSideFlags to determine whether or not to cull it
-												occluded = 0 ~= bit.band(app.ram.voxelmapCullSideFlags, bit.lshift(1, sideIndex))
+												occluded = 0 ~= app.ram.voxelmapCullSideFlags & (1 << sideIndex)
 											end
 										end
 
@@ -693,9 +693,9 @@ function BlobVoxelMap:init(data)
 						for j=0,Chunk.size.y-1 do
 							for i=0,Chunk.size.x-1 do
 								-- voxelmap index:
-								local vi = bit.bor(i, bit.lshift(ci, Chunk.bitsize.x))
-								local vj = bit.bor(j, bit.lshift(cj, Chunk.bitsize.y))
-								local vk = bit.bor(k, bit.lshift(ck, Chunk.bitsize.z))
+								local vi = i | (ci << Chunk.bitsize.x)
+								local vj = j | (cj << Chunk.bitsize.y)
+								local vk = k | (ck << Chunk.bitsize.z)
 								-- copy block by block
 								-- TODO maybe ffi.copy by row eventually
 								chunk.v[i + Chunk.size.x * (j + Chunk.size.y * k)]
@@ -886,41 +886,41 @@ end
 		tmp = ffi.cast(int32_t, tmp / height)
 		local vk = tmp
 
-		local ci = bit.rshift(vi, bitsizex)
-		local cj = bit.rshift(vj, bitsizey)
-		local ck = bit.rshift(vk, bitsizez)
+		local ci = vi >> bitsizex
+		local cj = vj >> bitsizey
+		local ck = vk >> bitsizez
 
 		local chunkIndex = tonumber(chunksStepx * ci + chunksStepy * cj + chunksStepz * ck)
 		self.chunks[chunkIndex].dirtyCPU = true
 
 		-- set each side's voxel's chunk to dirty as well
-		if bit.band(vi, bitmaskx) == 0
+		if vi & bitmaskx == 0
 		and ci - 1 >= 0
 		then
 			self.chunks[chunkIndex - chunksStepx].dirtyCPU = true
 		end
-		if bit.band(vi, bitmaskx) == bitmaskx
+		if vi & bitmaskx == bitmaskx
 		and ci + 1 < chunksSizex
 		then
 			self.chunks[chunkIndex + chunksStepx].dirtyCPU = true
 		end
-		if bit.band(vj, bitmasky) == 0
+		if vj & bitmasky == 0
 		and cj - 1 >= 0
 		then
 			local chunkNbhdIndex = chunkIndex - chunksStepy
 			self.chunks[chunkNbhdIndex ].dirtyCPU = true
 		end
-		if bit.band(vj, bitmasky) == bitmasky
+		if vj & bitmasky == bitmasky
 		and cj + 1 < chunksSizey
 		then
 			self.chunks[chunkIndex + chunksStepy].dirtyCPU = true
 		end
-		if bit.band(vk, bitmaskz) == 0
+		if vk & bitmaskz == 0
 		and ck - 1 >= 0
 		then
 			self.chunks[chunkIndex + chunksStepz].dirtyCPU = true
 		end
-		if bit.band(vk, bitmaskz) == bitmaskz
+		if vk & bitmaskz == bitmaskz
 		and ck + 1 < chunksSizez
 		then
 			self.chunks[chunkIndex - chunksStepz].dirtyCPU = true
@@ -969,7 +969,7 @@ function BlobVoxelMap:voxelRotateAngleAxis(vox, axis, amount)
 
 	if vox.intval == voxelMapEmptyValue then return vox end
 	if specialOrientation[vox.orientation] then return vox end
-	amount = bit.band(amount or 1, 3)	-- 0,1,2,3
+	amount = (amount or 1) & 3	-- 0,1,2,3
 	if amount == 0 then return vox end
 	vox.orientation = orientationRotations[vox.orientation+1][axis+1][amount]
 	return vox

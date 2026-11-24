@@ -35,23 +35,11 @@ function BlobFont:saveFile(filepath, blobIndex, blobs)
 	local saveImg = Image(256, 64, 1, uint8_t)
 	for xl=0,31 do
 		for yl=0,7 do
-			local ch = bit.bor(xl, bit.lshift(yl, 5))
+			local ch = xl | (yl << 5)
 			for x=0,7 do
 				for y=0,7 do
-					saveImg.buffer[
-						bit.bor(
-							x,
-							bit.lshift(xl, 3),
-							bit.lshift(y, 8),
-							bit.lshift(yl, 11)
-						)
-					] = bit.band(bit.rshift(self:getPtr()[
-						bit.bor(
-							x,
-							bit.band(ch, bit.bnot(7)),
-							bit.lshift(y, 8)
-						)
-					], bit.band(ch, 7)), 1)
+					saveImg.buffer[x | (xl << 3) | (y << 8) | (yl << 11)]
+					= (self:getPtr()[x | (ch & ~7) | (y << 8)] >> (ch & 7)) & 1
 				end
 			end
 		end

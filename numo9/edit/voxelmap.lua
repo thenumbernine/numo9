@@ -521,7 +521,7 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	-- bits 1:2 = 0-2 for xyz, which direction the side is facing
 	local sideIndex
 	if axis then
-		sideIndex = bit.bor(bit.lshift(axis, 1), sideNormalSignFlag)
+		sideIndex = (axis << 1) | sideNormalSignFlag
 	end
 	return d, sideIndex
 end
@@ -533,18 +533,18 @@ function EditVoxelMap:drawBox(box, color)
 	local epsilon = 1/32
 	for i=0,7 do
 		for b=0,2 do
-			local j = bit.bxor(i, bit.lshift(1, b))
+			local j = i ~ (1 << b)
 			if j > i then
 				-- why did I say bit set = min?
 				-- looks like mesh lib uses :corner so dont change it
 				local ax, ay, az = box:corner(i):unpack()
-				if bit.band(i, 1) == 0 then ax = ax + epsilon else ax = ax - epsilon end
-				if bit.band(i, 2) == 0 then ay = ay + epsilon else ay = ay - epsilon end
-				if bit.band(i, 4) == 0 then az = az + epsilon else az = az - epsilon end
+				if i & 1 == 0 then ax = ax + epsilon else ax = ax - epsilon end
+				if i & 2 == 0 then ay = ay + epsilon else ay = ay - epsilon end
+				if i & 4 == 0 then az = az + epsilon else az = az - epsilon end
 				local bx, by, bz = box:corner(j):unpack()
-				if bit.band(j, 1) == 0 then bx = bx + epsilon else bx = bx - epsilon end
-				if bit.band(j, 2) == 0 then by = by + epsilon else by = by - epsilon end
-				if bit.band(j, 4) == 0 then bz = bz + epsilon else bz = bz - epsilon end
+				if j & 1 == 0 then bx = bx + epsilon else bx = bx - epsilon end
+				if j & 2 == 0 then by = by + epsilon else by = by - epsilon end
+				if j & 4 == 0 then bz = bz + epsilon else bz = bz - epsilon end
 				app:drawSolidLine3D(
 					ax, ay, az,
 					bx, by, bz,
@@ -907,7 +907,7 @@ function EditVoxelMap:update()
 				if sideIndex then
 					-- because it's not inside the cube, flip the sideIndex +-
 					-- ... or should I do this within lineBoxDist when 'inside' is false?
-					sideIndex = bit.bxor(1, sideIndex)
+					sideIndex = 1 ~ sideIndex
 				end
 				--]]
 
@@ -1004,7 +1004,7 @@ function EditVoxelMap:update()
 							-- like paint but also does non-empty
 							-- but only goes over extent in dir orthogonal to click face.
 							if app:key'mouse_left' then
-								local axis = bit.rshift(sideIndex, 1)
+								local axis = sideIndex >> 1
 								local cx, cy, cz = npti:unpack()
 								local b = self.penSize - 1
 								local bx = axis == 0 and 0 or b
@@ -1459,9 +1459,9 @@ function EditVoxelMap:update()
 				end
 			elseif app:keyp'v' then
 				self:pasteAtCenter(voxelmap, vec3d(
-					bit.rshift((self.rectUp.x + self.rectDown.x), 1),
-					bit.rshift((self.rectUp.y + self.rectDown.y), 1),
-					bit.rshift((self.rectUp.z + self.rectDown.z), 1)))
+					(self.rectUp.x + self.rectDown.x) >> 1,
+					(self.rectUp.y + self.rectDown.y) >> 1,
+					(self.rectUp.z + self.rectDown.z) >> 1))
 			elseif app:keyp'z' then
 				self:popUndo(shift)
 			end
@@ -1520,9 +1520,9 @@ function EditVoxelMap:pasteAtCenter(voxelmap, centerpos, sideIndex)
 		return
 	end
 	self.undo:push()
-	local ofsx = centerpos.x - bit.rshift(sx, 1)
-	local ofsy = centerpos.y - bit.rshift(sy, 1)
-	local ofsz = centerpos.z - bit.rshift(sz, 1)
+	local ofsx = centerpos.x - (sx >> 1)
+	local ofsy = centerpos.y - (sy >> 1)
+	local ofsz = centerpos.z - (sz >> 1)
 	if sideIndex == 0 then
 		ofsx = centerpos.x
 	elseif sideIndex == 1 then

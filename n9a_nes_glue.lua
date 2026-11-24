@@ -272,7 +272,10 @@ trace('CHR_RAM_RW write '..hex(v)..' ... to PPU RAM $'..hex(CHR_RAM_ptr,4))
 			local sprY = sprIndex >> 5
 --trace('...to sprIndex='..sprIndex..' sprX='..sprX..' sprY='..sprY..' hi='..hi)
 			for x=0,7 do
-				local addr = n9SheetAddr + (x | (sprX << 3) | ((y | (sprY << 3)) << 8))
+				local addr = n9SheetAddr + (
+						(x | (sprX << 3))
+						| ((y | (sprY << 3)) << 8)
+					)
 				local pix = peek(addr)
 				pix &= ~(1 << hi)
 				pix |= ((v >> (7 - x)) & 1) << hi
@@ -568,10 +571,9 @@ local stackPushw=|w|do
 end
 local stackPopw=||do
 	-- [[ safe
-	-- depends on | evaluating left-to-right
-	-- and langfix rewrites this as bit.bor(...)
-	-- so this depends on lua arg evaluation being left-to-right
-	return stackPop() | (stackPop() << 8)
+	local a = stackPop()
+	local b = stackPop()
+	return a | (b << 8)
 	--]]
 	--[[ trust underflow won't happen
 	incS()
@@ -688,9 +690,9 @@ write('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..
 	local op = readPC()
 
 	-- https://www.nesdev.org/wiki/CPU_unofficial_opcodes
-	local b01 = bit.band(op, 0x03)	-- 00 01 02 03
-	local b567 = bit.band(op, 0xE0)	-- 00 20 40 60 80 A0 C0 E0
-	local b234 = bit.band(op, 0x1C)	-- 00 04 08 0C 10 14 08 1C
+	local b01 = op & 0x03	-- 00 01 02 03
+	local b567 = op & 0xE0	-- 00 20 40 60 80 A0 C0 E0
+	local b234 = op & 0x1C	-- 00 04 08 0C 10 14 08 1C
 
 	-- xxxx:xx00
 	-- control
@@ -1245,7 +1247,7 @@ trace'NMI'
 							--or (not bg and PPUMASK & PPUMASK_flagShowSpritesLeft ~= 0)
 							then
 								local sprPix = peek(n9SheetAddr + (
-									dx | (sprX << 3)
+									(dx | (sprX << 3))
 									| ((dy | (sprY << 3)) << 8)
 								))
 								if sprPix ~= 0 then

@@ -143,7 +143,7 @@ function BlobMesh3D:init(data)
 				-- sideIndex is 0-5
 				-- bit 0 = negative direction bit
 				-- bits 1:2 = 0-2 for xyz, which direction the side is facing
-				local sideIndex = bit.bor(negflag, bit.lshift(axis, 1))
+				local sideIndex = negflag | (axis << 1)
 				if bounds.min.s[axis] == sign * voxelVertexScale
 				and bounds.max.s[axis] == sign * voxelVertexScale
 				and -voxelVertexScale <= bounds.min.s[axis1] and bounds.min.s[axis1] <= voxelVertexScale

@@ -100,7 +100,7 @@ local palettePtrType = ffi.typeof('$*', paletteType)
 local paletteInBytes = paletteSize * ffi.sizeof(paletteType)
 
 local tileSizeInBits = 3						-- TODO names or purpose?  no more 'tiles vs sprites'.  this is 1D vs sprites vars are 2D ... ???
-local tileSize = bit.lshift(1, tileSizeInBits)	-- TODO pick a name, 'tileSize' or 'spriteSize'
+local tileSize = 1 << tileSizeInBits	-- TODO pick a name, 'tileSize' or 'spriteSize'
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 
 -- [[ TODO framebuffer has since become more flexible, more video modes, etc.
@@ -108,29 +108,29 @@ local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 local frameBufferType = uint16_t	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSizeInTilesInBits = vec2i(5, 5)
 local frameBufferSizeInTiles = vec2i(
-	bit.lshift(1, frameBufferSizeInTilesInBits.x),
-	bit.lshift(1, frameBufferSizeInTilesInBits.y))
+	1 << frameBufferSizeInTilesInBits.x,
+	1 << frameBufferSizeInTilesInBits.y)
 local frameBufferSize = vec2i(frameBufferSizeInTiles.x * spriteSize.x, frameBufferSizeInTiles.y * spriteSize.y)
 --]]
 
 local spriteSheetSizeInTilesInBits = vec2i(5, 5)
 local spriteSheetSizeInTiles = spriteSheetSizeInTilesInBits + tileSizeInBits
 local spriteSheetSizeInTiles = vec2i(
-	bit.lshift(1, spriteSheetSizeInTilesInBits.x),
-	bit.lshift(1, spriteSheetSizeInTilesInBits.y))
+	1 << spriteSheetSizeInTilesInBits.x,
+	1 << spriteSheetSizeInTilesInBits.y)
 local spriteSheetSize = vec2i(spriteSheetSizeInTiles.x * spriteSize.x, spriteSheetSizeInTiles.y * spriteSize.y)
 local tilemapSizeInBits = vec2i(8, 8)
 local tilemapSize = vec2i(
-	bit.lshift(1, tilemapSizeInBits.x),
-	bit.lshift(1, tilemapSizeInBits.y))
+	1 << tilemapSizeInBits.x,
+	1 << tilemapSizeInBits.y)
 
 -- only here so numo9/video and numo9/blob/animsheet use it
 local animSheetType = uint16_t
 local animSheetPtrType = ffi.typeof('$*', animSheetType)
 local animSheetSizeInBits = spriteSheetSizeInTilesInBits.x + spriteSheetSizeInTilesInBits.y
-local animSheetSize = bit.lshift(1, animSheetSizeInBits)
+local animSheetSize = 1 << animSheetSizeInBits
 assert.eq(animSheetSize, 1024)
-assert.le(animSheetSize, bit.lshift(1, bit.lshift(ffi.sizeof(animSheetType), 3)))
+assert.le(animSheetSize, 1 << (ffi.sizeof(animSheetType) << 3))
 
 local clipType = int16_t
 local clipMax = 0x7fff		-- idk why i'm allowing negative values

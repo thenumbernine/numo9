@@ -279,7 +279,7 @@ Enemy.update=|:|do
 				local mposy = self.pos.y + delta.y * f
 				local ti = tget(0, math.floor(mposx), math.floor(mposy))
 				local t = mapTypes[ti]
-				if t and bit.band(t.flags, flags.solid) ~= 0 then
+				if t and t.flags & flags.solid ~= 0 then
 					blocked = true
 					break
 				end

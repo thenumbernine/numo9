@@ -76,93 +76,70 @@ local gltype5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].types
 -- r,g,b,a is 8bpp
 -- result is 5551 16bpp
 local function rgba8888_4ch_to_5551(r,g,b,a)
-	return bit.bor(
-		bit.band(0x001f, bit.rshift(r, 3)),
-		bit.band(0x03e0, bit.lshift(g, 2)),
-		bit.band(0x7c00, bit.lshift(b, 7)),
-		a == 0 and 0 or 0x8000
-	)
+	return (0x001f & (r >> 3))
+		| (0x03e0 & (g << 2))
+		| (0x7c00 & (b << 7))
+		| (a == 0 and 0 or 0x8000)
 end
 
 -- rgba5551 is 16bpp
 -- result is r,g,b,a 8bpp
 local function rgba5551_to_rgba8888_4ch(rgba5551)
 	-- rounding ... for 5 bits into 8 bits, OR with the upper 3 bits again shifted down 5 bits ... so its a repeated-decimal
-	local r = bit.band(rgba5551, 0x1F)
-	local g = bit.band(rgba5551, 0x3E0)
-	local b = bit.band(rgba5551, 0x7C00)
+	local r = rgba5551 & 0x1F
+	local g = rgba5551 & 0x3E0
+	local b = rgba5551 & 0x7C00
 	return
-		bit.bor(
-			bit.lshift(r, 3),	-- shift bit 4 to bit 7
-			bit.rshift(r, 2)	-- shift bit 4 to bit 2
-		),
-		bit.bor(
-			bit.rshift(g, 2),	-- shift bit 9 to bit 7
-			bit.rshift(g, 7)	-- shift bit 9 to bit 2
-		),
-		bit.bor(
-			bit.rshift(b, 7),	-- shift bit 14 to bit 7
-			bit.rshift(b, 12)	-- shift bit 14 to bit 2
-		),
-		bit.band(rgba5551, 0x8000) == 0 and 0 or 0xff
+		(r << 3)		-- shift bit 4 to bit 7
+		| (r >> 2),		-- shift bit 4 to bit 2
+		(g >> 2)		-- shift bit 9 to bit 7
+		| (g >> 7),		-- shift bit 9 to bit 2
+		(b >> 7)		-- shift bit 14 to bit 7
+		| (b >> 12),	-- shift bit 14 to bit 2
+		(rgba5551 & 0x8000 == 0 and 0 or 0xff)
 end
 
 -- rgb565 is 16bpp
 -- result is r,g,b 8bpp
 local function rgb565rev_to_rgb888_3ch(rgb565)
-	local b = bit.band(rgb565, 0x1F)
-	local g = bit.band(rgb565, 0x7E0)
-	local r = bit.band(rgb565, 0xF800)
+	local b = rgb565 & 0x1F
+	local g = rgb565 & 0x7E0
+	local r = rgb565 & 0xF800
 	return
-		bit.bor(
-			bit.rshift(r, 8),		-- shift bit 15 to bit 7
-			bit.rshift(r, 13)		-- shift bit 15 to bit 2
-		),
-		bit.bor(
-			bit.rshift(g, 3),		-- shift bit 10 to bit 7
-			bit.rshift(g, 9)		-- shift bit 10 to bit 1
-		),
-		bit.bor(
-			bit.lshift(b, 3),		-- shift bit 4 to bit 7
-			bit.rshift(b, 2)		-- shift bit 4 to bit 2
-		)
+		(r >> 8)			-- shift bit 15 to bit 7
+		| (r >> 13),		-- shift bit 15 to bit 2
+		(g >> 3)			-- shift bit 10 to bit 7
+		| (g >> 9),			-- shift bit 10 to bit 1
+		(b << 3)			-- shift bit 4 to bit 7
+		| (b >> 2)			-- shift bit 4 to bit 2
 end
 
 local function rgba5551_to_rgb332(rgba5551)
-	local r = bit.band(rgba5551, 0x1F)		-- bits 0-4
-	local g = bit.band(rgba5551, 0x3E0)		-- bits 5-9
-	local b = bit.band(rgba5551, 0x7C00)	-- bits 10-14
-	return bit.bor(
-		bit.rshift(r, 2),		-- shift bit 4 to bit 2
-								-- use bits 0,1,2
-		bit.band(
-			bit.rshift(g, 4),	-- shift bit 9 to bit 5
-			0x38				-- mask bits 3,4,5
-		),
-		bit.band(
-			bit.rshift(b, 7),	-- shift bit 14 to bit 7
-			0xc0				-- mask bits 6,7
-		)
-	)
+	local r = rgba5551 & 0x1F		-- bits 0-4
+	local g = rgba5551 & 0x3E0		-- bits 5-9
+	local b = rgba5551 & 0x7C00		-- bits 10-14
+	return (r >> 2)					-- shift bit 4 to bit 2, use bits 0,1,2
+		| ((g >> 4) & 0x38)			-- shift bit 9 to bit 5, mask bits 3,4,5
+		| ((b >> 7) & 0xc0)			-- shift bit 14 to bit 7, mask bits 6,7
 end
 
 local function rgb332_to_rgb888_3ch(rgb332)
-	local r = bit.bor(rgb332, 7)
-	local g = bit.band(bit.rshift(rgb332, 3), 7)
-	local b = bit.band(bit.rshift(rgb332, 6), 3)
+	local r = rgb332 | 7
+	local g = (rgb332 >> 3) & 7
+	local b = (rgb332 >> 6) & 3
 	return
-		bit.bor(bit.lshift(r, 5), bit.lshift(r, 2), bit.rshift(r, 1)),
-		bit.bor(bit.lshift(g, 5), bit.lshift(g, 2), bit.rshift(g, 1)),
-		bit.bor(bit.lshift(b, 6), bit.lshift(b, 4), bit.lshift(b, 2), b)
+		(r << 5) | (r << 2) | (r >> 1),
+		(g << 5) | (g << 2) | (g >> 1),
+		(b << 6) | (b << 4) | (b << 2) | b
 end
 
 -- when I say 'reverse' i mean reversed order of bitfields
 -- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
 local function argb8888revto5551(rgba)
-	local a = bit.band(bit.rshift(rgba, 24), 0xff)
-	local r = bit.band(bit.rshift(rgba, 16), 0xff)
-	local g = bit.band(bit.rshift(rgba, 8), 0xff)
-	local b = bit.band(rgba, 0xff)
+	local a = 0xff & (rgba >> 24)
+	local r = 0xff & (rgba >> 16)
+	local g = 0xff & (rgba >> 8)
+	local b = 0xff & rgba
 	return rgba8888_4ch_to_5551(r,g,b,a)
 end
 
@@ -200,8 +177,8 @@ local function resetFont(fontPtr, fontFilename)
 		if y < h then return x, y end
 	end
 	for i=0,255 do
-		local b = bit.band(i, 7)
-		local mask = bit.bnot(bit.lshift(1, b))
+		local b = i & 7
+		local mask = ~(1 << b)
 		assert.lt(srcx, fontImg.width)
 		assert.lt(srcy, fontImg.height)
 		assert.lt(dstx, fontImageSize.x)
@@ -218,10 +195,7 @@ local function resetFont(fontPtr, fontFilename)
 					+ fontImageSize.x * (
 						dsty + by
 					)
-				dstp[0] = bit.bor(
-					bit.band(mask, dstp[0]),
-					bit.lshift(srcp[0], b)
-				)
+				dstp[0] = (mask & dstp[0]) | (srcp[0] << b)
 			end
 		end
 		srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
@@ -798,7 +772,7 @@ function AppVideo:triBuf_flushButDontClear()
 	sceneObj.geometry:draw()
 
 	if useDirectionalShadowmaps
-	and bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_lightingCastShadows) ~= 0
+	and self.ram.HD2DFlags & ffi.C.HD2DFlags_lightingCastShadows ~= 0
 	then
 		-- now - if we're using light - also draw the geom to the lightmap
 		-- that means updating uniforms every render regardless ...
@@ -811,7 +785,7 @@ function AppVideo:triBuf_flushButDontClear()
 		for lightIndex=0,math.min(maxLights, self.ram.numLights)-1 do
 			local light = self.ram.lights + lightIndex
 --DEBUG:print('flush tri light', lightIndex, 'enabled', light.enabled)
-			if 0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_DEPTH_TEX) then
+			if 0 ~= light.enabled & ffi.C.LIGHT_ENABLED_UPDATE_DEPTH_TEX then
 				gl.glViewport(
 					light.region[0],
 					light.region[1],
@@ -1034,11 +1008,11 @@ AppVideo.normalMapCache = table()
 function AppVideo:getNormalMapTex(sheetTex, paletteTex)
 	local normalMapCache = self.normalMapCache
 	-- only request this when you need it, when bumpmap flags are enabled <-> HD2DFlags & 1|8|32 ~= 0
-	local needsNormalMap = 0 ~= bit.band(self.ram.HD2DFlags, bit.bor(
-		ffi.C.HD2DFlags_lightingApplyToSurface,
-		ffi.C.HD2DFlags_useBumpMap,
-		ffi.C.HD2DFlags_calcFromLights
-	))
+	local needsNormalMap = 0 ~= self.ram.HD2DFlags & (
+		ffi.C.HD2DFlags_lightingApplyToSurface
+		| ffi.C.HD2DFlags_useBumpMap
+		| ffi.C.HD2DFlags_calcFromLights
+	)
 	-- TODO instead of the first, how about a dummy filler?
 	if not needsNormalMap then
 		if not dummyNormalMapTex then
@@ -1158,21 +1132,21 @@ function AppVideo:refreshNormalMapTex(entry, sheetTex, paletteTex)
 	local idy = spriteNormalExhaggeration / (2 * tonumber(spriteSheetSize.y))
 	for y=0,spriteSheetSize.y-1 do
 		--[=[ wrap the whole sheet
-		local yl = bit.band(y - 1, 0xff)
-		local yr = bit.band(y + 1, 0xff)
+		local yl = (y - 1) & 0xff
+		local yr = (y + 1) & 0xff
 		--]=]
 		-- [=[ wrap just the 16x16 tile
-		local yl = bit.bor(bit.band(y - 1, 0xf), bit.band(y, 0xf0))
-		local yr = bit.bor(bit.band(y + 1, 0xf), bit.band(y, 0xf0))
+		local yl = ((y - 1) & 0xf) | (y & 0xf0)
+		local yr = ((y + 1) & 0xf) | (y & 0xf0)
 		--]=]
 		for x=0,spriteSheetSize.x-1 do
 			--[=[ wrap the whole sheet
-			local xl = bit.band(x - 1, 0xff)
-			local xr = bit.band(x + 1, 0xff)
+			local xl = (x - 1) & 0xff
+			local xr = (x + 1) & 0xff
 			--]=]
 			-- [=[ wrap just the 16x16 tile ... makes things a bit smoother ... one more flag to add to the cache hash?
-			local xl = bit.bor(bit.band(x - 1, 0xf), bit.band(x, 0xf0))
-			local xr = bit.bor(bit.band(x + 1, 0xf), bit.band(x, 0xf0))
+			local xl = ((x - 1) & 0xf) | (x & 0xf0)
+			local xr = ((x + 1) & 0xf) | (x & 0xf0)
 			--]=]
 			local dz_dx = (
 				calcGrey(sheetTex.data + (xr + spriteSheetSize.y * y))
@@ -1804,8 +1778,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h, paletteBlobIndex)
 		end
 	end
 	-- now swap palette entries
-	local fromAddr = self.blobs.palette[1+paletteBlobIndex].addr + bit.lshift(from, 1)
-	local toAddr = self.blobs.palette[1+paletteBlobIndex].addr + bit.lshift(to, 1)
+	local fromAddr = self.blobs.palette[1+paletteBlobIndex].addr + (from << 1)
+	local toAddr = self.blobs.palette[1+paletteBlobIndex].addr + (to << 1)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
@@ -1888,10 +1862,7 @@ function AppVideo:drawSolidRect(
 	local xR = x + w
 	local yR = y + h
 
-	local drawFlags = bit.bor(
-		round and 4 or 0,
-		borderOnly and 8 or 0
-	)
+	local drawFlags = (round and 4 or 0) | (borderOnly and 8 or 0)
 
 	colorIndex = math.floor(colorIndex or 12)
 
@@ -1905,7 +1876,7 @@ function AppVideo:drawSolidRect(
 		x,  yR, 0, x,  yR,
 		0, 0, 1,	-- rectangular texcoords <-> identity TNB frame
 		1, 0, 0,
-		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
+		drawFlags | (colorIndex << 8), 0, 0, 0,
 		x, y, w, h
 	)
 
@@ -1919,7 +1890,7 @@ function AppVideo:drawSolidRect(
 		xR, yR, 0, xR, yR,
 		0, 0, 1,
 		1, 0, 0,
-		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
+		drawFlags | (colorIndex << 8), 0, 0, 0,
 		x, y, w, h
 	)
 
@@ -1980,7 +1951,7 @@ function AppVideo:drawSolidTri3D(
 		x3, y3, z3, 0, 1,
 		normalX, normalY, normalZ,
 		tangentX, tangentY, tangentZ,
-		bit.lshift(math.floor(colorIndex or 12), 8), 0, 0, 0,
+		math.floor(colorIndex or 12) << 8, 0, 0, 0,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
@@ -2215,7 +2186,7 @@ function AppVideo:drawSolidLine3D(
 		xLR, yLR, zLR, 0, 1,
 		normalX, normalY, normalZ,
 		dx, dy, dz,
-		bit.lshift(colorIndex, 8), 0, 0, 0,
+		colorIndex << 8, 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -2229,7 +2200,7 @@ function AppVideo:drawSolidLine3D(
 		xRR, yRR, zRR, 1, 1,
 		normalX, normalY, normalZ,
 		dx, dy, dz,
-		bit.lshift(colorIndex, 8), 0, 0, 0,
+		colorIndex << 8, 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -2293,9 +2264,9 @@ function AppVideo:clearScreen(
 			modeObj:build()
 			if modeObj.format == 'RGB565' then	-- internalFormat == GL_RGB565
 				local selColorValue = ffi.cast(uint16_t_p, paletteTex.data)[colorIndex]
-				clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
-				clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
-				clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
+				clearFloat[0] = (selColorValue & 0x1f) / 0x1f
+				clearFloat[1] = ((selColorValue >> 5) & 0x1f) / 0x1f
+				clearFloat[2] = ((selColorValue >> 10) & 0x1f) / 0x1f
 				clearFloat[3] = 1
 				gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
 			elseif modeObj.format == '8bppIndex' then
@@ -2415,7 +2386,7 @@ function AppVideo:setBlendMode(blendMode)
 
 		gl.glEnable(gl.GL_BLEND)
 
-		local subtract = bit.band(blendMode, 2) ~= 0
+		local subtract = blendMode & 2 ~= 0
 		if subtract then
 			--gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)		-- sprite minus framebuffer
 			gl.glBlendEquation(gl.GL_FUNC_REVERSE_SUBTRACT)	-- framebuffer minus sprite
@@ -2424,11 +2395,11 @@ function AppVideo:setBlendMode(blendMode)
 		end
 
 	-- [[ TODO this here or this in the draw commands?
-		self.blendColorA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
+		self.blendColorA = blendMode & 4 == 0 and 0 or 0xff	-- > 0 means we're using draw-override
 		self:onBlendColorChange()
 	--]]
 		local ca = 1
-		local half = bit.band(blendMode, 1) ~= 0
+		local half = blendMode & 1 ~= 0
 		-- technically half didnt work when blending with constant-color on the SNES ...
 		if half then
 			ca = .5
@@ -2494,8 +2465,8 @@ vR   3-4
 	local u4, v4 = uR, vR
 
 	-- transform orientation here
-	local hflip = bit.band(1, orientation2D)
-	local rot = bit.band(3, bit.rshift(orientation2D, 1))
+	local hflip = 1 & orientation2D
+	local rot = 3 & (orientation2D >> 1)
 	if hflip ~= 0 then
 		  u1, u2, u3, u4
 		= u2, u1, u4, u3
@@ -2778,9 +2749,9 @@ function AppVideo:drawSprite(
 	scaleY = scaleY or 1
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	spriteIndex = math.floor(spriteIndex or 0)
-	local tx = bit.band(spriteIndex, 0x1f)
-	local ty = bit.band(bit.rshift(spriteIndex, 5), 0x1f)
-	local sheetIndex = bit.rshift(spriteIndex, 10)
+	local tx = spriteIndex & 0x1f
+	local ty = (spriteIndex >> 5) & 0x1f
+	local sheetIndex = spriteIndex >> 10
 	self:drawQuad(
 		-- x y w h
 		screenX,
@@ -2788,10 +2759,10 @@ function AppVideo:drawSprite(
 		tilesWide * spriteSize.x * scaleX,
 		tilesHigh * spriteSize.y * scaleY,
 		-- tx ty tw th in [0,255] pixels
-		bit.lshift(tx, 3),
-		bit.lshift(ty, 3),
-		bit.lshift(tilesWide, 3),
-		bit.lshift(tilesHigh, 3),
+		tx << 3,
+		ty << 3,
+		tilesWide << 3,
+		tilesHigh << 3,
 		orientation2D,
 		sheetIndex,
 		paletteOffset,
@@ -2868,8 +2839,8 @@ function AppVideo:drawTileMap(
 
 	local xL = screenX or 0
 	local yL = screenY or 0
-	local xR = xL + tilesWide * bit.lshift(spriteSize.x, draw16As0or1)
-	local yR = yL + tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
+	local xR = xL + tilesWide * (spriteSize.x << draw16As0or1)
+	local yR = yL + tilesHigh * (spriteSize.y << draw16As0or1)
 
 	local uL = tileX / tonumber(spriteSheetSizeInTiles.x)
 	local vL = tileY / tonumber(spriteSheetSizeInTiles.y)
@@ -2878,10 +2849,9 @@ function AppVideo:drawTileMap(
 
 	-- user has to specify high-bits
 	tilemapIndexOffset = tilemapIndexOffset or 0
-	local extraX = bit.bor(
-		2,	-- tilemap pathway
-		draw16Sprites and 4 or 0
-	)
+	local extraX =
+		2	-- tilemap pathway
+		| (draw16Sprites and 4 or 0)
 	local extraZ = tilemapIndexOffset
 
 	self:triBuf_addTri(
@@ -2974,8 +2944,8 @@ function AppVideo:drawTextCommon(
 
 	for i=1,#text do
 		local ch = text:byte(i)
-		local spriteBit = bit.band(ch, 7)		-- get the bit offset
-		local by = bit.rshift(ch, 3)	-- get the byte offset
+		local spriteBit = ch & 7	-- get the bit offset
+		local by = ch >> 3			-- get the byte offset
 
 		local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway
 
@@ -3271,18 +3241,7 @@ local function orientationCombine(a, b)
 	-- ok I made a function for input => orientation, output => 2D matrix
 	-- then I applied it twice, and found a bitwise function that reproduces that
 	-- and here it is
-	return bit.band(7, bit.bxor(
-		a,
-		b,
-		bit.lshift(bit.band(
-			bit.bxor(
-				bit.lshift(a, 1),
-				a
-			),
-			b,
-			2
-		), 1)
-	))
+	return 7 & (a ~ b ~ ((((a << 1) ~ a) & b & 2) << 1))
 end
 
 
@@ -3325,12 +3284,12 @@ function AppVideo:drawBrush(
 	-- but for the select's sake, keep the two separate
 
 	local draw16As0or1 = draw16Sprites and 1 or 0
-	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
+	local tileSizeInTiles = 1 << draw16As0or1
 	local tileBits = draw16Sprites and 4 or 3
-	local tileSizeInPixels = bit.lshift(1, tileBits)
+	local tileSizeInPixels = 1 << tileBits
 
-	local stampHFlip = bit.band(1, stampOrientation)
-	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
+	local stampHFlip = 1 & stampOrientation
+	local stampRot = 3 & (stampOrientation >> 1)
 
 	for ofsx=0,stampW-1 do
 		for ofsy=0,stampH-1 do
@@ -3351,27 +3310,27 @@ function AppVideo:drawBrush(
 			if stampHFlip ~= 0 then bx = bw-1-bx end
 
 			local tileIndex = brush(bx, by, bw, bh, stampTileX, stampTileY, stampOrientation) or 0
-			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
-			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
+			local palHi = 7 & (tileIndex >> 10)
+			local tileOrientation = 7 & (tileIndex >> 13)
 
 			tileOrientation = orientationCombine(stampOrientation, tileOrientation)
 
-			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
+			local spriteIndex = 0x3FF & tileIndex	-- 10 bits
 
 			self:drawSprite(
-				spriteIndex + bit.lshift(sheetBlobIndex, 10), -- spriteIndex
-				screenX,				-- screenX
-				screenY,				-- screenY
-				tileSizeInTiles,		-- tilesWide
-				tileSizeInTiles,		-- tilesHigh
-				tileOrientation,		-- orientation2D
-				nil,					-- scaleX
-				nil,					-- scaleY
-				bit.lshift(palHi, 5),	-- paletteOffset
-				nil,					-- transparentIndex
-				nil,					-- spriteBit
-				nil,					-- spriteMask
-				nil						-- paletteTex
+				spriteIndex + (sheetBlobIndex << 10),	-- spriteIndex
+				screenX,								-- screenX
+				screenY,								-- screenY
+				tileSizeInTiles,						-- tilesWide
+				tileSizeInTiles,						-- tilesHigh
+				tileOrientation,						-- orientation2D
+				nil,									-- scaleX
+				nil,									-- scaleY
+				palHi << 5,								-- paletteOffset
+				nil,									-- transparentIndex
+				nil,									-- spriteBit
+				nil,									-- spriteMask
+				nil										-- paletteTex
 			)
 		end
 	end
@@ -3417,8 +3376,8 @@ function AppVideo:blitBrush(
 	end
 	local tilemapAddr = tilemapBlob.addr
 
-	local stampHFlip = bit.band(1, stampOrientation)
-	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
+	local stampHFlip = 1 & stampOrientation
+	local stampRot = 3 & (stampOrientation >> 1)
 
 	-- TODO early bailout of intersection test
 	for ofsy=0,stampH-1 do
@@ -3448,17 +3407,14 @@ function AppVideo:blitBrush(
 				if stampHFlip ~= 0 then bx = bw-1-bx end
 
 				local tileIndex = brush(bx, by, bw, bh, stampX, stampY, stampOrientation) or 0
-				local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
+				local tileOrientation = 7 & (tileIndex >> 13)
 
 				tileOrientation = orientationCombine(stampOrientation, tileOrientation)
 
 				-- reconstruct
-				tileIndex = bit.bor(
-					bit.band(0x1fff, tileIndex),
-					bit.lshift(tileOrientation, 13)
-				)
+				tileIndex = (0x1fff & tileIndex) | (tileOrientation << 13)
 				self:net_pokew(
-					tilemapAddr + bit.lshift(bit.bor(dstx, bit.lshift(dsty, tilemapSizeInBits.x)), 1),
+					tilemapAddr + ((dstx | (dsty << tilemapSizeInBits.x)) << 1),
 					tileIndex
 				)
 			end
@@ -3685,8 +3641,8 @@ function AppVideo:drawVoxel(voxelValue, ...)
 
 	self:drawMesh3D(
 		vox.mesh3DIndex,
-		bit.lshift(vox.tileXOffset, 3),
-		bit.lshift(vox.tileYOffset, 3),
+		vox.tileXOffset << 3,
+		vox.tileYOffset << 3,
 		...
 	)
 
@@ -3888,12 +3844,12 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 	end
 
 	-- update lightmaps & lighting colors
-	if bit.band(ram.HD2DFlags, bit.bor(
-		ffi.C.HD2DFlags_lightingApplyToSurface,
-		ffi.C.HD2DFlags_useSSAO,
-		ffi.C.HD2DFlags_calcFromLightMap,
-		ffi.C.HD2DFlags_calcFromLights
-	)) ~= 0 then
+	if ram.HD2DFlags & (
+		ffi.C.HD2DFlags_lightingApplyToSurface
+		| ffi.C.HD2DFlags_useSSAO
+		| ffi.C.HD2DFlags_calcFromLightMap
+		| ffi.C.HD2DFlags_calcFromLights
+	) ~= 0 then
 --DEBUG:print('update lightmaps and lighting colors')
 		--[=[ trying to read the depth buffer
 		-- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
@@ -4080,7 +4036,7 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 		finalRGBTex = videoMode.lightAndFBTex:cur()
 	end
 
-	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+	if ram.HD2DFlags & ffi.C.HD2DFlags_useHDR ~= 0 then
 --DEBUG:print('applying HDR')
 		-- TODO what we're doing HDR without lighting?
 		-- then this will be bound to the FC FB
@@ -4099,7 +4055,7 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 		finalRGBTex = videoMode.hdrTex:cur()
 
 		-- if DoF isnt gonna gen mipmaps then we better gen them here...
-		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) == 0 then
+		if ram.HD2DFlags & ffi.C.HD2DFlags_useDoF == 0 then
 			finalRGBTex
 				:bind()
 				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
@@ -4114,7 +4070,7 @@ assert.eq(finalRGBTex.height, videoMode.framebufferRAM.tex.height)
 	--]]
 	end
 
-	if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+	if ram.HD2DFlags & ffi.C.HD2DFlags_useDoF ~= 0 then
 --DEBUG:print('applying DoF')
 		-- [[ dont use mipmaps with DoF, use a blur kernel instead
 		finalRGBTex
@@ -4242,7 +4198,7 @@ gl.glDepthMask(gl.GL_TRUE)
 	videoMode.calcLightTex.fbo
 		:bind()
 	gl.glClearColor(1,1,1,1)
-	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	gl.glClear(gl.GL_DEPTH_BUFFER_BIT | gl.GL_COLOR_BUFFER_BIT)
 	videoMode.calcLightTex.fbo
 		:unbind()
 --]]
