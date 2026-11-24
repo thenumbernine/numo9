@@ -21,7 +21,6 @@ local vertexTexcoordMax = numo9_rom.vertexTexcoordMax
 local vertexMeshFileCoordScale = numo9_rom.vertexMeshFileCoordScale
 local vertexMeshFileTexcoordScale = numo9_rom.vertexMeshFileTexcoordScale
 local voxelVertexScale = numo9_rom.voxelVertexScale
-
 -- double since [-voxelVertexScale, voxelVertexScale] maps to [-.5, .5]
 -- so [0, voxelVertexScale_x2] maps to [0, 1]
 local voxelVertexScale_x2 = voxelVertexScale * 2

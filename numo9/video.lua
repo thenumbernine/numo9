@@ -39,6 +39,11 @@ local Voxel = numo9_rom.Voxel
 local animSheetPtrType = numo9_rom.animSheetPtrType
 local animSheetSize = numo9_rom.animSheetSize
 local maxLights = numo9_rom.maxLights
+local voxelVertexScale = numo9_rom.voxelVertexScale
+-- double since [-voxelVertexScale, voxelVertexScale] maps to [-.5, .5]
+-- so [0, voxelVertexScale_x2] maps to [0, 1]
+local voxelVertexScale_x2 = voxelVertexScale * 2
+local voxelVertexScale_x2_inv = 1 / voxelVertexScale_x2
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -3589,7 +3594,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 
 	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 	self:mattrans(.5, .5, .5)
-	self:matscale(1/32768, 1/32768, 1/32768)
+	self:matscale(voxelVertexScale_x2_inv, voxelVertexScale_x2_inv, voxelVertexScale_x2_inv)
 
 	-- orientation
 	-- there are 24 right-handed cube isometric transformations

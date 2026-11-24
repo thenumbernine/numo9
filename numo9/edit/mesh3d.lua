@@ -33,6 +33,16 @@ local tileSizeInBits = numo9_rom.tileSizeInBits
 local Vertex = numo9_rom.Vertex
 local Vertex_p = ffi.typeof('$*', Vertex)
 
+-- i'm scaling down by 32768 just for coordinate-normalization of the signed-short's sake
+-- it technically isn't the [vertexCoordMin,vertexCoordMax], which is [-32768,32767]
+-- it technically isn't the voxelVertexScale==16384 since that is associated with the voxel, not the vertex coordinate
+-- but I'll just use that anyways since this rescale is only for visual/editor' sake
+local voxelVertexScale = numo9_rom.voxelVertexScale
+-- double since [-voxelVertexScale, voxelVertexScale] maps to [-.5, .5]
+-- so [0, voxelVertexScale_x2] maps to [0, 1]
+local voxelVertexScale_x2 = voxelVertexScale * 2
+local voxelVertexScale_x2_inv = 1 / voxelVertexScale_x2
+
 
 -- truncate stack, useful for ffi ctype ctors that can't have extra args
 local function trunc(i, ...)
@@ -344,9 +354,9 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 						local v2 = vs[1 + selVtxIndexes[3]]
 						-- can't use app:transform cuz we're drawing the gui so the matrices are gui matrices...
 						-- so do it in model space
-						local pos0 = vec3d(v0.x, v0.y, v0.z) / 32768
-						local pos1 = vec3d(v1.x, v1.y, v1.z) / 32768
-						local pos2 = vec3d(v2.x, v2.y, v2.z) / 32768
+						local pos0 = vec3d(v0.x, v0.y, v0.z) * voxelVertexScale_x2_inv
+						local pos1 = vec3d(v1.x, v1.y, v1.z) * voxelVertexScale_x2_inv
+						local pos2 = vec3d(v2.x, v2.y, v2.z) * voxelVertexScale_x2_inv
 						local curl = (pos2 - pos1):cross(pos1 - pos0):dot(orbit.pos - (pos0 + pos1 + pos2) / 3)
 
 						-- make a new tri facing the camera
@@ -1228,7 +1238,7 @@ function EditMesh3D:update()
 		if not tileSelHandled then
 			handled = orbit:beginDraw() or handled
 
-			app:matscale(1/32768, 1/32768, 1/32768)
+			app:matscale(voxelVertexScale_x2_inv, voxelVertexScale_x2_inv, voxelVertexScale_x2_inv)
 
 			-- draw the 3D model here
 			-- TODO this goes slow af
@@ -1412,7 +1422,7 @@ function EditMesh3D:update()
 					-- find the best tri, toggle its selection if not selected
 					local bestDist = math.huge
 					local bestTri
-					local mousePos = orbit.pos * 32768
+					local mousePos = orbit.pos * voxelVertexScale_x2
 					local mouseDir = fwd
 						+ orbit.angle:xAxis() * (mouseX - 128) / 128
 						- orbit.angle:yAxis() * (mouseY - 128) / 128

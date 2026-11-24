@@ -21,6 +21,11 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local Voxel = numo9_rom.Voxel
+local voxelVertexScale = numo9_rom.voxelVertexScale
+-- double since [-voxelVertexScale, voxelVertexScale] maps to [-.5, .5]
+-- so [0, voxelVertexScale_x2] maps to [0, 1]
+local voxelVertexScale_x2 = voxelVertexScale * 2
+local voxelVertexScale_x2_inv = 1 / voxelVertexScale_x2
 
 local numo9_video = require 'numo9.video'
 local Numo9Vertex = numo9_video.Numo9Vertex
@@ -312,7 +317,7 @@ function Chunk:rebuildMesh(app)
 
 						if vptr.intval ~= voxelMapEmptyValue then
 							tmpMat:setTranslate(vi+.5, vj+.5, vk+.5)
-							tmpMat:applyScale(1/32768, 1/32768, 1/32768)
+							tmpMat:applyScale(voxelVertexScale_x2_inv, voxelVertexScale_x2_inv, voxelVertexScale_x2_inv)
 
 							if specialOrientation[vptr.orientation] then
 								if vptr.orientation == 20 then
