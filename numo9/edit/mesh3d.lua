@@ -1180,8 +1180,8 @@ function EditMesh3D:applyMeshEditMode()
 					pos = pos + self.selVtxCOM
 					v.x, v.y, v.z = pos.x, pos.y, pos.z
 				else
-					local cosTheta = math.cos(math.rad(self.screenRotateAngle.w))
-					local sinTheta = math.sin(math.rad(self.screenRotateAngle.w))
+					local cosTheta = math.cos(math.rad(-self.screenRotateAngle.w))
+					local sinTheta = math.sin(math.rad(-self.screenRotateAngle.w))
 					local pos = vec2d(orig.u, orig.v) - self.selTexCoordCOM
 					pos = vec2d(
 						pos.x * cosTheta - pos.y * sinTheta,
