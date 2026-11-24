@@ -526,7 +526,7 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	return d, sideIndex
 end
 
--- assumes we're already scaled down by 32768
+-- assumes we're already scaled down by voxelVertexScale_x2
 function EditVoxelMap:drawBox(box, color)
 	local app = self.app
 	local thickness = math.max(1, app.width / 256)

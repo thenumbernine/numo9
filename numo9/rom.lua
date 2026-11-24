@@ -600,6 +600,15 @@ local Vertex = struct{
 }
 assert.eq(ffi.sizeof(Vertex), 8)
 local meshIndexType = uint16_t
+-- limits of the vertex type (int16_t)
+local vertexCoordMin = -32768
+local vertexCoordMax = 32767
+-- limits of the texcorod type (int8_t)
+local vertexTexcoordMin = -128
+local vertexTexcoordMax = 127
+-- how much the obj file is scaled by
+local vertexMeshFileCoordScale = 256
+local vertexMeshFileTexcoordScale = 256
 
 ffi.cdef[[
 typedef union {
@@ -627,6 +636,7 @@ local Voxel = ffi.typeof'Voxel'
 assert.eq(ffi.sizeof(Voxel), 4)
 local voxelMapEmptyValue = 0xffffffff
 local voxelmapSizeType = uint32_t	-- type for the header's size xyz
+local voxelVertexScale = 16384		-- scale from mesh coords [-32768,32767] to voxel coords [-.5, .5] (before translation)
 
 return {
 	version = version,
@@ -696,11 +706,18 @@ return {
 	Stamp = Stamp,
 
 	Vertex = Vertex,
+	vertexCoordMin = vertexCoordMin,
+	vertexCoordMax = vertexCoordMax,
+	vertexTexcoordMin = vertexTexcoordMin,
+	vertexTexcoordMax = vertexTexcoordMax,
+	vertexMeshFileCoordScale = vertexMeshFileCoordScale,
+	vertexMeshFileTexcoordScale = vertexMeshFileTexcoordScale,
 
 	meshIndexType = meshIndexType,
 	voxelmapSizeType = voxelmapSizeType,
 	voxelMapEmptyValue = voxelMapEmptyValue,
 	Voxel = Voxel,
+	voxelVertexScale = voxelVertexScale,
 
 	animSheetType = animSheetType,
 	animSheetPtrType = animSheetPtrType,

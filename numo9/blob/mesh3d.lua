@@ -14,6 +14,17 @@ local OBJLoader = require 'mesh.objloader'	-- has a lot of bloat, but is pretty 
 local numo9_rom = require 'numo9.rom'
 local meshIndexType = numo9_rom.meshIndexType
 local Vertex = numo9_rom.Vertex
+local vertexCoordMin = numo9_rom.vertexCoordMin
+local vertexCoordMax = numo9_rom.vertexCoordMax
+local vertexTexcoordMin = numo9_rom.vertexTexcoordMin
+local vertexTexcoordMax = numo9_rom.vertexTexcoordMax
+local vertexMeshFileCoordScale = numo9_rom.vertexMeshFileCoordScale
+local vertexMeshFileTexcoordScale = numo9_rom.vertexMeshFileTexcoordScale
+local voxelVertexScale = numo9_rom.voxelVertexScale
+
+-- double since [-voxelVertexScale, voxelVertexScale] maps to [-.5, .5]
+-- so [0, voxelVertexScale_x2] maps to [0, 1]
+local voxelVertexScale_x2 = voxelVertexScale * 2
 
 local BlobDataAbs = require 'numo9.blob.dataabs'
 
@@ -98,9 +109,10 @@ function BlobMesh3D:init(data)
 		local vj = vtxs + j
 		local vk = vtxs + k
 		local nx, ny, nz, tnx, tny, tnz = calcNormalForTri(
-			vi.x/32768, vi.y/32768, vi.z/32768, vi.u/256, vi.v/256,
-			vj.x/32768, vj.y/32768, vj.z/32768, vj.u/256, vj.v/256,
-			vk.x/32768, vk.y/32768, vk.z/32768, vk.u/256, vk.v/256
+			-- scaling is only to help numerical accuracy
+			vi.x/voxelVertexScale_x2, vi.y/voxelVertexScale_x2, vi.z/voxelVertexScale_x2, vi.u/vertexMeshFileTexcoordScale, vi.v/vertexMeshFileTexcoordScale,
+			vj.x/voxelVertexScale_x2, vj.y/voxelVertexScale_x2, vj.z/voxelVertexScale_x2, vj.u/vertexMeshFileTexcoordScale, vj.v/vertexMeshFileTexcoordScale,
+			vk.x/voxelVertexScale_x2, vk.y/voxelVertexScale_x2, vk.z/voxelVertexScale_x2, vk.u/vertexMeshFileTexcoordScale, vk.v/vertexMeshFileTexcoordScale
 		)
 		self.normalList:emplace_back():set(nx, ny, nz)
 		self.tangentList:emplace_back():set(tnx, tny, tnz)
@@ -133,10 +145,10 @@ function BlobMesh3D:init(data)
 				-- bit 0 = negative direction bit
 				-- bits 1:2 = 0-2 for xyz, which direction the side is facing
 				local sideIndex = bit.bor(negflag, bit.lshift(axis, 1))
-				if bounds.min.s[axis] == sign * 16384
-				and bounds.max.s[axis] == sign * 16384
-				and -16384 <= bounds.min.s[axis1] and bounds.min.s[axis1] <= 16384
-				and -16384 <= bounds.min.s[axis2] and bounds.min.s[axis2] <= 16384
+				if bounds.min.s[axis] == sign * voxelVertexScale
+				and bounds.max.s[axis] == sign * voxelVertexScale
+				and -voxelVertexScale <= bounds.min.s[axis1] and bounds.min.s[axis1] <= voxelVertexScale
+				and -voxelVertexScale <= bounds.min.s[axis2] and bounds.min.s[axis2] <= voxelVertexScale
 
 --[[ test face orientation as well?
 				and math.abs(unitN.s[axis] - sign) < 1e-3
@@ -146,8 +158,8 @@ function BlobMesh3D:init(data)
 --DEBUG:print('tri', ti, 'is on side', axis, sign)
 					trisPerSide[sideIndex]:insert(ti)
 					self.sideForTriIndex[ti] = sideIndex
-					-- TODO check that the other two axii are *within* +-16384
-					-- then last do a check for if the whole face is covered, i.e. sum of tri areas is 16384^2
+					-- TODO check that the other two axii are *within* +-voxelVertexScale
+					-- then last do a check for if the whole face is covered, i.e. sum of tri areas is voxelVertexScale^2
 				end
 			end
 		end
@@ -160,9 +172,9 @@ function BlobMesh3D:init(data)
 			local i,j,k = self.triList.v[triIndex]:unpack()
 			local vi, vj, vk = vtxs+i, vtxs+j, vtxs+k
 			-- vec3i or vec3d? scale or no? scaled for now cuz i'm lazy
-			local a = vec3d(vi.x, vi.y, vi.z) / 32768
-			local b = vec3d(vj.x, vj.y, vj.z) / 32768
-			local c = vec3d(vk.x, vk.y, vk.z) / 32768
+			local a = vec3d(vi.x, vi.y, vi.z) / voxelVertexScale_x2
+			local b = vec3d(vj.x, vj.y, vj.z) / voxelVertexScale_x2
+			local c = vec3d(vk.x, vk.y, vk.z) / voxelVertexScale_x2
 			local len = (b - a):cross(c - b):norm()
 			local area = math.abs(len * .5)
 --DEBUG:print('tri', a, b, c, 'area', area)
@@ -220,13 +232,13 @@ function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	for i=0,numVtxs-1 do
 		local v = vtxs + i
 		o:insert('v '..table{v.x, v.y, v.z}:mapi(function(x)
-			return ('%.9f'):format(x / 256)
+			return ('%.9f'):format(x / vertexMeshFileCoordScale)
 		end):concat' ')
 	end
 	for i=0,numVtxs-1 do
 		local v = vtxs + i
 		o:insert('vt '..table{v.u, v.v}:mapi(function(x)
-			return ('%.9f'):format(tonumber(x) / 256)
+			return ('%.9f'):format(tonumber(x) / vertexMeshFileTexcoordScale)
 		end):concat' ')
 	end
 	for ti=0,#self.triList-1 do
@@ -246,13 +258,13 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 	for i=0,#mesh.vtxs-1 do
 		local vtx = mesh.vtxs.v + i
 		vs:insert{
-			math.clamp(math.floor(vtx.pos.x * 256), -32768, 32767),
-			math.clamp(math.floor(vtx.pos.y * 256), -32768, 32767),
-			math.clamp(math.floor(vtx.pos.z * 256), -32768, 32767)
+			math.clamp(math.floor(vtx.pos.x * vertexMeshFileCoordScale), vertexCoordMin, vertexCoordMax),
+			math.clamp(math.floor(vtx.pos.y * vertexMeshFileCoordScale), vertexCoordMin, vertexCoordMax),
+			math.clamp(math.floor(vtx.pos.z * vertexMeshFileCoordScale), vertexCoordMin, vertexCoordMax)
 		}
 		vts:insert{
-			math.clamp(math.floor(vtx.texcoord.x * 256), -128, 127),
-			math.clamp(math.floor(vtx.texcoord.y * 256), -128, 127)
+			math.clamp(math.floor(vtx.texcoord.x * vertexMeshFileTexcoordScale), vertexTexcoordMin, vertexTexcoordMax),
+			math.clamp(math.floor(vtx.texcoord.y * vertexMeshFileTexcoordScale), vertexTexcoordMin, vertexTexcoordMax)
 		}
 	end
 	local is = table()
@@ -272,17 +284,17 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 				assert.ge(#words, 2)
 				vs:insert{
 					-- TODO I wasn't adding .5 before floor() but should I?
-					math.clamp(math.floor((tonumber(words[1]) or 0) * 256), -32768, 32767),
-					math.clamp(math.floor((tonumber(words[2]) or 0) * 256), -32768, 32767),
-					math.clamp(math.floor((tonumber(words[3]) or 0) * 256), -32768, 32767),
+					math.clamp(math.floor((tonumber(words[1]) or 0) * vertexMeshFileCoordScale), vertexCoordMin, vertexCoordMax),
+					math.clamp(math.floor((tonumber(words[2]) or 0) * vertexMeshFileCoordScale), vertexCoordMin, vertexCoordMax),
+					math.clamp(math.floor((tonumber(words[3]) or 0) * vertexMeshFileCoordScale), vertexCoordMin, vertexCoordMax),
 				}
 			elseif lineType == 'vt' then
 				assert.ge(#words, 2)
 				vts:insert{
 					-- clamp so .obj texcoords [0,1] still map to [0,255] correctly
 					-- TODO I wasn't adding .5 before floor() but should I?
-					math.clamp(math.floor((tonumber(words[1]) or 0) * 256), 0, 255),
-					math.clamp(math.floor((tonumber(words[2]) or 0) * 256), 0, 255)
+					math.clamp(math.floor((tonumber(words[1]) or 0) * vertexMeshFileTexcoordScale), 0, 255),
+					math.clamp(math.floor((tonumber(words[2]) or 0) * vertexMeshFileTexcoordScale), 0, 255)
 				}
 			elseif lineType == 'f' then
 				assert(not line:find'/', "sorry I don't support faces with /'s in them, go delete that trash right now.")
@@ -377,35 +389,35 @@ end
 function BlobMesh3D.getDefaultCubeLists()
 	local vertexes = table{
 		-- x-
-		{-16384, 16384, -16384},
-		{-16384, -16384, -16384},
-		{-16384, -16384, 16384},
-		{-16384, 16384, 16384},
+		{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+		{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+		{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+		{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
 		-- x+
-		{16384, 16384, -16384},
-		{16384, -16384, -16384},
-		{16384, -16384, 16384},
-		{16384, 16384, 16384},
+		{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+		{voxelVertexScale, voxelVertexScale, voxelVertexScale},
 		-- y-
-		{-16384, -16384, 16384},
-		{-16384, -16384, -16384},
-		{16384, -16384, -16384},
-		{16384, -16384, 16384},
+		{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+		{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
 		-- y+
-		{-16384, 16384, 16384},
-		{-16384, 16384, -16384},
-		{16384, 16384, -16384},
-		{16384, 16384, 16384},
+		{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
+		{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, voxelVertexScale, voxelVertexScale},
 		-- z-
-		{-16384, -16384, -16384},
-		{-16384, 16384, -16384},
-		{16384, 16384, -16384},
-		{16384, -16384, -16384},
+		{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+		{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+		{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
 		-- z+
-		{-16384, -16384, 16384},
-		{-16384, 16384, 16384},
-		{16384, 16384, 16384},
-		{16384, -16384, 16384},
+		{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+		{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
+		{voxelVertexScale, voxelVertexScale, voxelVertexScale},
+		{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
 	}
 	local texcoords = table{
 		-- x-
