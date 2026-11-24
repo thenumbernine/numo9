@@ -42,23 +42,13 @@ local blobClassNameForType = table{
 }
 
 -- maps from name to class
-local blobClassForName = {
-	code = require 'numo9.blob.code',
-	sheet = require 'numo9.blob.sheet' ,
-	tilemap = require 'numo9.blob.tilemap',
-	palette = require 'numo9.blob.palette',
-	font = require 'numo9.blob.font',
-	sfx = require 'numo9.blob.sfx',
-	music = require 'numo9.blob.music',
-	data = require 'numo9.blob.data',
-	persist = require 'numo9.blob.persist',
-	brush = require 'numo9.blob.brush',
-	brushmap = require 'numo9.blob.brushmap',
-	mesh3d = require 'numo9.blob.mesh3d',
-	voxelmap = require 'numo9.blob.voxelmap',
-	animsheet = require 'numo9.blob.animsheet'
-}
-
+local blobClassForName = {}
+for _,blobClassName in ipairs(blobClassNameForType) do
+	-- so blobClassName == .filenamePrefix == .name == require name
+	local blobClass = require('numo9.blob.'..blobClassName)
+	blobClassForName[blobClassName] = blobClass
+	assert.eq(blobClassName, blobClass.filenamePrefix)
+end
 
 -- maps from name to type-index
 local blobTypeForClassName = blobClassNameForType:mapi(function(name, typeValue)

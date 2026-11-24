@@ -117,11 +117,11 @@ local function savePal(palette, outfn)
 	end)):save(tostring(outfn))
 end
 
-local cmd, fn, extra = ...
+local cmd, fn = ...
 assert(cmd and fn, "expected: `n9a.lua cmd filename`")
 
 -- should probably use the same lib as numo9 uses for its compression/saving ...
-if cmd == 'l' then
+if cmd == 'l' then		-- list cart blobs
 	local n9path = rundir/fn
 	local blobs = cartImageToBlobs((assert(n9path:read())))
 	for _,blobClassName in ipairs(table.keys(blobs):sort()) do
@@ -129,11 +129,68 @@ if cmd == 'l' then
 		for blobIndexPlusOne,blob in ipairs(blobsForType) do
 			local blobIndex = blobIndexPlusOne-1
 			local dstfn = blob:getFileName(blobIndex)
-			print(' - '..tostring(dstfn))
+			io.write(tostring(dstfn))
+			-- TODO get console width, and \t vs \n accordingly
+			-- in fact TODO determine column widths
+			io.write'\t'
+		end
+	end
+	print()
+
+elseif cmd == 'xf' then	-- extract-single
+	local blobfn, destfn = select(3, ...)
+	assert(blobfn, "expected n9a.lua xf cart.n9 blob")
+
+	local basename, ext = path(blobfn):getext()
+	basename = assert.index(basename, 'path')
+	local blobClassName, blobIndex = basename:match'^(.-)(%d+)$'
+	assert(blobClassName, "got a request for a resource that I couldn't match: "..tostring(blobfn))
+	if blobIndex == '' then
+		blobIndex = 0
+	else
+		blobIndex = assert(tonumber(blobIndex), "got bad blobIndex "..blobIndex)
+	end
+
+	local n9path = rundir/fn
+	local blobs = cartImageToBlobs((assert(n9path:read())))
+	local blobsForType = assert.index(blobs, blobClassName)
+	local blob = assert.index(blobsForType, blobIndex+1)
+
+	-- allow metainfo to say what sheet gets what palette
+	local mainCodeBlob = blobs.code[1]
+	local metainfo = mainCodeBlob and mainCodeBlob:getMetaInfo()
+	local paletteForSheet = metainfo and metainfo['archive.paletteForSheet']
+	if paletteForSheet then
+		paletteForSheet = op.land(pcall(fromlua, paletteForSheet))
+		if type(paletteForSheet) ~= 'table' then
+			paletteForSheet = nil
 		end
 	end
 
-elseif cmd == 'x' then
+	-- metainfo what sheet gets what palette
+	local paletteIndex = 0
+	if blobClassName == 'sheet'
+	and paletteForSheet
+	then
+		paletteIndex = paletteForSheet[blobIndexPlusOne] or 0
+	end
+
+	-- if not destfn then fill out default
+	if destfn then
+		destfn = path(destfn)
+	else
+		destfn = getbasepath(n9path)/blob:getFileName(blobIndex)
+	end
+
+	blob:saveFile(
+		destfn,
+		blobIndex,
+		blobs,
+		-- 4th arg is only used by sheet blobs for palette index:
+		paletteIndex
+	)
+
+elseif cmd == 'x' then	-- extract-all
 
 	local n9path = rundir/fn
 	local basepath = getbasepath(n9path)
@@ -149,7 +206,6 @@ elseif cmd == 'x' then
 	-- allow metainfo to say what sheet gets what palette
 	local mainCodeBlob = blobs.code[1]
 	local metainfo = mainCodeBlob and mainCodeBlob:getMetaInfo()
-
 	local paletteForSheet = metainfo and metainfo['archive.paletteForSheet']
 	if paletteForSheet then
 		paletteForSheet = op.land(pcall(fromlua, paletteForSheet))
@@ -415,14 +471,16 @@ elseif cmd == 'a' or cmd == 'r' then
 		end
 	end
 
-	-- TODO organize this more
-	if extra == 'resetFont' then
-		print'resetting font...'
-		resetFont(blobs.font[1]:getPtr())
-	end
-	if extra == 'resetPal' then
-		--print'!!! creating default palette blob !!!'
-		--resetPalette(bank)
+	for i=3,select('#', ...) do
+		local extra = select(i, ...)
+		if extra == 'resetFont' then
+			print'resetting font...'
+			resetFont(blobs.font[1]:getPtr())
+		end
+		if extra == 'resetPal' then
+			--print'!!! creating default palette blob !!!'
+			--resetPalette(bank)
+		end
 	end
 
 	timer('compiling/transpiling code', function()
