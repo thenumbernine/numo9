@@ -804,6 +804,11 @@ luajit run.lua -e "connect'<address>'"
 
 All my cartridge files are in `.png`. format.  If you want to distribute them as an image, just rename them from `.n9` to `.n9.png`.  To pack and unpack them use the `n9a.lua` script.
 
+To list the contents of a cartridge file:
+```
+luajit n9a.lua l cart.n9
+```
+
 To unpack a cartridge into a local directory with matching name:
 ```
 luajit n9a.lua x cart.n9
@@ -818,6 +823,11 @@ luajit n9a.lua a cart.n9
 To pack a cartridge and immediately run it:
 ```
 luajit n9a.lua r cart.n9
+```
+
+To unpack a single blob file from a cart.  The default destination will be `cart`/`blobfile`.
+```
+luajit n9a.lua xf cart.n9 blobfile [destfile]
 ```
 
 To convert a PNG-encoded cartridge to its binary ROM format:
