@@ -905,6 +905,8 @@ print'flipping'
 					setVtxEditPos()
 					calcSelVtxCOM()
 					self.undo:push()
+					local mouseULX, mouseULY = app.ram.mousePos:unpack()
+					local mouseX, mouseY = app:invTransform(mouseULX, mouseULY)
 					self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
 					self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
 					self.screenRotateAngle = quatd(0,0,1,0)	-- angle-axis
@@ -1010,7 +1012,7 @@ function EditMesh3D:resetSelection()
 	self.tileSel.selectedTriIndexSet = self.selectedTriIndexSet
 
 	self.mouseoverEdges = table()
-	self.mouseoverTri = {}
+	self.mouseoverTris = {}
 
 	self.axisFlags = {}
 	self.meshEditMode = nil			-- translate rotate scale
