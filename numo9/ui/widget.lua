@@ -45,6 +45,8 @@ function UIWidget:init(args)
 	self.children = table()
 	self.childrenInOrder = table()
 
+	self.visibility = 'visible'
+
 	--[[
 	events:
 		click = callback for triggering this button with click
@@ -116,6 +118,8 @@ end
 function UIWidget:drawRecurse(root)
 	-- store for later (onClick etc)
 	self.root = assert(root)
+
+	if self.visibility == 'hidden' then return end
 
 	local owner = self.owner
 	local app = owner.app
@@ -192,7 +196,9 @@ function UIWidget:update()
 	end
 
 	for _,ch in ipairs(self.childrenInOrder) do
-		ch:update()
+		if ch.visibility ~= 'hidden' then
+			ch:update()
+		end
 	end
 
 	if self.isMouseOver
@@ -339,7 +345,9 @@ end
 function UIWidget:event(sdlEvent)
 	-- ui events:
 	for _,ch in ipairs(self.childrenInOrder) do
-		if ch:event(sdlEvent) then return true end
+		if ch.visibility ~= 'hidden' then
+			if ch:event(sdlEvent) then return true end
+		end
 	end
 end
 

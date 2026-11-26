@@ -15,6 +15,7 @@ local Undo = require 'numo9.ui.undo'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 
+local UIWidget = require 'numo9.ui.widget'
 local UIBlobSelect = require 'numo9.ui.blobselect'
 local UIButton = require 'numo9.ui.button'
 local UISpinner = require 'numo9.ui.spinner'
@@ -33,6 +34,7 @@ local Voxel = numo9_rom.Voxel
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
+local BlobVoxelMap = assert.index(blobClassForName, 'voxelmap')
 
 
 local uint8_t = ffi.typeof'uint8_t'
@@ -171,6 +173,7 @@ function EditVoxelMap:init(args)
 	x = x + 6
 
 	do	-- if voxelmap then ... should I hide/show with valid voxelmap blob or nah?
+		--[[
 		self:addChild(UISpinner{
 			owner = self,
 			pos = {x, y},
@@ -254,6 +257,120 @@ function EditVoxelMap:init(args)
 			end,
 		})
 		x = x + 11
+		--]]
+		-- [[
+		self.resizePopup = UIWidget{
+			owner = self,
+			pos = {64,64},	-- TODO center
+			size = {100,40},
+			zIndex = -10,
+			-- TODO size autogen from children...
+		}
+		self.resizePopup.visibility = 'hidden'
+		self:addChild(self.resizePopup)
+		do
+			local UILabel = require 'numo9.ui.label'
+			local padding = 4
+			for row,name in ipairs{
+				'width',
+				'height',
+				'depth',
+			} do
+				local y = padding + (row-1) * 8
+				local x = padding
+				self.resizePopup:addChild(UILabel{
+					owner = self,
+					pos = {x,y},
+					text = name..':',
+				})
+				x=x+6*7
+				local sizeText, spinner, ofsText
+				spinner = UISpinner{
+					owner = self,
+					pos = {x,y},
+					setValue = function(dx)
+						local x = tonumber(sizeText.value) or 0
+						x = math.max(1, x + dx)
+						sizeText.value = tostring(x)
+					end,
+				}
+				self.resizePopup:addChild(spinner)
+				self.resizePopup[name..'Spinner'] = spinner
+				x=x+13
+				sizeText = UITextField{
+					owner = self,
+					pos = {x,y},
+					width = 12,
+				}
+				self.resizePopup:addChild(sizeText)
+				self.resizePopup[name..'Text'] = sizeText
+				x=x+20
+
+				ofsText = UITextField{
+					owner = self,
+					pos = {x,y},
+					width = 12,
+				}
+				self.resizePopup:addChild(ofsText)
+				self.resizePopup[name..'OfsText'] = ofsText
+				x=x+20
+			end
+			self.resizePopup:addChild(UIButton{
+				owner = self,
+				pos = {10, 4*8},
+				text = 'ok',
+				events = {
+					click = function(target, e)
+						e:stopPropagation()	-- don't fall thru to click on the screen
+
+						self.resizePopup.visibility = 'hidden'
+						--
+						local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+						assert(voxelmap, "wait how did you open this with no voxelmap selected?")
+						self:resizeVoxelmap(
+							math.max(1, tonumber(self.resizePopup.widthText.value) or 0),
+							math.max(1, tonumber(self.resizePopup.heightText.value) or 0),
+							math.max(1, tonumber(self.resizePopup.depthText.value) or 0),
+							tonumber(self.resizePopup.widthOfsText.value) or 0,
+							tonumber(self.resizePopup.heightOfsText.value) or 0,
+							tonumber(self.resizePopup.depthOfsText.value) or 0
+						)
+					end,
+				},
+			})
+			self.resizePopup:addChild(UIButton{
+				owner = self,
+				pos = {30, 4*8},
+				text = 'cancel',
+				events = {
+					click = function()
+						self.resizePopup.visibility = 'hidden'
+					end,
+				},
+			})
+		end
+
+		self:addChild(UIButton{
+			owner = self,
+			pos = {x, y},
+			text = 'R',
+			tooltip = 'resize...',
+			events = {
+				click = function()
+					local voxelmap = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+					if not voxelmap then return end
+					self.resizePopup.widthText.value = tostring(voxelmap:getWidth())
+					self.resizePopup.heightText.value = tostring(voxelmap:getHeight())
+					self.resizePopup.depthText.value = tostring(voxelmap:getDepth())
+					self.resizePopup.widthOfsText.value = '0'
+					self.resizePopup.heightOfsText.value = '0'
+					self.resizePopup.depthOfsText.value = '0'
+					self.resizePopup.visibility = 'visible'
+				end,
+			},
+		})
+		x = x + 6
+		--]]
 
 		self.voxCurSelTextField = UITextField{
 			owner = self,
@@ -396,6 +513,41 @@ function EditVoxelMap:init(args)
 				self.penSize = math.max(1, self.penSize + dx)
 			end,
 		})
+		x = x + 11 + 3
+
+		-- rotate orientation? or selection? orientation for now ...
+		for axis=0,2 do
+			for pm=-1,1,2 do
+				self:addChild(UIButton{
+					owner = self,
+					pos = {x, y},
+					text = assert.index({[-1]='<', [1]='>'}, pm),
+					tooltip = 'rotate '
+						..string.char(('x'):byte()+axis)
+						..assert.index({[-1]='-', [1]='+'}, pm),
+					events = {
+						click = function()
+							self.voxCurSel.orientation = BlobVoxelMap.orientationRotations[self.voxCurSel.orientation+1][axis+1][pm & 3]
+						end,
+					},
+				})
+				x = x + 6
+			end
+		end
+		for axis=0,2 do
+			self:addChild(UIButton{
+				owner = self,
+				pos = {x, y},
+				text = string.char(('x'):byte()+axis),
+				tooltip = 'scale '..string.char(('x'):byte()+axis),
+				events = {
+					click = function()
+						self.voxCurSel.orientation = BlobVoxelMap.orientationRotations[self.voxCurSel.orientation+1][axis+4][1]
+					end,
+				},
+			})
+			x = x + 6
+		end
 	end
 
 	require 'numo9.ui.addgetset'(self, {
@@ -1548,7 +1700,11 @@ function EditVoxelMap:pasteAtCenter(voxelmap, centerpos, sideIndex)
 	end
 end
 
-function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
+function EditVoxelMap:resizeVoxelmap(nx, ny, nz, dx, dy, dz)
+	dx = dx or 0
+	dy = dy or 0
+	dz = dz or 0
+
 	local app = self.app
 	local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 	if not voxelmap then return end
@@ -1564,14 +1720,17 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	for k=0,nz-1 do
 		for j=0,ny-1 do
 			for i=0,nx-1 do
-				if i < voxelmap:getWidth()
-				and j < voxelmap:getHeight()
-				and k < voxelmap:getDepth()
+				local srci = i - dx
+				local srcj = j - dy
+				local srck = k - dz
+				if srci >= 0 and srci < voxelmap:getWidth()
+				and srcj >= 0 and srcj < voxelmap:getHeight()
+				and srck >= 0 and srck < voxelmap:getDepth()
 				then
 					-- TODO or ffi.copy per-row to speed things up
 					o:emplace_back()[0] = voxelmap:getVoxelDataBlobPtr()[
-						i + voxelmap:getWidth() * (
-							j + voxelmap:getHeight() * k
+						srci + voxelmap:getWidth() * (
+							srcj + voxelmap:getHeight() * srck
 						)
 					].intval
 				else
@@ -1581,7 +1740,7 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 		end
 	end
 
-	self.app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(o:dataToStr())
+	self.app.blobs.voxelmap[self.voxelmapBlobIndex+1] = BlobVoxelMap(o:dataToStr())
 
 	self:updateBlobChanges()
 end
@@ -1590,7 +1749,7 @@ function EditVoxelMap:popUndo(redo)
 	local app = self.app
 	local entry = self.undo:pop(redo)
 	if not entry then return end
-	app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(entry.data)
+	app.blobs.voxelmap[self.voxelmapBlobIndex+1] = BlobVoxelMap(entry.data)
 	self:updateBlobChanges()
 end
 

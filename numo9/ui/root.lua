@@ -116,7 +116,7 @@ ch.childIndexInParent = i
 		end
 
 		if tooltip then
-			owner:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			owner:setTooltip(tooltip, mouseX + 12, mouseY - 12, 12, 6)
 		end
 	end
 end
