@@ -384,94 +384,97 @@ function BlobMesh3D:loadFromVertexAndIndexLists(vs, is)
 	return self.class(o:dataToStr())
 end
 
+local defaultCubeVertexes = table{
+	-- x-
+	{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+	{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+	{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+	{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
+	-- x+
+	{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+	{voxelVertexScale, voxelVertexScale, voxelVertexScale},
+	-- y-
+	{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+	{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+	-- y+
+	{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
+	{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, voxelVertexScale, voxelVertexScale},
+	-- z-
+	{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+	{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
+	{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
+	-- z+
+	{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+	{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
+	{voxelVertexScale, voxelVertexScale, voxelVertexScale},
+	{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
+}
+
+local defaultCubeTexCoords = table{
+	-- x-
+	{0, 16},
+	{16, 16},
+	{16, 0},
+	{0, 0},
+	-- x+
+	{16, 16},
+	{0, 16},
+	{0, 0},
+	{16, 0},
+	-- y-
+	{0, 0},
+	{0, 16},
+	{16, 16},
+	{16, 0},
+	-- y+
+	{16, 0},
+	{16, 16},
+	{0, 16},
+	{0, 0},
+	-- z-
+	{0, 0},
+	{0, 16},
+	{16, 16},
+	{16, 0},
+	-- z+
+	{0, 0},
+	{0, 16},
+	{16, 16},
+	{16, 0},
+}
+
+-- indexes are 0-based
+local defaultCubeIndexes = {
+	-- x-
+	0, 1, 2,
+	2, 3, 0,
+	-- x+
+	4, 7, 6,
+	6, 5, 4,
+	-- y-
+	8, 9, 10,
+	10, 11, 8,
+	-- y+
+	12, 15, 14,
+	14, 13, 12,
+	-- z-
+	16, 17, 18,
+	18, 19, 16,
+	-- z+
+	20, 23, 22,
+	22, 21, 20,
+}
+
 -- static method doesn't use self
 function BlobMesh3D.getDefaultCubeLists()
-	local vertexes = table{
-		-- x-
-		{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
-		{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
-		{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
-		{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
-		-- x+
-		{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
-		{voxelVertexScale, voxelVertexScale, voxelVertexScale},
-		-- y-
-		{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
-		{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
-		-- y+
-		{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
-		{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, voxelVertexScale, voxelVertexScale},
-		-- z-
-		{-voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
-		{-voxelVertexScale, voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, voxelVertexScale, -voxelVertexScale},
-		{voxelVertexScale, -voxelVertexScale, -voxelVertexScale},
-		-- z+
-		{-voxelVertexScale, -voxelVertexScale, voxelVertexScale},
-		{-voxelVertexScale, voxelVertexScale, voxelVertexScale},
-		{voxelVertexScale, voxelVertexScale, voxelVertexScale},
-		{voxelVertexScale, -voxelVertexScale, voxelVertexScale},
-	}
-	local texcoords = table{
-		-- x-
-		{0, 16},
-		{16, 16},
-		{16, 0},
-		{0, 0},
-		-- x+
-		{16, 16},
-		{0, 16},
-		{0, 0},
-		{16, 0},
-		-- y-
-		{0, 0},
-		{0, 16},
-		{16, 16},
-		{16, 0},
-		-- y+
-		{16, 0},
-		{16, 16},
-		{0, 16},
-		{0, 0},
-		-- z-
-		{0, 0},
-		{0, 16},
-		{16, 16},
-		{16, 0},
-		-- z+
-		{0, 0},
-		{0, 16},
-		{16, 16},
-		{16, 0},
-	}
-	-- 0-based list
-	local indexes = {
-		-- x-
-		0, 1, 2,
-		2, 3, 0,
-		-- x+
-		4, 7, 6,
-		6, 5, 4,
-		-- y-
-		8, 9, 10,
-		10, 11, 8,
-		-- y+
-		12, 15, 14,
-		14, 13, 12,
-		-- z-
-		16, 17, 18,
-		18, 19, 16,
-		-- z+
-		20, 23, 22,
-		22, 21, 20,
-	}
-	return vertexes, texcoords, indexes
+	return defaultCubeVertexes, defaultCubeTexCoords, defaultCubeIndexes
 end
 
 -- static method doesn't use self

@@ -98,26 +98,27 @@ I've included a free/hidden depth buffer (like TIC-80 does), so you get free z-s
 
 Carts are formed by a collection of binary blobs.
 
-Blobs can be of the types: `sheet, tilemap, palette, font, sfx, music, code, data, persist, brushmap, mesh3d, voxelmap, animsheet`.
+Blobs can be of the types: `sheet, tilemap, palette, font, sfx, music, code, data, persist, brushmap, mesh3d, voxelmap, animsheet, voxcolormap`.
 
 When archiving, multiple blobs of any type can be added to the cart via the archiver by adding an index after the filename.  If the first is `sheet.png` then subsequent would be `sheet1.png`, `sheet2.png`, etc.  Indexing must be sequential, the archiver will stop if there is a skip in the numbers.
 
 Archiver filenames per blobs as as follows:
 
-| blob type | filename        | unarchived file format                       |
-|-----------|-----------------|----------------------------------------------|
-| sheet     | sheet.png       | 256 x 256 x 8bpp-indexed                     |
-| tilemap   | tilemap.png     | 256 x 256 x RGB 8bpp (only 16bpp used)       |
-| font      | font.png        | 256 x 4 x 1bpp-indexed                       |
-| sfx       | sfx.wav         | 32khz int16 mono                             |
-| music     | music.bin       | 16bpp delta-compresesd custom tracker format |
-| code      | code.lua & src/ | code                                         |
-| data      | data.bin        | binary blob                                  |
-| persist   | persist.bin     | binary blob                                  |
-| brushmap  | brushmap.bin    | custom format                                |
-| mesh3d    | mesh3d.obj      | wavefront .obj                               |
-| voxelmap  | voxelmap.vox    | custom format                                |
-| animsheet | animsheet.png   | 1024 x 1 x RGB 8bpp (only 16bpp used)        |
+| blob type   | filename        | unarchived file format                       |
+|-------------|-----------------|----------------------------------------------|
+| sheet       | sheet.png       | 256 x 256 x 8bpp-indexed                     |
+| tilemap     | tilemap.png     | 256 x 256 x RGB 8bpp (only 16bpp used)       |
+| font        | font.png        | 256 x 4 x 1bpp-indexed                       |
+| sfx         | sfx.wav         | 32khz int16 mono                             |
+| music       | music.bin       | 16bpp delta-compresesd custom tracker format |
+| code        | code.lua & src/ | code                                         |
+| data        | data.bin        | binary blob                                  |
+| persist     | persist.bin     | binary blob                                  |
+| brushmap    | brushmap.bin    | custom format                                |
+| mesh3d      | mesh3d.obj      | wavefront .obj                               |
+| voxelmap    | voxelmap.vox    | custom format                                |
+| animsheet   | animsheet.png   | 1024 x 1 x RGB 8bpp (only 16bpp used)        |
+| voxcolormap | voxcolor.vox    | custom format                                |
 
 ## Blob Types:
 
@@ -349,6 +350,19 @@ pokew(animSheetAddr + (oldTileIndex << 1), newTileIndex)
 ```
 
 When rendering `tilemap()` with `tilemapIndexOffset`, the offset is applied before the animsheet table is used.
+
+### voxcolormap
+
+Like voxelmap but just draws cubes and just holds byte-value lookups into a palette of your choice.
+
+Format:
+```
+uint16_t width, height, depth;
+uint8_t colorIndexes[depth][height][width];
+```
+
+The value of 0 is used for empty irregardless of palette alpha flag.
+I could regenerate the mesh every single time you change palettes ... maybe I will later ... for now it's just 0 = empty.
 
 ## Mode7
 
@@ -629,6 +643,9 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `voxelmap(voxelmapIndex, [sheetIndex, paletteOffset])` =  draw voxelmap.
 - `vget(voxelmapIndex, x, y, z)` = read a uint32 value from the voxel map.
 - `vset(voxelmapIndex, x, y, z, value)` = write a uint32 value to the voxel map.
+- `voxcolormap(voxColorMapIndex, [paletteIndex, paletteOffset])` =  draw voxelmap.
+- `cget(voxelmapIndex, x, y, z)` = read a uint8 value from the voxcolor map.
+- `cset(voxelmapIndex, x, y, z, value)` = write a uint8 value to the voxcolor map.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.

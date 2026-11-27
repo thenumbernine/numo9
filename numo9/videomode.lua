@@ -130,6 +130,7 @@ local class = require 'ext.class'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
 local vec3f = require 'vec-ffi.vec3f'
+local vec4us = require 'vec-ffi.vec4us'
 local vec4f = require 'vec-ffi.vec4f'
 local vec4i = require 'vec-ffi.vec4i'
 local vec4x4fcol = require 'vec-ffi.vec4x4fcol'
@@ -155,11 +156,6 @@ local maxLights = numo9_rom.maxLights
 
 local uint8_t_p = ffi.typeof'uint8_t*'
 
-
-local vec2f = require 'vec-ffi.vec2f'
-local vec3f = require 'vec-ffi.vec3f'
-local vec4f = require 'vec-ffi.vec4f'
-local vec4us = require 'vec-ffi.vec4us'
 
 local struct = require 'struct'
 local Numo9Vertex = struct{

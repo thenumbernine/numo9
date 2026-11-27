@@ -39,6 +39,7 @@ local blobClassNameForType = table{
 	'mesh3d', 	-- ... but what format?  xyzuv triangles ... and indexes or nah, since the video API doesn't care anyways?  or at least for compression's sake?
 	'voxelmap', -- = voxel-map of models from some lookup table
 	'animsheet',	-- 1024-count uint16_t array that maps sheet indexes to sheet indexes, used for animating textures
+	'voxcolormap',	-- = voxel-map of rgb colors from whichever palette is associated with it.
 }
 
 -- maps from name to class
@@ -223,10 +224,10 @@ function AppBlobs:initBlobs()
 	do	-- default sheet - put a solid block at tile location 1
 		self.blobs.sheet:insert(blobClassForName.sheet():setDefault())
 	end
-	do	-- default mesh:
+	do	-- default mesh ... TODO nah, create on '+' but dont store a default.
 		self.blobs.mesh3d:insert(blobClassForName.mesh3d.generateDefaultCube())
 	end
-	do	-- default voxelmap:
+	do	-- default voxelmap ... TODO same nah.
 		local vector = require 'stl.vector-lua'
 		local vec3i = require 'vec-ffi.vec3i'
 

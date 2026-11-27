@@ -25,8 +25,6 @@ local UIRadio = require 'numo9.ui.radio'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
-local tileSizeInBits = numo9_rom.tileSizeInBits
-local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local matArrType = numo9_rom.matArrType

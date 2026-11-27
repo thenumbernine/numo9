@@ -405,6 +405,32 @@ function App:initGL()
 			if not addr then return end
 			self:net_pokel(addr, value)
 		end,
+		voxcolormap = function(...)
+			return self:drawVoxColorMap(...)
+		end,
+		cget = function(voxColorMapIndex, x, y, z)
+			-- still wrappign with tonumber() because i'm using it as Lua table indexes and because I'm passing it into api functions
+			voxColorMapIndex = tonumber(toint(voxColorMapIndex))
+			x = tonumber(toint(x))
+			y = tonumber(toint(y))
+			z = tonumber(toint(z))
+			local voxcolormap = self.blobs.voxcolormap[(tonumber(voxColorMapIndex) or 0)+1]
+			if not voxcolormap then return voxelMapEmptyValue end
+			local addr = voxcolormap:getVoxelAddr(x,y,z)
+			if not addr then return voxelMapEmptyValue end
+			return self:peek(addr)
+		end,
+		cset = function(voxColorMapIndex, x, y, z, value)
+			voxColorMapIndex = tonumber(toint(voxColorMapIndex))
+			x = tonumber(toint(x))
+			y = tonumber(toint(y))
+			z = tonumber(toint(z))
+			local voxcolormap = self.blobs.voxcolormap[voxColorMapIndex+1]
+			if not voxcolormap then return end
+			local addr = voxcolormap:getVoxelAddr(x,y,z)
+			if not addr then return end
+			self:net_poke(addr, value)
+		end,
 
 		-- graphics
 
@@ -1209,6 +1235,7 @@ print('package.loaded', package.loaded)
 	local EditBrushmap = require 'numo9.edit.brushmap'
 	local EditMesh3D = require 'numo9.edit.mesh3d'
 	local EditVoxelmap = require 'numo9.edit.voxelmap'
+	local EditVoxColorMap = require 'numo9.edit.voxcolormap'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 	local CartBrowser = require 'numo9.cartbrowser'
@@ -1231,6 +1258,7 @@ print('package.loaded', package.loaded)
 	self.editBrushmap = EditBrushmap{app=self}
 	self.editMesh3D = EditMesh3D{app=self}
 	self.editVoxelmap = EditVoxelmap{app=self}
+	self.editVoxColorMap = EditVoxColorMap{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
 	self.cartBrowser = CartBrowser{app=self}
@@ -2692,6 +2720,8 @@ local postPokeCode = template([=[
 					end
 				end
 				if mesh3DTouched then
+					-- TODO track what meshes are used by what voxels
+					-- and only dirty which ones use the mesh that was touched
 					for _,voxelmap in ipairs(self.blobs.voxelmap) do
 						voxelmap.dirtyCPU = true
 						for _,chunk in pairs(voxelmap.chunks) do
@@ -2716,6 +2746,13 @@ local postPokeCode = template([=[
 				and addr < blob.ramgpu.addrEnd
 				then
 					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			for _,voxcolormap in ipairs(self.blobs.voxcolormap) do
+				if addrend >= voxcolormap.addr
+				and addr < voxcolormap.addrEnd
+				then
+					voxcolormap:onTouchRAM(addr, addrend, self)
 				end
 			end
 			do

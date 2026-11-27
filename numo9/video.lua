@@ -143,6 +143,61 @@ local function argb8888revto5551(rgba)
 	return rgba8888_4ch_to_5551(r,g,b,a)
 end
 
+
+local function mat4x4mul(m, x, y, z, w)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z) or 0
+	w = tonumber(w) or 1
+	return
+		m[0] * x + m[4] * y + m[ 8] * z + m[12] * w,
+		m[1] * x + m[5] * y + m[ 9] * z + m[13] * w,
+		m[2] * x + m[6] * y + m[10] * z + m[14] * w,
+		m[3] * x + m[7] * y + m[11] * z + m[15] * w
+end
+
+-- this function is only used with drawing lines at the moment...
+local function homogeneous(x,y,z,w)
+	if w > 0 then
+		local iw = 1 / w
+		x = x * iw
+		y = y * iw
+		z = z * iw
+	end
+	return x,y,z,1
+end
+
+-- like mat4x4mul but it doesn't calc / return w, only x y z
+local function vec3to3(m, x, y, z)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z)
+	return
+		m[0] * x + m[4] * y + m[ 8] * z + m[12],
+		m[1] * x + m[5] * y + m[ 9] * z + m[13],
+		m[2] * x + m[6] * y + m[10] * z + m[14]
+end
+
+-- same but with w=0
+local function vecdir3to3(m, x, y, z)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z)
+	return
+		m[0] * x + m[4] * y + m[ 8] * z,
+		m[1] * x + m[5] * y + m[ 9] * z,
+		m[2] * x + m[6] * y + m[10] * z
+end
+
+local function shiftDownAndRoundUp(x, bits)
+	local y = x >> bits
+	local mask = (1 << bits) - 1
+	if x & mask ~= 0 then y = y + 1 end
+	return y
+end
+
+
+
 -- upon boot, upload the logo to the whole sheet
 local function resetLogoOnSheet(spriteSheetPtr)
 	spriteSheetPtr = ffi.cast(uint8_t_p, spriteSheetPtr)
@@ -1963,29 +2018,6 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
-local function mat4x4mul(m, x, y, z, w)
-	x = tonumber(x)
-	y = tonumber(y)
-	z = tonumber(z) or 0
-	w = tonumber(w) or 1
-	return
-		m[0] * x + m[4] * y + m[ 8] * z + m[12] * w,
-		m[1] * x + m[5] * y + m[ 9] * z + m[13] * w,
-		m[2] * x + m[6] * y + m[10] * z + m[14] * w,
-		m[3] * x + m[7] * y + m[11] * z + m[15] * w
-end
-
--- this function is only used with drawing lines at the moment...
-local function homogeneous(x,y,z,w)
-	if w > 0 then
-		local iw = 1 / w
-		x = x * iw
-		y = y * iw
-		z = z * iw
-	end
-	return x,y,z,1
-end
-
 -- transform from world coords to screen coords (including projection, including homogeneous transform, including screen-space coordinates)
 -- Mats point to float[16] ... hmm or should they point to vec4x4fcol?
 function AppVideo:transform(x,y,z,w)
@@ -3771,6 +3803,62 @@ function AppVideo:drawVoxelMap(
 	end
 end
 
+function AppVideo:drawVoxColorMap(
+	voxColorMapIndex,
+	paletteBlobIndex,
+	paletteOffset
+)
+	voxColorMapIndex = voxColorMapIndex or 0
+	paletteBlobIndex = paletteBlobIndex or self.ram.paletteBlobIndex
+	local voxColorMap = self.blobs.voxcolormap[voxColorMapIndex+1]
+	if not voxColorMap then
+--DEBUG:print('failed to find voxColorMap', voxColorMapIndex)
+		return
+	end
+
+	paletteOffset = paletteOffset or 0
+
+	local paletteBlob = self.blobs.palette[1+paletteBlobIndex]
+	if not paletteBlob then
+		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+	end
+	local paletteRAM = paletteBlob.ramgpu
+	if paletteRAM.dirtyCPU then
+		self:triBuf_flush()
+		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
+
+	local sheetTex = self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex
+	local tilemapTex = self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+	local animSheetTex = self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex	-- same
+
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyCPU then
+		self:triBuf_flush()
+		framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	end
+
+	voxColorMap:rebuildMesh(self)
+
+	-- draw using blob/voxelmap's own GPU buffer
+	-- ... never seems to go that fast
+	self:triBuf_flush()
+
+	self:setPaletteOffset(paletteOffset)
+	self:setTransparentIndex(-1)	--- TODO add this to voxcolormap() or just move all these to RAM and remove them from all draw API calls?
+	self:setSpriteBit(0)
+	self:setSpriteMask(0xff)
+
+	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)	-- make sure textures are set
+	voxColorMap:drawMesh(self, paletteOffset)
+
+	framebufferRAM.dirtyGPU = true
+	framebufferRAM.changedSinceDraw = true
+end
+
+
+
 AppVideo.lightDebugDraw = 0
 
 local identProjMat = vec4x4fcol()
@@ -4243,6 +4331,9 @@ return {
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgb888_3ch = rgb565rev_to_rgb888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
+	vec3to3 = vec3to3,
+	vecdir3to3 = vecdir3to3,
+	shiftDownAndRoundUp = shiftDownAndRoundUp,
 	resetLogoOnSheet = resetLogoOnSheet,
 	resetFont = resetFont,
 	resetPalette = resetPalette,

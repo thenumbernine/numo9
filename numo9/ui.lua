@@ -55,6 +55,7 @@ UI.editModes = table{
 	'brushmap',
 	'mesh3d',
 	'voxelmap',
+	'voxcolormap',
 }
 
 -- app fields for each editor for each blob type
@@ -68,6 +69,7 @@ UI.editFieldForMode = {
 	brushmap = 'editBrushmap',
 	mesh3d = 'editMesh3D',
 	voxelmap = 'editVoxelmap',
+	voxcolormap = 'editVoxColorMap',
 }
 
 

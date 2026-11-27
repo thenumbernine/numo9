@@ -63,6 +63,7 @@ local BlobSFX = blobClassForName.sfx
 -- special hack for n9a, tell the blob classes to skip GPU resource allocation
 -- why?  no problem in Linux or OSX, but in Windows it will poop itself if you try to touch OpenGL before GL context initialization
 require 'numo9.blob.voxelmap'.skipGPU = true
+require 'numo9.blob.voxcolormap'.skipGPU = true
 
 
 

@@ -638,6 +638,10 @@ local voxelMapEmptyValue = 0xffffffff
 local voxelmapSizeType = uint32_t	-- type for the header's size xyz
 local voxelVertexScale = 8192		-- scale from mesh coords [-8192,8192] to voxel coords [-.5, .5] (before translation)
 
+local VoxColor = uint8_t
+local voxColorMapEmptyValue = 0
+local voxColorMapSizeType = uint16_t
+
 return {
 	version = version,
 	versionStr = versionStr,
@@ -724,4 +728,8 @@ return {
 	animSheetSize = animSheetSize,
 
 	maxLights = maxLights,
+
+	VoxColor = VoxColor,
+	voxColorMapEmptyValue = voxColorMapEmptyValue,
+	voxColorMapSizeType = voxColorMapSizeType,
 }

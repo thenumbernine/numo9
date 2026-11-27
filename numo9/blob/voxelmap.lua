@@ -9,7 +9,6 @@ local vec3f = require 'vec-ffi.vec3f'
 local vec4us = require 'vec-ffi.vec4us'
 local vec4x4fcol = require 'vec-ffi.vec4x4fcol'
 local gl = require 'gl'
-local glglobal = require 'gl.global'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLVertexArray = require 'gl.vertexarray'
 local GLAttribute = require 'gl.attribute'
@@ -29,35 +28,15 @@ local voxelVertexScale_x2_inv = 1 / voxelVertexScale_x2
 
 local numo9_video = require 'numo9.video'
 local Numo9Vertex = numo9_video.Numo9Vertex
+local vec3to3 = numo9_video.vec3to3
+local vecdir3to3 = numo9_video.vecdir3to3
+local shiftDownAndRoundUp = numo9_video.shiftDownAndRoundUp
 
 
 local uint8_t_p = ffi.typeof'uint8_t*'
 local int32_t = ffi.typeof'int32_t'
 local Voxel_p = ffi.typeof('$*', Voxel)
 
-
--- also in numo9/video.lua
--- but it doesn't calc / return w, only x y z
-local function vec3to3(m, x, y, z)
-	x = tonumber(x)
-	y = tonumber(y)
-	z = tonumber(z)
-	return
-		m[0] * x + m[4] * y + m[ 8] * z + m[12],
-		m[1] * x + m[5] * y + m[ 9] * z + m[13],
-		m[2] * x + m[6] * y + m[10] * z + m[14]
-end
-
--- same but with w=0
-local function vecdir3to3(m, x, y, z)
-	x = tonumber(x)
-	y = tonumber(y)
-	z = tonumber(z)
-	return
-		m[0] * x + m[4] * y + m[ 8] * z,
-		m[1] * x + m[5] * y + m[ 9] * z,
-		m[2] * x + m[6] * y + m[10] * z
-end
 
 -- orientation rotations for the upper 6 rotation bits of the voxel
 -- the first 3 axis are for rotations, and have 3 entries for each 90 degree rotation
@@ -214,14 +193,6 @@ local orientationMul = {
 }
 
 
-local function shiftDownAndRoundUp(x, bits)
-	local y = x >> bits
-	local mask = (1 << bits) - 1
-	if x & mask ~= 0 then y = y + 1 end
-	return y
-end
-
-
 -- Chunk needs to see BlobVoxelMap
 local BlobVoxelMap
 
@@ -236,8 +207,8 @@ Chunk.volume = Chunk.size:volume()	-- same as 1 << bitsize:sum() (if i had a :su
 local VoxelChunkVolumeArr = ffi.typeof('$['..Chunk.volume..']', Voxel)
 
 function Chunk:init(args)
-	local voxelmap = assert(args.voxelmap)
-	self.voxelmap = voxelmap
+	local owner = assert(args.owner)
+	self.owner = owner
 
 	-- chunk position, in Chunk.size units
 	self.chunkPos = vec3i((assert.index(args, 'chunkPos')))
@@ -283,13 +254,13 @@ function Chunk:rebuildMesh(app)
 	local drawFlags = 1	-- bits 0/1 == 01b <=> use sprite pathway:
 	local extra = vec4us(drawFlags, 0, 0, 0)
 
-	local voxelmapSize = self.voxelmap:getVoxelSize()
+	local voxelmapSize = self.owner:getVoxelSize()
 
 	-- which to build this off of?
 	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
 	-- but that means it wont be present upon init() ...
 	local mp = tmpMat.ptr
-	local voxels = assert(self.voxelmap:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
+	local voxels = assert(self.owner:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
 	local occludedCount = 0
 
 	local normal = vec3f()
@@ -679,7 +650,7 @@ function BlobVoxelMap:init(data)
 			for cj=0,self.sizeInChunks.y-1 do
 				for ci=0,self.sizeInChunks.x-1 do
 					local chunk = Chunk{
-						voxelmap = self,
+						owner = self,
 						chunkPos = vec3i(ci,cj,ck),
 					}
 					self.chunks[chunkIndex] = chunk
