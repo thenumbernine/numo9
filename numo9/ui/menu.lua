@@ -9,6 +9,8 @@ UIMenu.tag = 'menu'
 function UIMenu:init(args)
 	UIMenu.super.init(self, args)
 
+	self.size.y = spriteSize.y
+	self.overflow = 'hidden'
 	self.popupOpen = false
 end
 
@@ -20,7 +22,6 @@ function UIMenu:update(...)
 
 	local function stretch(ch)
 		self.ssbbox:stretch(ch.ssbbox)
-
 		self.size.x = math.max(self.size.x, ch.pos.x + ch.size.x)
 		self.size.y = math.max(self.size.y, ch.pos.y + ch.size.y)
 	end
@@ -34,6 +35,8 @@ function UIMenu:update(...)
 			stretch(self.children[i])
 		end
 	end
+
+	print('UIMenu bbox', self.ssbbox, 'size', self.size)
 end
 
 function UIMenu:onMouseOver(...)
@@ -73,7 +76,7 @@ function UIMenu:updatePopup()
 		end
 	end
 
-	self.size.y = (self.popupOpen and 2 or 1) * spriteSize.y
+	self.size.y = (self.popupOpen and #self.children or 1) * spriteSize.y
 	self.zIndex = self.popupOpen and 1 or 0
 
 	-- TODO overflow:hidden
