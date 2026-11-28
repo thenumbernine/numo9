@@ -1465,11 +1465,12 @@ function EditVoxelMap:update()
 			app.ram.cullFace = pushCullFace
 			app:onCullFaceChange()
 		end
-		if app.ram.HD2DFlags ~= pushHD2DFlags then
-			app.ram.HD2DFlags = pushHD2DFlags
-			app:onHD2DFlagsChange()
-
+		if self.menuUseLighting then
 			app:flushToFinalRGB(true)
+			if app.ram.HD2DFlags ~= pushHD2DFlags then
+				app.ram.HD2DFlags = pushHD2DFlags
+				app:onHD2DFlagsChange()
+			end
 		end
 
 		orbit:endDraw()

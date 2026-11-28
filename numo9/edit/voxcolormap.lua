@@ -450,14 +450,14 @@ function EditVoxelMap:updateVoxCurSel()
 end
 
 function EditVoxelMap:onCartLoad()
-	self.menuUseLighting = false
-	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.voxColorMapBlobIndex = 0
 	self.paletteBlobIndex = 0
 
 	self.moveSpeed = .3
 
 	self.drawMode = 'draw'
+	self.menuUseLighting = false
+	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.rectDown = nil
 	self.rectUp = nil
 	self.penSize = 1
@@ -1085,11 +1085,12 @@ function EditVoxelMap:update()
 			app.ram.cullFace = pushCullFace
 			app:onCullFaceChange()
 		end
-		if app.ram.HD2DFlags ~= pushHD2DFlags then
-			app.ram.HD2DFlags = pushHD2DFlags
-			app:onHD2DFlagsChange()
-
+		if self.menuUseLighting then
 			app:flushToFinalRGB(true)
+			if app.ram.HD2DFlags ~= pushHD2DFlags then
+				app.ram.HD2DFlags = pushHD2DFlags
+				app:onHD2DFlagsChange()
+			end
 		end
 
 		orbit:endDraw()

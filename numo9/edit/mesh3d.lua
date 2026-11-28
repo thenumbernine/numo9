@@ -179,6 +179,19 @@ function EditMesh3D:init(args)
 	self:addChild(UIButton{
 		owner = self,
 		pos = {x, y},
+		text = 'L',
+		tooltip = function() return 'light='..tostring(self.menuUseLighting) end,
+		events = {
+			click = function()
+				self.menuUseLighting = not self.menuUseLighting
+			end,
+		},
+	})
+	x = x + 6
+
+	self:addChild(UIButton{
+		owner = self,
+		pos = {x, y},
 		text = 'C',
 		tooltip = function()
 			return 'cull='..self.menuUseCullFace
@@ -994,6 +1007,7 @@ function EditMesh3D:onCartLoad()
 
 	self.drawFaces = true
 	self.wireframe = true
+	self.menuUseLighting = false
 	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.drawNormals = false
 	self.editTexCoords = false
@@ -1220,22 +1234,14 @@ function EditMesh3D:update()
 	local shift = app:key'lshift' or app:key'rshift'
 
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
-	local numVtxs
-	local numIndexes
-	local vtxs
-	local inds
+	local numVtxs, numIndexes, vtxs, inds
 
-
+	local tileSelHandled = self.tileSel:doPopup()
 
 	if mesh3DBlob then
 		numVtxs = mesh3DBlob:getNumVertexes()
 		vtxs = mesh3DBlob:getVertexPtr()
 		inds = mesh3DBlob:getIndexPtr()
-	end
-
-
-	local tileSelHandled = self.tileSel:doPopup()
-	if mesh3DBlob then
 
 		if not tileSelHandled then
 			handled = orbit:beginDraw() or handled
@@ -1311,6 +1317,12 @@ function EditMesh3D:update()
 			end
 
 
+			local pushHD2DFlags = app.ram.HD2DFlags
+			app.ram.HD2DFlags = self.menuUseLighting and 0xff or 0
+			if app.ram.HD2DFlags ~= pushHD2DFlags then
+				app:onHD2DFlagsChange()
+			end
+
 			local pushCullFace = app.ram.cullFace
 			app.ram.cullFace = self.menuUseCullFace
 			if app.ram.cullFace ~= pushCullFace then
@@ -1333,6 +1345,13 @@ function EditMesh3D:update()
 			if app.ram.cullFace ~= pushCullFace then
 				app.ram.cullFace = pushCullFace
 				app:onCullFaceChange()
+			end
+			if self.menuUseLighting then
+				app:flushToFinalRGB(true)
+				if app.ram.HD2DFlags ~= pushHD2DFlags then
+					app.ram.HD2DFlags = pushHD2DFlags
+					app:onHD2DFlagsChange()
+				end
 			end
 
 			-- from here on, no depth mask, since it is all mesh highlights
