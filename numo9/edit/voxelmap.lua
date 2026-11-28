@@ -88,6 +88,7 @@ function EditVoxelMap:init(args)
 	self.voxelmapBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
+		width = 18,		-- forwarded to its textfield
 		blobName = 'voxelmap',
 		valueTable = self,
 		valueKey = 'voxelmapBlobIndex',
@@ -96,11 +97,12 @@ function EditVoxelMap:init(args)
 		end,
 	}
 	self:addChild(self.voxelmapBlobSelect)
-	x = x + 11
+	x = x + 19
 
 	self.sheetBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
+		width = 18,		-- forwarded to its textfield
 		blobName = 'sheet',
 		valueTable = self,
 		valueKey = 'sheetBlobIndex',
@@ -109,11 +111,12 @@ function EditVoxelMap:init(args)
 		end,
 	}
 	self:addChild(self.sheetBlobSelect)
-	x = x + 11
+	x = x + 19
 
 	self.paletteBlobSelect = UIBlobSelect{
 		owner = self,
 		pos = {x, y},
+		width = 18,		-- forwarded to its textfield
 		blobName = 'palette',
 		valueTable = self,
 		valueKey = 'paletteBlobIndex',
@@ -122,7 +125,7 @@ function EditVoxelMap:init(args)
 		end,
 	}
 	self:addChild(self.paletteBlobSelect)
-	x = x + 11
+	x = x + 19
 
 	-- it's a checkbox but I want the events to fire in order...
 	-- TODO text input also for just the mesh portion? or handle it in the voxel index?
@@ -373,7 +376,7 @@ function EditVoxelMap:init(args)
 		self.voxCurSelTextField = UITextField{
 			owner = self,
 			pos = {189, 0},
-			width = 20,
+			width = 40,
 			--value = ('%08X'):format(self.voxCurSel.intval),
 			events = {
 				focus = function(target, e)

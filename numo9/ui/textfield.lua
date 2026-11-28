@@ -1,4 +1,5 @@
 local assert = require 'ext.assert'
+local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
 
 local numo9_rom = require 'numo9.rom'
@@ -56,7 +57,7 @@ function UITextField:onKeyDown(e)
 	local shift = app:key'lshift' or app:key'rshift'
 
 	if keycode == keyCodeForName.backspace then
-		self.value = self.value:sub(1, self.textFieldCursorLoc - 1) .. self.value:sub(self.textFieldCursorLoc+1)
+		self.value = self.value:sub(1, math.max(0, self.textFieldCursorLoc - 1)) .. self.value:sub(math.max(0, self.textFieldCursorLoc+1))
 		self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
 
 		self:triggerEvents('input', false, e)
@@ -66,7 +67,7 @@ function UITextField:onKeyDown(e)
 		self.root:setFocusWidget(self.root)
 	elseif ch then
 		self.value = self.value:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. self.value:sub(self.textFieldCursorLoc+1)
-		self.textFieldCursorLoc = math.min(#self.value, self.textFieldCursorLoc + 1)
+		self.textFieldCursorLoc = math.clamp(#self.value, 0, self.textFieldCursorLoc + 1)
 
 		self:triggerEvents('input', false, e)
 	end

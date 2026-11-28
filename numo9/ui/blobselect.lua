@@ -1,6 +1,5 @@
 local assert = require 'ext.assert'
 local math = require 'ext.math'
-local vec2d = require 'vec-ffi.vec2d'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -48,8 +47,8 @@ function UIBlobSelect:init(args)
 
 	self.textfield = UITextField{
 		owner = self.owner,
-		pos = vec2d(0, 0),
-		width = 12,
+		pos = {0, 0},
+		width = args.width or 12,
 		-- TODO update when the value key changes
 		value = tostring(self.valueTable[valueKey]),
 		tooltip = blobName,
@@ -66,7 +65,7 @@ function UIBlobSelect:init(args)
 
 	self.spinner = UISpinner{
 		owner = self.owner,
-		pos = vec2d(2, 10),
+		pos = {2, 10},
 		setValue = function(dx)
 			doSetValue(valueTable[valueKey] + dx)
 		end,
@@ -75,7 +74,7 @@ function UIBlobSelect:init(args)
 
 	self.addButton = UIButton{
 		owner = self.owner,
-		pos = vec2d(14, 10),
+		pos = {14, 10},
 		text = '+',
 		events = {
 			click = function(target, e)
@@ -99,7 +98,7 @@ function UIBlobSelect:init(args)
 
 	self.delButton = UIButton{
 		owner = self.owner,
-		pos = vec2d(19, 10),
+		pos = {19, 10},
 		text = '-',
 		isset = function()
 			local blobsOfType = app.blobs[blobName]
