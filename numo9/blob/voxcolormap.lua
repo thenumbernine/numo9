@@ -348,7 +348,7 @@ uint8_t data[width*height*depth];
 BlobVoxColorMap = Blob:subclass()
 
 BlobVoxColorMap.filenamePrefix = 'voxcolormap'
-BlobVoxColorMap.filenameSuffix = '.vox'
+BlobVoxColorMap.filenameSuffix = '.voxc'
 
 function BlobVoxColorMap:init(data)
 	self.vec = vector(VoxColor)
