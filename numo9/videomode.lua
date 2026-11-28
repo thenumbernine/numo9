@@ -615,7 +615,8 @@ if (debugDraw == 2) {
 		fragColor = vec4(lightAmbientColor.xyz, 1.);
 
 		for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
-			if (0 == lights[lightIndex].enabled) continue;
+			int lightEnabled = lights[lightIndex].enabled;
+			if (0 == (lightEnabled & <?=~1?>)) continue;
 
 			// this has to be calc'd here instead of in lightUpdateCalcs
 			// so that I can determine if the light is shining on the front or back face
@@ -625,9 +626,10 @@ if (debugDraw == 2) {
 			float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
 
 			// see if we are testing front or back only
-			if ((lights[lightIndex].enabled & 6) == <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_FRONT?>) {
+			int lightFrontBack = lightEnabled & <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_FRONT | ffi.C.LIGHT_ENABLED_UPDATE_CALCS_BACK?>;
+			if (lightFrontBack == <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_FRONT?>) {
 				if (cosNormalToLightAngle < 0.) continue;
-			} else if ((lights[lightIndex].enabled & 6) == <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_BACK?>) {
+			} else if (lightFrontBack == <?=ffi.C.LIGHT_ENABLED_UPDATE_CALCS_BACK?>) {
 				if (cosNormalToLightAngle > 0.) continue;
 			}
 
@@ -641,7 +643,7 @@ if (debugDraw == 2) {
 					&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
 				)) {
 					// flag for light-on-clip vs shadow-on-clip
-					if (0 == (lights[lightIndex].enabled & <?=ffi.C.LIGHT_ENABLED_OUTSIDE_CLIP?>)) {
+					if (0 == (lightEnabled & <?=ffi.C.LIGHT_ENABLED_OUTSIDE_CLIP?>)) {
 						continue;
 					}
 					// otherwise ... oob lightmap, skip the shadow depth testing
