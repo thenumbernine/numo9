@@ -1002,7 +1002,6 @@ function EditVoxelMap:update()
 							end
 
 							if app:keyp'mouse_left' then
-								print('surfaceFill with sideIndex', sideIndex)
 								-- figure out what side of the cube we're on ...
 								-- try to get the surface normal pointing back at the player, i.e. prev cube minus next cube pos
 								-- needs to know what side you clicked on
