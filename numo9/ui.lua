@@ -393,7 +393,8 @@ function UI:newUI_setup()
 	self.menuTabCounter = 0
 	self.widgetForTabIndex = {}
 
-	self.uiRoot = require 'numo9.ui.root'{
+	local UIRoot = require 'numo9.ui.root'
+	self.uiRoot = UIRoot{
 		owner = self,
 	}
 end

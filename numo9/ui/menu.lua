@@ -20,6 +20,7 @@ function UIMenu:update(...)
 	self.size:set(0,0)
 	self.ssbbox:empty()
 
+	-- also in UIBlobSelect
 	local function stretch(ch)
 		self.ssbbox:stretch(ch.ssbbox)
 		self.size.x = math.max(self.size.x, ch.pos.x + ch.size.x)
@@ -35,8 +36,6 @@ function UIMenu:update(...)
 			stretch(self.children[i])
 		end
 	end
-
-	print('UIMenu bbox', self.ssbbox, 'size', self.size)
 end
 
 function UIMenu:onMouseOver(...)

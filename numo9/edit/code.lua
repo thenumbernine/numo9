@@ -87,7 +87,7 @@ function EditCode:update()
 	self:newUI_realignChildren()
 
 	-- but not for text area ...
-	self.uiTextArea.pos.x = 0
+	self.uiTextArea.pos:set(0, spriteSize.y)
 	self.uiTextArea.size:set(self.uiTextArea.parent.size)
 	self.uiTextArea.size.y = self.uiTextArea.size.y - spriteSize.y
 

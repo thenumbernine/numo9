@@ -16,6 +16,7 @@ function CartBrowser:init(...)
 	CartBrowser.super.init(self, ...)
 
 	self:newUI_setup()
+	self.uiRoot.overflow = 'scroll'
 end
 
 function CartBrowser:gainFocus(...)

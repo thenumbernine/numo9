@@ -327,7 +327,9 @@ function UIRoot:setFocusWidget(widget, ...)
 
 	self.activeElement = widget
 
-	if self.activeElement then
+	if self.activeElement
+	and self.overflow == 'scroll'
+	then
 		-- see if widget's screen-space is out of bounds
 		-- if so, scroll parent so it is in bounds
 		-- TODO consider scale?
