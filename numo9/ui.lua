@@ -34,6 +34,8 @@ local minBlobPerType = numo9_blobs.minBlobPerType
 local UIEvent = require 'numo9.ui.event'
 local UIRadio = require 'numo9.ui.radio'
 local UIButton = require 'numo9.ui.button'
+local UILabel = require 'numo9.ui.label'
+local UIMenu = require 'numo9.ui.menu'
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -426,6 +428,7 @@ function UI:newUI_addEditTabs()
 	end
 	--]]
 
+	--[=[ radio
 	self:addChild(UIRadio{
 		owner = self,
 		pos = {0, 0},
@@ -440,6 +443,34 @@ function UI:newUI_addEditTabs()
 			end
 		end,
 	})
+	--]=]
+	-- [[ menu
+	local editMenu = UIMenu{
+		owner = self,
+		pos = {0, 0},
+	}
+	self:addChild(editMenu)
+	editMenu:addChild(UILabel{
+		owner = self,
+		pos = {0,0},
+		text = 'edit',
+	})
+	for i,editMode in ipairs(UI.editModes) do
+		editMenu:addChild(UIButton{
+			owner = self,
+			pos = {0, spriteSize.y*i},
+			text = editMode,
+			events = {
+				click = function()
+					app.editMode = editMode
+					if UI.editFieldForMode[editMode] then
+						app:setMenu(app[UI.editFieldForMode[editMode]])
+					end
+				end,
+			},
+		})
+	end
+	--]]
 
 	-- TODO current blob vs editing ROM vs editing RAM ...
 	local x = 230
